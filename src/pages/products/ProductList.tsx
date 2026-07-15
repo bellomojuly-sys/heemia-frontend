@@ -1,0 +1,119 @@
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { PageHeader } from '../../components/ui/PageHeader'
+import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
+import { Toolbar } from '../../components/ui/Toolbar'
+import { ImagePlaceholder } from '../../components/ui/ImagePlaceholder'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { StatusBadge } from '../../lib/statusBadge'
+import { stageLabel } from '../../lib/production'
+import { formatCurrency, formatPercent } from '../../lib/format'
+import { products, productVariants, margins } from '../../mock'
+import { PRODUCT_STAGES, type Product } from '../../types'
+import { useRole } from '../../context/RoleContext'
+import { canEdit } from '../../lib/permissions'
+
+export function ProductList() {
+  const navigate = useNavigate()
+  const { role } = useRole()
+  const [search, setSearch] = useState('')
+  const [stato, setStato] = useState('')
+  const [linea, setLinea] = useState('')
+
+  const rows = useMemo(() => {
+    return products.filter((p) => {
+      if (search && !`${p.nome} ${p.codiceProdotto}`.toLowerCase().includes(search.toLowerCase())) return false
+      if (stato && p.stato !== stato) return false
+      if (linea && p.linea !== linea) return false
+      return true
+    })
+  }, [search, stato, linea])
+
+  const columns: DataTableColumn<Product>[] = [
+    {
+      header: 'Prodotto',
+      accessor: (p) => (
+        <div className="flex items-center gap-3">
+          <ImagePlaceholder label={p.nome} className="h-9 w-9 text-sm" />
+          <div>
+            <p className="font-display italic text-heemia-black">{p.nome}</p>
+            <p className="font-mono-heemia text-[11px] text-heemia-grey">{p.codiceProdotto}</p>
+          </div>
+        </div>
+      ),
+    },
+    { header: 'Categoria', accessor: (p) => <span>{p.categoria} · {p.collezione}</span> },
+    { header: 'Linea', accessor: (p) => <Badge variant="neutral">{p.linea === 'tessile' ? 'Tessile' : 'Maglieria'}</Badge> },
+    { header: 'Fase', accessor: (p) => <Badge variant="info">{stageLabel(p.stato)}</Badge> },
+    {
+      header: 'Prezzo vendita',
+      align: 'right',
+      accessor: (p) =>
+        p.prezzoVendita > 0 ? (
+          formatCurrency(p.prezzoVendita)
+        ) : p.stato === 'idea' ? (
+          <span className="text-heemia-grey">—</span>
+        ) : (
+          <Badge variant="critical">Nessun prezzo</Badge>
+        ),
+    },
+    { header: 'Shopify', accessor: (p) => <StatusBadge status={p.statoPubblicazioneShopify} /> },
+    {
+      header: 'Margine',
+      align: 'right',
+      accessor: (p) => {
+        const m = margins.find((mg) => mg.productId === p.id)
+        if (!m) return <span className="text-heemia-grey">—</span>
+        return <Badge variant={m.sottoSoglia ? 'critical' : 'success'}>{formatPercent(m.marginePercentuale)}</Badge>
+      },
+    },
+    {
+      header: 'Varianti',
+      align: 'right',
+      accessor: (p) => productVariants.filter((v) => v.productId === p.id).length,
+    },
+  ]
+
+  return (
+    <div>
+      <PageHeader
+        title="Anagrafica prodotti"
+        subtitle="Scheda prodotto completa: dati, varianti, prezzi e stato pubblicazione (FR-01, FR-03)."
+        action={canEdit(role) ? <Button>Nuovo prodotto</Button> : undefined}
+      />
+
+      <Toolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Cerca per nome o codice…"
+        filters={[
+          {
+            label: 'Fase',
+            value: stato,
+            onChange: setStato,
+            options: PRODUCT_STAGES.map((s) => ({ value: s.id, label: s.label })),
+          },
+          {
+            label: 'Linea',
+            value: linea,
+            onChange: setLinea,
+            options: [
+              { value: 'tessile', label: 'Tessile' },
+              { value: 'maglieria', label: 'Maglieria' },
+            ],
+          },
+        ]}
+      />
+
+      <DataTable
+        columns={columns}
+        rows={rows}
+        keyExtractor={(p) => p.id}
+        onRowClick={(p) => navigate(`/prodotti/${p.id}`)}
+        emptyTitle="Nessun prodotto trovato"
+        emptyDescription="Nessun capo corrisponde ai filtri selezionati. Prova a modificare fase o linea."
+      />
+    </div>
+  )
+}

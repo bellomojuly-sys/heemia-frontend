@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --color-heemia-black: #171512;
+  --color-heemia-charcoal: #2b2822;
+  --color-heemia-grey: #6f6a60;
+  --color-heemia-grey-light: #a9a398;
+  --color-heemia-border: #e3ddd0;
+  --color-heemia-border-strong: #d3cab8;
+  --color-heemia-white: #ffffff;
+  --color-heemia-cream: #f6f1e7;
+  --color-heemia-cream-dark: #ede5d3;
+  --color-heemia-carmine: #960018;
+  --color-heemia-carmine-light: #fbe8e9;
+
+  /* Sistema tipografico a tre ruoli: display per nomi propri e titoli (il "lookbook"),
+     sans per l'interfaccia, mono per numeri/codici (il "registro"). Vedi UI_Design_System.md
+     — back-office fashion, non gestionale generico. */
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-heemia: 3px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-heemia-cream);
+  color: var(--color-heemia-black);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono-heemia {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--color-heemia-black);
+  color: var(--color-heemia-cream);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-heemia-black);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
