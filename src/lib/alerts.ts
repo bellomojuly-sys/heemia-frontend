@@ -1,4 +1,4 @@
-import type { AlertItem } from '../types'
+import type { AlertItem, Margin } from '../types'
 import { products } from '../mock/products'
 import { technicalSheets } from '../mock/technicalSheets'
 import { materials, accessories } from '../mock/materials'
@@ -17,11 +17,13 @@ export function daysBetween(dateStr: string): number {
 }
 
 // Deriva gli alert direttamente dai dati mock (FR-27), cosi restano sempre coerenti
-// con prodotti, materiali, fatture e margini mostrati nel resto dell'app.
-export function computeAlerts(): AlertItem[] {
+// con prodotti, materiali, fatture e margini mostrati nel resto dell'app. liveMargins:
+// margini ricalcolati con la quota costi fissi corrente (lib/margins.ts); se omesso usa
+// i dati mock statici.
+export function computeAlerts(liveMargins: Margin[] = margins): AlertItem[] {
   const alerts: AlertItem[] = []
 
-  for (const m of margins) {
+  for (const m of liveMargins) {
     if (m.sottoSoglia) {
       const p = products.find((pr) => pr.id === m.productId)
       alerts.push({

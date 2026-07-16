@@ -5,7 +5,7 @@ import type { SupplierRequest } from '../types'
 export const supplierRequests: SupplierRequest[] = [
   {
     id: 'sr-01', supplierId: 'sup-03', materialId: 'mat-02', productId: 'prod-02',
-    oggetto: 'Richiesta disponibilità Felpa Gigiotop — sotto soglia minima',
+    oggetto: 'Richiesta disponibilità Felpa Gigiotop: sotto soglia minima',
     testo: 'Buongiorno, la scorta di Felpa Gigiotop (TES-GIG-01) è scesa sotto la soglia minima di 20m. Potete confermare disponibilità, tempi di consegna e costo aggiornato per un riordino di almeno 100m?',
     quantitaRichiesta: 100, quantitaDisponibile: 8, quantitaMancante: 92, urgenza: 'alta',
     deadlineIdeale: '2026-07-21', stato: 'in_attesa_approvazione', creataIl: '2026-07-13',
@@ -19,7 +19,7 @@ export const supplierRequests: SupplierRequest[] = [
   },
   {
     id: 'sr-03', supplierId: 'sup-11', accessoryId: 'acc-04', productId: 'prod-01',
-    oggetto: 'Riordino urgente cartellini — scorta esaurita',
+    oggetto: 'Riordino urgente cartellini: scorta esaurita',
     testo: 'Buongiorno, la scorta di cartellini versione base è esaurita. Necessario riordino urgente di 3000 pezzi per non bloccare la produzione in corso.',
     quantitaRichiesta: 3000, quantitaDisponibile: 0, quantitaMancante: 3000, urgenza: 'alta',
     deadlineIdeale: '2026-07-18', stato: 'inviata', creataIl: '2026-07-09', approvataDa: 'Giulia',

@@ -8,7 +8,7 @@ import { EmptyState } from '../../components/ui/States'
 export function ReportsPage() {
   return (
     <div>
-      <PageHeader title="Report economici" subtitle="Report mensili generati automaticamente, con notifica alla data di generazione (FR-26, FR-27)." />
+      <PageHeader title="Report economici" subtitle="Report mensili generati automaticamente, con notifica alla data di generazione." />
 
       {monthlyReports.length === 0 ? (
         <EmptyState title="Nessun report generato" description="Il primo report mensile verrà generato automaticamente a fine mese." />
@@ -18,7 +18,7 @@ export function ReportsPage() {
             <Card key={r.id} className="p-5">
               <div className="mb-5 flex items-center justify-between">
                 <p className="font-display text-lg italic text-heemia-black">{r.mese}</p>
-                <Badge variant="info">Report pronto — {formatDateIt(r.generatoIl)}</Badge>
+                <Badge variant="info">Report pronto: {formatDateIt(r.generatoIl)}</Badge>
               </div>
               <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
                 <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Margine medio</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{formatPercent(r.margineMedio)}</p></div>
@@ -34,7 +34,7 @@ export function ReportsPage() {
       )}
 
       <Card className="mt-6">
-        <CardHeader title="Formato export" subtitle="OQ-FR-05 — formato export (PDF/Excel/entrambi) ancora da confermare, vedi Open_Questions." />
+        <CardHeader title="Formato export" subtitle="Formato export (PDF/Excel/entrambi) ancora da confermare." />
         <div className="p-5 text-sm text-heemia-grey">Export non disponibile in questa fase del prototipo.</div>
       </Card>
     </div>

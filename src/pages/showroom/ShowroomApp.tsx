@@ -21,7 +21,7 @@ export function ShowroomApp() {
       <div className="flex min-h-screen items-center justify-center bg-heemia-cream px-4">
         <div className="w-full max-w-sm rounded-[3px] border border-heemia-border bg-white p-9 text-center">
           <p className="font-display text-2xl italic text-heemia-black">Heemia Showroom</p>
-          <p className="mt-2 mb-7 text-xs text-heemia-grey">Accesso riservato ai clienti in visita — nessun dato interno visibile.</p>
+          <p className="mt-2 mb-7 text-xs text-heemia-grey">Accesso riservato ai clienti in visita: nessun dato interno visibile.</p>
           <form
             className="space-y-3 text-left"
             onSubmit={(e) => {

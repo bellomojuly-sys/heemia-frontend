@@ -3,19 +3,115 @@ import { PageHeader } from '../../components/ui/PageHeader'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
-import { customers, orders } from '../../mock'
-import type { Customer } from '../../types'
+import type { Customer, TipologiaCliente } from '../../types'
+import { useRole } from '../../context/RoleContext'
+import { canEdit } from '../../lib/permissions'
+import { useMockStore, type NewCustomerInput, type NewOrderInput } from '../../context/MockStore'
 
 const TIPOLOGIA_LABEL: Record<string, string> = {
   ecommerce: 'E-commerce', showroom: 'Showroom', b2b: 'B2B', retailer: 'Retailer', showroom_partner: 'Showroom partner',
 }
 
+const emptyCustomerForm = { nome: '', email: '', paese: 'IT', tipologia: 'ecommerce' as TipologiaCliente }
+
+function AddCustomerForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewCustomerInput) => void }) {
+  const [form, setForm] = useState(emptyCustomerForm)
+
+  const submit = () => {
+    if (!form.nome.trim()) return
+    onSubmit({
+      nome: form.nome.trim(),
+      email: form.email.trim() || undefined,
+      paese: form.paese,
+      tipologia: form.tipologia,
+    })
+    onClose()
+  }
+
+  return (
+    <Modal title="Aggiungi cliente" onClose={onClose}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Nome">
+          <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+        </Field>
+        <Field label="Email">
+          <input type="email" className={fieldClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        </Field>
+        <Field label="Paese">
+          <input className={fieldClass} value={form.paese} onChange={(e) => setForm({ ...form, paese: e.target.value })} />
+        </Field>
+        <Field label="Tipologia">
+          <select className={fieldClass} value={form.tipologia} onChange={(e) => setForm({ ...form, tipologia: e.target.value as TipologiaCliente })}>
+            {Object.entries(TIPOLOGIA_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </Field>
+      </div>
+      <FormActions>
+        <Button variant="ghost" onClick={onClose}>Annulla</Button>
+        <Button onClick={submit} disabled={!form.nome.trim()}>Salva cliente</Button>
+      </FormActions>
+    </Modal>
+  )
+}
+
+const emptyOrderForm = { numero: '', canale: 'shopify' as 'shopify' | 'fisico', stato: 'in_lavorazione' as NewOrderInput['stato'], data: new Date().toISOString().slice(0, 10), totale: '' }
+
+function AddOrderForm({ customerName, onClose, onSubmit }: { customerName: string; onClose: () => void; onSubmit: (input: Omit<NewOrderInput, 'customerId'>) => void }) {
+  const [form, setForm] = useState(emptyOrderForm)
+
+  const submit = () => {
+    if (!form.numero.trim() || !form.totale) return
+    onSubmit({ numero: form.numero.trim(), canale: form.canale, stato: form.stato, data: form.data, totale: Number(form.totale) })
+    onClose()
+  }
+
+  return (
+    <Modal title="Aggiungi ordine" subtitle={`Cliente: ${customerName}`} onClose={onClose}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Numero ordine">
+          <input className={fieldClass} value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} placeholder="SH-10099" />
+        </Field>
+        <Field label="Data">
+          <input type="date" className={fieldClass} value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} />
+        </Field>
+        <Field label="Canale">
+          <select className={fieldClass} value={form.canale} onChange={(e) => setForm({ ...form, canale: e.target.value as 'shopify' | 'fisico' })}>
+            <option value="shopify">Shopify</option>
+            <option value="fisico">Punto vendita</option>
+          </select>
+        </Field>
+        <Field label="Stato">
+          <select className={fieldClass} value={form.stato} onChange={(e) => setForm({ ...form, stato: e.target.value as NewOrderInput['stato'] })}>
+            <option value="in_lavorazione">In lavorazione</option>
+            <option value="spedito">Spedito</option>
+            <option value="consegnato">Consegnato</option>
+            <option value="annullato">Annullato</option>
+          </select>
+        </Field>
+        <Field label="Totale (€)">
+          <input type="number" min="0" step="0.01" className={fieldClass} value={form.totale} onChange={(e) => setForm({ ...form, totale: e.target.value })} />
+        </Field>
+      </div>
+      <FormActions>
+        <Button variant="ghost" onClick={onClose}>Annulla</Button>
+        <Button onClick={submit} disabled={!form.numero.trim() || !form.totale}>Salva ordine</Button>
+      </FormActions>
+    </Modal>
+  )
+}
+
 export function CustomerList() {
+  const { role } = useRole()
+  const { customers, orders, addCustomer, addOrder } = useMockStore()
   const [search, setSearch] = useState('')
   const [tipologia, setTipologia] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false)
+  const [addOrderOpen, setAddOrderOpen] = useState(false)
 
   const rows = useMemo(
     () =>
@@ -24,24 +120,29 @@ export function CustomerList() {
         if (tipologia && c.tipologia !== tipologia) return false
         return true
       }),
-    [search, tipologia],
+    [customers, search, tipologia],
   )
 
   const columns: DataTableColumn<Customer>[] = [
     { header: 'Cliente', accessor: (c) => <span className="font-display italic text-heemia-black">{c.nome}</span> },
-    { header: 'Email', accessor: (c) => <span className="font-mono-heemia text-xs">{c.email ?? '—'}</span> },
+    { header: 'Email', accessor: (c) => <span className="font-mono-heemia text-xs">{c.email ?? '–'}</span> },
     { header: 'Paese', accessor: (c) => c.paese },
     { header: 'Tipologia', accessor: (c) => <Badge variant="neutral">{TIPOLOGIA_LABEL[c.tipologia]}</Badge> },
     { header: 'Valore acquistato', accessor: (c) => formatCurrency(c.valoreTotaleAcquistato), align: 'right' },
     { header: 'Ordini', accessor: (c) => c.numeroOrdini, align: 'right' },
-    { header: 'Sconto', accessor: (c) => (c.sconto ? `${c.sconto}%` : '—'), align: 'right' },
+    { header: 'Sconto', accessor: (c) => (c.sconto ? `${c.sconto}%` : '–'), align: 'right' },
   ]
 
+  const expandedCustomer = customers.find((c) => c.id === expandedId)
   const expandedOrders = expandedId ? orders.filter((o) => o.customerId === expandedId) : []
 
   return (
     <div>
-      <PageHeader title="Clienti" subtitle="E-commerce, showroom, B2B e retailer (FR-25)." />
+      <PageHeader
+        title="Clienti"
+        subtitle="E-commerce, showroom, B2B e retailer."
+        action={canEdit(role) ? <Button onClick={() => setAddCustomerOpen(true)}>Aggiungi cliente</Button> : undefined}
+      />
       <Toolbar
         search={search}
         onSearchChange={setSearch}
@@ -57,11 +158,12 @@ export function CustomerList() {
         emptyDescription="Nessun cliente corrisponde a questa tipologia."
       />
 
-      {expandedId && (
+      {expandedId && expandedCustomer && (
         <div className="mt-4 rounded-[3px] border border-heemia-border bg-white p-5">
-          <p className="font-display mb-3 italic text-heemia-black">
-            Ordini di {customers.find((c) => c.id === expandedId)?.nome}
-          </p>
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <p className="font-display italic text-heemia-black">Ordini di {expandedCustomer.nome}</p>
+            {canEdit(role) && <Button variant="secondary" onClick={() => setAddOrderOpen(true)}>Aggiungi ordine</Button>}
+          </div>
           {expandedOrders.length === 0 ? (
             <p className="text-sm text-heemia-grey">Nessun ordine registrato.</p>
           ) : (
@@ -78,6 +180,15 @@ export function CustomerList() {
             </ul>
           )}
         </div>
+      )}
+
+      {addCustomerOpen && <AddCustomerForm onClose={() => setAddCustomerOpen(false)} onSubmit={addCustomer} />}
+      {addOrderOpen && expandedCustomer && (
+        <AddOrderForm
+          customerName={expandedCustomer.nome}
+          onClose={() => setAddOrderOpen(false)}
+          onSubmit={(input) => addOrder({ ...input, customerId: expandedCustomer.id })}
+        />
       )}
     </div>
   )

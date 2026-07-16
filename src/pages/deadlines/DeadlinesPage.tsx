@@ -27,13 +27,13 @@ export function DeadlinesPage() {
     { header: 'Descrizione', accessor: (d) => d.descrizione },
     { header: 'Tipo', accessor: (d) => TIPO_LABEL[d.tipo] ?? d.tipo },
     { header: 'Data', accessor: (d) => formatDateIt(d.data) },
-    { header: 'Importo', accessor: (d) => (d.importo ? formatCurrency(d.importo) : '—'), align: 'right' },
+    { header: 'Importo', accessor: (d) => (d.importo ? formatCurrency(d.importo) : '–'), align: 'right' },
     { header: 'Stato', accessor: (d) => <StatusBadge status={d.stato} /> },
     {
       header: 'Collegata a',
       accessor: (d) => {
         const inv = invoices.find((i) => i.id === d.collegatoA)
-        return inv ? <Link to="/fatture" className="font-mono-heemia text-xs text-heemia-black hover:underline">{inv.numero}</Link> : '—'
+        return inv ? <Link to="/fatture" className="font-mono-heemia text-xs text-heemia-black hover:underline">{inv.numero}</Link> : '–'
       },
     },
   ]
@@ -42,9 +42,9 @@ export function DeadlinesPage() {
 
   return (
     <div>
-      <PageHeader title="Scadenze" subtitle="Fatture, adempimenti fiscali e reminder amministrativi (FR-24)." />
+      <PageHeader title="Scadenze" subtitle="Fatture, adempimenti fiscali e reminder amministrativi." />
 
-      <div className="mb-6 flex flex-wrap divide-x divide-heemia-border rounded-[3px] border border-heemia-border bg-white">
+      <div className="mb-6 flex flex-wrap gap-3">
         <KpiTile label="Entro 7 giorni" value={stats.in7} critical={stats.in7 > 0} />
         <KpiTile label="Entro 30 giorni" value={stats.in30} />
         <KpiTile label="In ritardo" value={stats.ritardo} critical={stats.ritardo > 0} />

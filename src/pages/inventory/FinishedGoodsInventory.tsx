@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { KpiTile } from '../../components/dashboard/KpiTile'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { StatusBadge } from '../../lib/statusBadge'
@@ -44,9 +43,9 @@ export function FinishedGoodsInventory() {
 
   return (
     <div>
-      <PageHeader title="Inventario prodotti finiti" subtitle="Stock per variante, separato dai materiali (FR-INV-01)." />
+      <p className="mb-4 text-sm text-heemia-grey">Stock per variante, separato dai materiali (FR-INV-01).</p>
 
-      <div className="mb-6 flex flex-wrap divide-x divide-heemia-border rounded-[3px] border border-heemia-border bg-white">
+      <div className="mb-6 flex flex-wrap gap-3">
         <KpiTile label="Disponibile" value={stock.disponibile} />
         <KpiTile label="Riservato" value={stock.riservato} />
         <KpiTile label="Low stock" value={stock.lowStock} critical={stock.lowStock > 0} />

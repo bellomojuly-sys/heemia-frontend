@@ -4,31 +4,96 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
+import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatDateIt } from '../../lib/format'
-import { suppliers, materials, accessories } from '../../mock'
-import type { Supplier, SupplierRequest } from '../../types'
-import { useMockStore } from '../../context/MockStore'
+import { materials, accessories } from '../../mock'
+import type { Supplier, SupplierCategoria, SupplierRequest } from '../../types'
+import { useMockStore, type NewSupplierInput } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
 import { canApproveEmailDrafts, canEdit } from '../../lib/permissions'
 
 const textareaClass =
   'w-full rounded-[3px] border border-heemia-border p-3 text-sm text-heemia-black focus:border-heemia-black focus:outline-none'
 
+const SUPPLIER_CATEGORIES: SupplierCategoria[] = [
+  'Tessuti', 'Filati', 'Passamaneria', 'Lycra', 'Felpa', 'Asole/Bottoni', 'Fodere', 'Cartellini/Etichette',
+  'Accessori', 'Zip', 'Bottoni', 'Accessori vari', 'Biglietti', 'Spalline', 'Modellistica/Confezione',
+  'Modellistica', 'Ricami', 'Smacchinatore', 'Confezione', 'Commercialista', 'Marchi e brevetti', 'Consulenza',
+]
+
 function suppliedItems(supplier: Supplier) {
   const mats = materials.filter((m) => m.supplierId === supplier.id).map((m) => m.nome)
   const accs = accessories.filter((a) => a.supplierId === supplier.id).map((a) => a.nome)
-  return [...mats, ...accs].join(', ') || '—'
+  return [...mats, ...accs].join(', ') || '–'
+}
+
+const emptySupplierForm = {
+  nome: '',
+  categoria: 'Tessuti' as SupplierCategoria,
+  citta: '',
+  email: '',
+  paese: 'IT',
+  tempiMediConsegnaGiorni: '',
+}
+
+function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewSupplierInput) => void }) {
+  const [form, setForm] = useState(emptySupplierForm)
+
+  const submit = () => {
+    if (!form.nome.trim() || !form.citta.trim()) return
+    onSubmit({
+      nome: form.nome.trim(),
+      categoria: form.categoria,
+      citta: form.citta.trim(),
+      email: form.email.trim() || undefined,
+      paese: form.paese,
+      tempiMediConsegnaGiorni: form.tempiMediConsegnaGiorni ? Number(form.tempiMediConsegnaGiorni) : undefined,
+    })
+    onClose()
+  }
+
+  return (
+    <Modal title="Aggiungi fornitore" onClose={onClose}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Nome">
+          <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+        </Field>
+        <Field label="Categoria">
+          <select className={fieldClass} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value as SupplierCategoria })}>
+            {SUPPLIER_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </Field>
+        <Field label="Città">
+          <input className={fieldClass} value={form.citta} onChange={(e) => setForm({ ...form, citta: e.target.value })} />
+        </Field>
+        <Field label="Paese">
+          <input className={fieldClass} value={form.paese} onChange={(e) => setForm({ ...form, paese: e.target.value })} />
+        </Field>
+        <Field label="Email">
+          <input type="email" className={fieldClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        </Field>
+        <Field label="Tempi consegna (gg)">
+          <input type="number" min="0" className={fieldClass} value={form.tempiMediConsegnaGiorni} onChange={(e) => setForm({ ...form, tempiMediConsegnaGiorni: e.target.value })} />
+        </Field>
+      </div>
+      <FormActions>
+        <Button variant="ghost" onClick={onClose}>Annulla</Button>
+        <Button onClick={submit} disabled={!form.nome.trim() || !form.citta.trim()}>Salva fornitore</Button>
+      </FormActions>
+    </Modal>
+  )
 }
 
 export function SupplierList() {
   const { role } = useRole()
-  const { supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft } = useMockStore()
+  const { suppliers, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft } = useMockStore()
   const [openId, setOpenId] = useState<string | null>(supplierRequests[0]?.id ?? null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftText, setDraftText] = useState('')
   const [respondingId, setRespondingId] = useState<string | null>(null)
   const [responseText, setResponseText] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
 
   const canApprove = canApproveEmailDrafts(role)
   const canModify = canEdit(role)
@@ -37,9 +102,9 @@ export function SupplierList() {
     { header: 'Fornitore', accessor: (s) => <span className="font-display italic text-heemia-black">{s.nome}</span> },
     { header: 'Categoria', accessor: (s) => s.categoria },
     { header: 'Città', accessor: (s) => s.citta },
-    { header: 'Contatto', accessor: (s) => <span className="font-mono-heemia text-xs">{s.email ?? '—'}</span> },
+    { header: 'Contatto', accessor: (s) => <span className="font-mono-heemia text-xs">{s.email ?? '–'}</span> },
     { header: 'Fornisce', accessor: (s) => suppliedItems(s) },
-    { header: 'Tempi consegna', accessor: (s) => (s.tempiMediConsegnaGiorni ? `${s.tempiMediConsegnaGiorni}gg` : '—'), align: 'right' },
+    { header: 'Tempi consegna', accessor: (s) => (s.tempiMediConsegnaGiorni ? `${s.tempiMediConsegnaGiorni}gg` : '–'), align: 'right' },
   ]
 
   const startEdit = (r: SupplierRequest) => {
@@ -64,7 +129,11 @@ export function SupplierList() {
 
   return (
     <div>
-      <PageHeader title="Fornitori" subtitle="Anagrafica fornitori e bozze email materiali/accessori (FR-08, FR-05, FR-06)." />
+      <PageHeader
+        title="Fornitori"
+        subtitle="Anagrafica fornitori e bozze email materiali/accessori."
+        action={canModify ? <Button onClick={() => setAddOpen(true)}>Aggiungi fornitore</Button> : undefined}
+      />
 
       <Card className="mb-6">
         <CardHeader title="Anagrafica fornitori" subtitle={`${suppliers.length} fornitori attivi`} />
@@ -76,7 +145,7 @@ export function SupplierList() {
       <Card>
         <CardHeader
           title="Bozze email fornitori"
-          subtitle="Nessun invio senza approvazione esplicita — DEC-003. Apri, modifica, approva e invia, o annulla."
+          subtitle="Nessun invio senza approvazione esplicita. Apri, modifica, approva e invia, o annulla."
         />
         <ul className="divide-y divide-heemia-border">
           {supplierRequests.map((r) => {
@@ -173,6 +242,8 @@ export function SupplierList() {
           })}
         </ul>
       </Card>
+
+      {addOpen && <AddSupplierForm onClose={() => setAddOpen(false)} onSubmit={addSupplier} />}
     </div>
   )
 }

@@ -9,11 +9,8 @@ import type { Role, AlertModulo } from '../types'
 export type ModuleKey =
   | 'dashboard'
   | 'prodotti'
-  | 'idee'
   | 'produzione'
-  | 'inventario-tessuti'
-  | 'inventario-accessori'
-  | 'inventario-prodotti'
+  | 'inventario'
   | 'fatture'
   | 'scadenze'
   | 'costi-margini'
@@ -32,11 +29,10 @@ const ADMIN_CEO_TEAM_VIEWER: Role[] = ['admin', 'ceo', 'team', 'viewer']
 const MODULE_ACCESS: Record<ModuleKey, Role[]> = {
   dashboard: ADMIN_CEO_TEAM_VIEWER,
   prodotti: ADMIN_CEO_TEAM_VIEWER,
-  idee: ADMIN_CEO_TEAM_VIEWER,
   produzione: ADMIN_CEO_TEAM_VIEWER,
-  'inventario-tessuti': ADMIN_CEO_TEAM_VIEWER,
-  'inventario-accessori': ADMIN_CEO_TEAM_VIEWER,
-  'inventario-prodotti': ADMIN_CEO_TEAM_VIEWER,
+  // FR-36 / DEC-020: vista unica Inventario — le tre chiavi separate (tessuti/accessori/prodotti)
+  // avevano comunque accesso identico, quindi la fusione non cambia alcun comportamento di gating.
+  inventario: ADMIN_CEO_TEAM_VIEWER,
   fatture: ADMIN_CEO,
   scadenze: ADMIN_CEO,
   'costi-margini': ADMIN_CEO,

@@ -10,7 +10,7 @@ import { canAccessModule } from '../../lib/permissions'
 const WELCOME: AiMessage = {
   id: 'ai-welcome',
   autore: 'assistant',
-  testo: 'Ciao, sono l\'assistente Heemia. Posso rispondere a domande operative sull\'app e sui dati del gestionale — non modifico nulla, solo lettura. Prova a chiedermi ad esempio "quali tessuti sono sotto scorta?" o "come funziona il break-even?".',
+  testo: 'Ciao, sono l\'assistente Heemia. Posso rispondere a domande operative sull\'app e sui dati del gestionale, in sola lettura: non modifico nulla. Prova a chiedermi ad esempio "quali tessuti sono sotto scorta?" o "come funziona il break-even?".',
   data: new Date().toISOString(),
 }
 
@@ -36,7 +36,7 @@ function answer(question: string, canSeeEconomics: boolean): string {
   }
 
   if (q.includes('margine') && (q.includes('negativ') || q.includes('basso') || q.includes('maiorca') || q.includes('amalfi'))) {
-    if (!canSeeEconomics) return 'Non ho accesso a questo dato con il ruolo attivo — i margini sono visibili solo ad Admin e Founder/CEO.'
+    if (!canSeeEconomics) return 'Non ho accesso a questo dato con il ruolo attivo: i margini sono visibili solo ad Admin e Founder/CEO.'
     const target = q.includes('amalfi') ? 'prod-06' : 'prod-05'
     const m = margins.find((mg) => mg.productId === target)
     const p = products.find((pr) => pr.id === target)
@@ -79,7 +79,7 @@ export function AiAssistantPage() {
 
   return (
     <div>
-      <PageHeader title="AI Assistant" subtitle="Accesso in sola lettura ai dati del gestionale — non modifica nulla (FR-28)." />
+      <PageHeader title="AI Assistant" subtitle="Accesso in sola lettura ai dati del gestionale: non modifica nulla." />
 
       <div className="flex flex-col rounded-[3px] border border-heemia-border bg-white">
         <div className="max-h-[50vh] space-y-3 overflow-y-auto p-5">

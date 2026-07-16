@@ -4,22 +4,40 @@ import { inventoryRecords } from '../mock/inventory'
 import { materials, accessories } from '../mock/materials'
 import { invoices, deadlines } from '../mock/invoices'
 import { margins } from '../mock/margins'
-import type { ProductionStep, SupplierRequest } from '../types'
+import { technicalSheets } from '../mock/technicalSheets'
+import type { Margin, ProductionStep, SupplierRequest } from '../types'
 import { orders } from '../mock/customers'
 import { monthlyReports } from '../mock/reports'
 import { TODAY } from './alerts'
 
-export function getDashboardKpis() {
+// liveMargins: passare i margini ricalcolati con la quota costi fissi corrente (lib/margins.ts)
+// così i KPI restano coerenti con quanto configurato in Costi e margini; se omesso usa i dati
+// mock statici (quota di riferimento iniziale).
+export function getDashboardKpis(liveMargins: Margin[] = margins) {
+  const prodottiTotali = products.length
   const prodottiAttivi = products.filter((p) => p.stato !== 'archivio' && p.stato !== 'idea').length
   const prodottiInSviluppo = products.filter((p) =>
     ['concept', 'sviluppo_modello', 'scelta_tessuto', 'scelta_accessori', 'prototipo', 'campionario'].includes(p.stato),
   ).length
+  // "In produzione" (FR-30): fase pipeline `produzione` — distinto da "In sviluppo" (concept→campionario). Vedi DEC-017.
+  const prodottiInProduzione = products.filter((p) => p.stato === 'produzione').length
+  // "Pronti per ecommerce" (FR-30): scheda e-commerce completata, non ancora pubblicati su Shopify. Vedi DEC-017.
+  const prodottiProntiEcommerce = products.filter((p) => p.stato === 'scheda_ecommerce').length
   const prodottiPubblicati = products.filter((p) => p.statoPubblicazioneShopify === 'pubblicato').length
-  const margineSottoTarget = margins.filter((m) => m.sottoSoglia).length
-  const sottoBreakEven = margins.filter((m) => m.prezzoVendita <= m.breakEvenPrice).length
+  const margineSottoTarget = liveMargins.filter((m) => m.sottoSoglia).length
+  const sottoBreakEven = liveMargins.filter((m) => m.prezzoVendita <= m.breakEvenPrice).length
   const tessutiSottoSoglia = materials.filter((m) => m.stato === 'sotto_soglia' || m.stato === 'esaurito').length
   const accessoriSottoSoglia = accessories.filter((a) => a.stato === 'sotto_soglia' || a.stato === 'esaurito').length
   const fattureNonAssociate = invoices.filter((i) => !i.associata).length
+
+  // Attenzione richiesta (FR-27 Anagrafica): stessi criteri già usati in computeAlerts, come conteggio.
+  const prodottiSenzaSchedaTecnica = products.filter(
+    (p) => p.stato !== 'idea' && !technicalSheets.some((ts) => ts.productId === p.id),
+  ).length
+  const prodottiSenzaPrezzo = products.filter((p) => p.stato !== 'idea' && p.stato !== 'archivio' && p.prezzoVendita <= 0).length
+
+  const fabricLibraryCount = materials.length
+  const collezioniCount = new Set(products.map((p) => p.collezione)).size
 
   const in7gg = deadlines.filter((d) => {
     const days = Math.round((new Date(d.data).getTime() - TODAY.getTime()) / 86400000)
@@ -31,18 +49,59 @@ export function getDashboardKpis() {
   }).length
 
   return {
+    prodottiTotali,
     prodottiAttivi,
     prodottiInSviluppo,
+    prodottiInProduzione,
+    prodottiProntiEcommerce,
     prodottiPubblicati,
     margineSottoTarget,
     sottoBreakEven,
     tessutiSottoSoglia,
     accessoriSottoSoglia,
     fattureNonAssociate,
+    prodottiSenzaSchedaTecnica,
+    prodottiSenzaPrezzo,
+    fabricLibraryCount,
+    collezioniCount,
     scadenze7gg: in7gg,
     scadenze30gg: in30gg,
     reportPronti: monthlyReports.length,
   }
+}
+
+// Sezione "Alert materiali" (FR-30 §4): tessuti/accessori sotto soglia o esauriti, stessa fonte
+// di FR-05/FR-27, esposti come lista invece che come conteggio per distinguere i due livelli.
+export interface MaterialAlertRow {
+  id: string
+  nome: string
+  tipo: 'tessuto' | 'accessorio'
+  stato: 'sotto_soglia' | 'esaurito'
+  link: string
+}
+
+export function getMaterialAlerts(): MaterialAlertRow[] {
+  const tessuti: MaterialAlertRow[] = materials
+    .filter((m) => m.stato === 'sotto_soglia' || m.stato === 'esaurito')
+    .map((m) => ({ id: m.id, nome: m.nome, tipo: 'tessuto', stato: m.stato as 'sotto_soglia' | 'esaurito', link: '/inventario/tessuti' }))
+  const acc: MaterialAlertRow[] = accessories
+    .filter((a) => a.stato === 'sotto_soglia' || a.stato === 'esaurito')
+    .map((a) => ({ id: a.id, nome: a.nome, tipo: 'accessorio', stato: a.stato as 'sotto_soglia' | 'esaurito', link: '/inventario/accessori' }))
+  const rank = { esaurito: 0, sotto_soglia: 1 }
+  return [...tessuti, ...acc].sort((a, b) => rank[a.stato] - rank[b.stato])
+}
+
+// "Per categoria" / "Per stagione" (FR-30 §5): conteggio neutro prodotti, nessun colore semantico.
+export function getProductsByCategoria(): { label: string; count: number }[] {
+  const counts = new Map<string, number>()
+  for (const p of products) counts.set(p.categoria, (counts.get(p.categoria) ?? 0) + 1)
+  return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count)
+}
+
+export function getProductsByStagione(): { label: string; count: number }[] {
+  const counts = new Map<string, number>()
+  for (const p of products) counts.set(p.stagione, (counts.get(p.stagione) ?? 0) + 1)
+  return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count)
 }
 
 export function getTopSellingProducts(limit = 5) {

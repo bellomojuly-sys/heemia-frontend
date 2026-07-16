@@ -17,17 +17,14 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Prodotto',
     items: [
       { label: 'Anagrafica prodotti', path: '/prodotti', moduleKey: 'prodotti' },
-      { label: 'Idee capo', path: '/idee', moduleKey: 'idee' },
       { label: 'Pipeline produzione', path: '/produzione', moduleKey: 'produzione' },
     ],
   },
   {
+    // FR-36: vista unica Inventario — una voce di menu, non tre. Le sezioni Tessuti/Accessori/
+    // Prodotti finiti sono schede cliccabili dentro InventoryPage, non voci di navigazione separate.
     label: 'Inventario',
-    items: [
-      { label: 'Tessuti', path: '/inventario/tessuti', moduleKey: 'inventario-tessuti' },
-      { label: 'Accessori', path: '/inventario/accessori', moduleKey: 'inventario-accessori' },
-      { label: 'Prodotti finiti', path: '/inventario/prodotti-finiti', moduleKey: 'inventario-prodotti' },
-    ],
+    items: [{ label: 'Inventario', path: '/inventario', moduleKey: 'inventario' }],
   },
   {
     label: 'Economico',

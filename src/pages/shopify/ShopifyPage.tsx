@@ -14,8 +14,8 @@ export function ShopifyPage() {
     <div>
       <PageHeader
         title="Integrazione Shopify"
-        subtitle="Predisposizione dati per la sincronizzazione (FR-17) — nessuna sincronizzazione live in questa fase."
-        action={<Badge variant="info">Predisposizione — implementazione in fase successiva</Badge>}
+        subtitle="Predisposizione dati per la sincronizzazione: nessuna sincronizzazione live in questa fase."
+        action={<Badge variant="info">Predisposizione, implementazione in fase successiva</Badge>}
       />
 
       <Card className="mb-6">

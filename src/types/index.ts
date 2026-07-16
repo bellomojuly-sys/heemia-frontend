@@ -127,6 +127,9 @@ export interface TechnicalSheet {
   altriCostiIndiretti: number
   creataIl: string
   archiviata: boolean
+  /** Documento PDF collegato a questa versione (DEC-021). Link Drive, non file caricato — FR-16. */
+  pdfUrl?: string
+  pdfCaricatoIl?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -364,6 +367,15 @@ export interface Margin {
   prezzoMinimoConsigliato: number
   tipoDato: 'reale' | 'stimato'
   sottoSoglia: boolean
+}
+
+// Voce di costo fisso annuo (Business_Analysis §6.1): affitto, dipendenti, utenze, ecc.
+// La somma di queste voci, divisa per i capi prodotti nell'anno, dà la quota costi fissi
+// per capo applicata al calcolo margini (§6.2) — non più un valore fisso hardcoded.
+export interface FixedCostItem {
+  id: string
+  nome: string
+  importoAnnuo: number
 }
 
 // ---------------------------------------------------------------------------

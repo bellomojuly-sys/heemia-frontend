@@ -1,9 +1,32 @@
-import type { Margin } from '../types'
+import type { FixedCostItem, Margin } from '../types'
 
 // Soglia margine configurabile (FR-10). Valore demo: 35%.
 export const MARGIN_THRESHOLD_PERCENT = 35
-// Quota costi fissi per capo — valore target configurabile (Business_Analysis §3.4 / §6.2).
-export const FIXED_COST_PER_ITEM = 17.3
+
+// Costi fissi annui — Business_Analysis.md §6.1. Editabili in sessione da MockStore, questo
+// resta il valore iniziale caricato all'avvio.
+export const fixedCostItems: FixedCostItem[] = [
+  { id: 'fc-01', nome: 'Affitto laboratorio/showroom', importoAnnuo: 14400 },
+  { id: 'fc-02', nome: 'Dipendente remoto 1', importoAnnuo: 7800 },
+  { id: 'fc-03', nome: 'Dipendente remoto 2', importoAnnuo: 3000 },
+  { id: 'fc-04', nome: 'Contributi/F24', importoAnnuo: 3600 },
+  { id: 'fc-05', nome: 'Commercialista', importoAnnuo: 2400 },
+  { id: 'fc-06', nome: 'Gestione buste paga', importoAnnuo: 1600 },
+  { id: 'fc-07', nome: 'Gas', importoAnnuo: 1169.45 },
+  { id: 'fc-08', nome: 'Energia elettrica', importoAnnuo: 1443.54 },
+  { id: 'fc-09', nome: 'Rifiuti', importoAnnuo: 200 },
+  { id: 'fc-10', nome: 'Spese condominiali', importoAnnuo: 300 },
+  { id: 'fc-11', nome: 'Assicurazione immobile', importoAnnuo: 1300 },
+  { id: 'fc-12', nome: 'Verisure', importoAnnuo: 720 },
+  { id: 'fc-13', nome: 'Piattaforma e-commerce', importoAnnuo: 960 },
+  { id: 'fc-14', nome: 'Scontrino elettronico', importoAnnuo: 100 },
+]
+
+// Capi prodotti nell'anno (divisore della quota) — non documentato con precisione (OQ-02:
+// "su quanti capi/anno è stato calcolato €17,30?" resta aperta). Valore di partenza scelto
+// per riprodurre il riferimento noto di €17,30/capo su un totale costi fissi di €38.992,99;
+// editabile da chi ha accesso al modulo Costi e margini.
+export const DEFAULT_CAPI_PRODOTTI_ANNUI = 2254
 
 export const margins: Margin[] = [
   { productId: 'prod-01', prezzoVendita: 129.0, prezzoNettoIva: 105.74, costoDiretto: 16.65, costoIndirettoAllocato: 17.3, costoTotale: 33.95, margineLordo: 89.09, margineNettoStimato: 71.79, marginePercentuale: 67.9, breakEvenPrice: 33.95, prezzoMinimoConsigliato: 39.04, tipoDato: 'reale', sottoSoglia: false },

@@ -10,6 +10,7 @@ export const technicalSheets: TechnicalSheet[] = [
     lavaggioConsigliato: 'Lavaggio a 30°, non candeggiare', difficoltaProduttiva: 'bassa', tempiStimatiOre: 1.5,
     costoManodopera: 30, costoTessuto: 16.65, costoAccessori: 1.4, costoPackaging: 0.9, altriCostiDiretti: 1.0,
     altriCostiIndiretti: 0, creataIl: '2026-04-10', archiviata: false,
+    pdfUrl: 'https://drive.google.com/heemia/schede-tecniche/ts-01-detroit-finale.pdf', pdfCaricatoIl: '2026-04-11',
   },
   {
     id: 'ts-02', productId: 'prod-02', versione: 'piazzamento', tessutoPrincipaleId: 'mat-02', tessutiSecondariId: [],
@@ -42,6 +43,7 @@ export const technicalSheets: TechnicalSheet[] = [
     difficoltaProduttiva: 'media', tempiStimatiOre: 3, costoManodopera: 55, costoTessuto: 15.5,
     costoAccessori: 0, costoPackaging: 0.9, altriCostiDiretti: 0.5, altriCostiIndiretti: 0,
     creataIl: '2026-02-18', archiviata: false,
+    pdfUrl: 'https://drive.google.com/heemia/schede-tecniche/ts-05-amalfi-top-finale.pdf', pdfCaricatoIl: '2026-02-19',
   },
   {
     id: 'ts-06', productId: 'prod-07', versione: 'finale', tessutoPrincipaleId: 'mat-06', tessutiSecondariId: [],

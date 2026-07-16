@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { RoleProvider } from './context/RoleContext'
 import { MockStoreProvider } from './context/MockStore'
 import { AppLayout } from './components/layout/AppLayout'
@@ -7,8 +7,8 @@ import { RoleGuard } from './components/layout/RoleGuard'
 import { Dashboard } from './pages/Dashboard'
 import { ProductList } from './pages/products/ProductList'
 import { ProductDetail } from './pages/products/ProductDetail'
-import { ProductIdeas } from './pages/products/ProductIdeas'
 import { ProductionPipeline } from './pages/production/ProductionPipeline'
+import { InventoryPage } from './pages/inventory/InventoryPage'
 import { FabricsInventory } from './pages/inventory/FabricsInventory'
 import { AccessoriesInventory } from './pages/inventory/AccessoriesInventory'
 import { FinishedGoodsInventory } from './pages/inventory/FinishedGoodsInventory'
@@ -37,11 +37,14 @@ export function AppRouter() {
             <Route path="/" element={<RoleGuard moduleKey="dashboard"><Dashboard /></RoleGuard>} />
             <Route path="/prodotti" element={<RoleGuard moduleKey="prodotti"><ProductList /></RoleGuard>} />
             <Route path="/prodotti/:id" element={<RoleGuard moduleKey="prodotti"><ProductDetail /></RoleGuard>} />
-            <Route path="/idee" element={<RoleGuard moduleKey="idee"><ProductIdeas /></RoleGuard>} />
             <Route path="/produzione" element={<RoleGuard moduleKey="produzione"><ProductionPipeline /></RoleGuard>} />
-            <Route path="/inventario/tessuti" element={<RoleGuard moduleKey="inventario-tessuti"><FabricsInventory /></RoleGuard>} />
-            <Route path="/inventario/accessori" element={<RoleGuard moduleKey="inventario-accessori"><AccessoriesInventory /></RoleGuard>} />
-            <Route path="/inventario/prodotti-finiti" element={<RoleGuard moduleKey="inventario-prodotti"><FinishedGoodsInventory /></RoleGuard>} />
+            {/* FR-36: vista unica Inventario, schede interne per Tessuti/Accessori/Prodotti finiti. */}
+            <Route path="/inventario" element={<RoleGuard moduleKey="inventario"><InventoryPage /></RoleGuard>}>
+              <Route index element={<Navigate to="tessuti" replace />} />
+              <Route path="tessuti" element={<FabricsInventory />} />
+              <Route path="accessori" element={<AccessoriesInventory />} />
+              <Route path="prodotti-finiti" element={<FinishedGoodsInventory />} />
+            </Route>
             <Route path="/fatture" element={<RoleGuard moduleKey="fatture"><InvoiceList /></RoleGuard>} />
             <Route path="/scadenze" element={<RoleGuard moduleKey="scadenze"><DeadlinesPage /></RoleGuard>} />
             <Route path="/margini" element={<RoleGuard moduleKey="costi-margini"><MarginsPage /></RoleGuard>} />

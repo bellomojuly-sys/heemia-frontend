@@ -5,23 +5,25 @@ import { AlertList } from '../../components/alerts/AlertList'
 import { computeAlerts } from '../../lib/alerts'
 import { canSeeAlertModulo } from '../../lib/permissions'
 import { useRole } from '../../context/RoleContext'
+import { useLiveMargins } from '../../hooks/useLiveMargins'
 import type { AlertItem } from '../../types'
 
 const LEVEL_LABEL: Record<AlertItem['livello'], string> = { critico: 'Critici', attenzione: 'Attenzione', info: 'Info' }
 
 export function AlertsPage() {
   const { role } = useRole()
+  const liveMargins = useLiveMargins()
 
   // Il gating per-modulo va applicato qui (non da RoleGuard): la rotta /alert è aperta
   // a team/viewer, ma alcune categorie di alert (Margini, Fatture, Scadenze…) restano
   // riservate ad Admin/CEO anche dentro questa pagina.
-  const visible = useMemo(() => computeAlerts().filter((a) => canSeeAlertModulo(role, a.modulo)), [role])
+  const visible = useMemo(() => computeAlerts(liveMargins).filter((a) => canSeeAlertModulo(role, a.modulo)), [liveMargins, role])
 
   const groups: AlertItem['livello'][] = ['critico', 'attenzione', 'info']
 
   return (
     <div>
-      <PageHeader title="Alert e notifiche" subtitle="Tutte le segnalazioni operative, prioritizzate per livello (FR-27)." />
+      <PageHeader title="Alert e notifiche" subtitle="Tutte le segnalazioni operative, prioritizzate per livello." />
 
       <div className="space-y-6">
         {groups.map((level) => {

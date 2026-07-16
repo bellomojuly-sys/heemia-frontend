@@ -13,6 +13,15 @@
   --color-heemia-carmine: #960018;
   --color-heemia-carmine-light: #fbe8e9;
 
+  /* Estensione DEC-016: stati semantici per gerarchia KPI Dashboard (UI_Design_System.md).
+     Toni desaturati per restare coerenti col registro "luxury minimal" — non colori accesi. */
+  --color-heemia-green: #3f6b4f;
+  --color-heemia-green-light: #e9f0ea;
+  --color-heemia-orange: #a15c2a;
+  --color-heemia-orange-light: #f5ece1;
+  --color-heemia-blue: #3f5a72;
+  --color-heemia-blue-light: #e9eef2;
+
   /* Sistema tipografico a tre ruoli: display per nomi propri e titoli (il "lookbook"),
      sans per l'interfaccia, mono per numeri/codici (il "registro"). Vedi UI_Design_System.md
      — back-office fashion, non gestionale generico. */

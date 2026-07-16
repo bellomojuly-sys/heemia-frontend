@@ -18,14 +18,14 @@ export function SettingsPage() {
       <PageHeader title="Impostazioni" subtitle="Ruolo attivo, matrice permessi e parametri configurabili (04_Security/User_Roles_Permissions.md)." />
 
       <Card className="mb-6">
-        <CardHeader title="Ruolo attivo" subtitle="Selettore demo nell'header — sostituisce l'autenticazione reale in questa fase." />
+        <CardHeader title="Ruolo attivo" subtitle="Selettore demo nell'header: sostituisce l'autenticazione reale in questa fase." />
         <div className="p-5">
           <Badge variant="info">{ROLE_LABELS[role]}</Badge>
         </div>
       </Card>
 
       <Card className="mb-6">
-        <CardHeader title="Soglia margine" subtitle="Applicata al calcolo margini di tutti i prodotti (FR-10)." />
+        <CardHeader title="Soglia margine" subtitle="Applicata al calcolo margini di tutti i prodotti." />
         <div className="p-5">
           <input
             type="number"
@@ -35,12 +35,12 @@ export function SettingsPage() {
             className="font-mono-heemia w-24 rounded-[3px] border border-heemia-border bg-heemia-cream px-3 py-1.5 text-sm text-heemia-black"
           />
           <span className="ml-2 text-sm text-heemia-grey">%</span>
-          <p className="mt-2 text-xs text-heemia-grey">Demo — modifica non persistita tra sessioni.</p>
+          <p className="mt-2 text-xs text-heemia-grey">Demo: modifica non persistita tra sessioni.</p>
         </div>
       </Card>
 
       <Card>
-        <CardHeader title="Matrice ruolo × modulo" subtitle="Derivata da lib/permissions.ts — nessuna schermata è raggiungibile da un ruolo non autorizzato, nemmeno via URL diretto." />
+        <CardHeader title="Matrice ruolo × modulo" subtitle="Nessuna schermata è raggiungibile da un ruolo non autorizzato, nemmeno via URL diretto." />
         <div className="overflow-x-auto p-5">
           <table className="w-full min-w-max text-sm">
             <thead>
@@ -60,7 +60,7 @@ export function SettingsPage() {
                       {canAccessModule(r, item.moduleKey) ? (
                         <span className="text-heemia-black">✓</span>
                       ) : (
-                        <span className="text-heemia-grey-light">—</span>
+                        <span className="text-heemia-grey-light">–</span>
                       )}
                     </td>
                   ))}

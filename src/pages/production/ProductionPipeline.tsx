@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
-import { StageProgress } from '../../components/production/StageProgress'
+import { Card, CardHeader } from '../../components/ui/Card'
+import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
+import { ProductionKanban } from '../../components/production/ProductionKanban'
 import { formatDateIt } from '../../lib/format'
-import { checkAdvance } from '../../lib/production'
+import { stageLabel } from '../../lib/production'
 import { products } from '../../mock'
+import type { ProductionStep } from '../../types'
 import { useMockStore } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
 import { canEdit } from '../../lib/permissions'
@@ -17,50 +18,46 @@ export function ProductionPipeline() {
 
   const activeSteps = productionSteps.filter((s) => s.fase !== 'archivio')
 
+  const columns: DataTableColumn<ProductionStep>[] = [
+    {
+      header: 'Prodotto',
+      accessor: (s) => (
+        <Link to={`/prodotti/${s.productId}`} className="font-display italic text-heemia-black hover:underline">
+          {products.find((p) => p.id === s.productId)?.nome ?? s.productId}
+        </Link>
+      ),
+    },
+    { header: 'Fase', accessor: (s) => stageLabel(s.fase) },
+    { header: 'Responsabile', accessor: (s) => s.responsabile },
+    { header: 'Iniziato il', accessor: (s) => (s.dataInizio ? formatDateIt(s.dataInizio) : '–') },
+    {
+      header: 'Stato',
+      accessor: (s) => (s.bloccata ? <span className="text-heemia-carmine">{s.motivoBlocco ?? 'Bloccata'}</span> : 'In corso'),
+    },
+    { header: 'Note', accessor: (s) => s.note ?? '–' },
+  ]
+
   return (
     <div>
       <PageHeader
         title="Pipeline produzione"
-        subtitle="13 fasi da idea a archivio. L'avanzamento è bloccato se manca la scheda tecnica prima di Prototipo, Campionario o Produzione (FR-07)."
+        subtitle="Vista a fasi (kanban): una colonna per fase, dall'idea a pronto per ecommerce. L'avanzamento è bloccato se manca la scheda tecnica prima di Prototipo, Campionario o Produzione."
       />
 
-      {activeSteps.length === 0 ? (
-        <p className="text-sm text-heemia-grey">Nessun prodotto in produzione.</p>
-      ) : (
-        <div className="space-y-4">
-          {activeSteps.map((step) => {
-            const product = products.find((p) => p.id === step.productId)
-            const check = checkAdvance(step)
-            return (
-              <Card key={step.id} className="p-5">
-                <div className="mb-3 flex items-start justify-between gap-4">
-                  <div>
-                    <Link to={`/prodotti/${step.productId}`} className="font-display text-lg italic text-heemia-black hover:underline">
-                      {product?.nome ?? step.productId}
-                    </Link>
-                    <p className="mt-0.5 text-xs text-heemia-grey">
-                      Responsabile: {step.responsabile}
-                      {step.dataInizio && ` · Iniziato il ${formatDateIt(step.dataInizio)}`}
-                    </p>
-                  </div>
-                  {canAct && (
-                    <Button
-                      variant="secondary"
-                      disabled={!check.ok}
-                      onClick={() => advanceProductionStep(step.id)}
-                      title={!check.ok ? check.reason : undefined}
-                    >
-                      Avanza fase
-                    </Button>
-                  )}
-                </div>
-                <StageProgress currentStage={step.fase} blocked={!check.ok} blockReason={!check.ok ? check.reason : undefined} />
-                {step.note && <p className="mt-3 text-xs text-heemia-grey">Nota: {step.note}</p>}
-              </Card>
-            )
-          })}
+      <ProductionKanban steps={activeSteps} canAct={canAct} onAdvance={advanceProductionStep} />
+
+      <Card>
+        <CardHeader title="Tutti i prodotti in produzione" subtitle={`${activeSteps.length} prodotti attivi in pipeline`} />
+        <div className="p-4">
+          <DataTable
+            columns={columns}
+            rows={activeSteps}
+            keyExtractor={(s) => s.id}
+            emptyTitle="Nessun prodotto in produzione"
+            emptyDescription="Non ci sono prodotti attualmente in pipeline."
+          />
         </div>
-      )}
+      </Card>
     </div>
   )
 }
