@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { PRODUCT_STAGES, type ProductionStep } from '../../types'
 import { checkAdvance, stageLabel } from '../../lib/production'
-import { products } from '../../mock'
+import { useMockStore } from '../../context/MockStore'
 import { Button } from '../ui/Button'
 
 // FR-31: colonne per fase, non barra lineare. Le colonne restano le 13 fasi FR-07 esistenti
@@ -19,6 +19,7 @@ export function ProductionKanban({
   canAct: boolean
   onAdvance: (id: string) => void
 }) {
+  const { products } = useMockStore()
   return (
     <div className="mb-8 overflow-x-auto pb-2">
       <div className="flex min-w-max gap-3">

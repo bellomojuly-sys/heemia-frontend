@@ -10,6 +10,7 @@ import { ImagePlaceholder } from '../../components/ui/ImagePlaceholder'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { StageProgress } from '../../components/production/StageProgress'
 import { MarginSummaryCard } from '../../components/margins/MarginSummaryCard'
+import { EditProductForm } from '../../components/products/EditProductForm'
 import { StatusBadge } from '../../lib/statusBadge'
 import { checkAdvance, stageLabel } from '../../lib/production'
 import { formatCurrency, formatDateIt } from '../../lib/format'
@@ -63,11 +64,12 @@ function FabricRow({ material, ruolo }: { material: Material; ruolo: string }) {
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>()
   const { role } = useRole()
-  const { productionSteps, products, fixedCostItems, capiProdottiAnnui } = useMockStore()
+  const { productionSteps, products, updateProduct, fixedCostItems, capiProdottiAnnui } = useMockStore()
   const product = products.find((p) => p.id === id)
   const sheets = technicalSheets.filter((ts) => ts.productId === id)
 
   const [activeTab, setActiveTab] = useState<TabId>('panoramica')
+  const [editOpen, setEditOpen] = useState(false)
   const [activeVersion, setActiveVersion] = useState<TechnicalSheetVersion | null>(
     sheets.find((s) => s.versione === 'finale')?.versione ?? sheets[0]?.versione ?? null,
   )
@@ -145,12 +147,21 @@ export function ProductDetail() {
         title={product.nome}
         subtitle={`${product.codiceProdotto} · ${product.categoria} · ${product.collezione} · ${product.stagione}`}
         action={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <Badge variant="neutral">{product.linea === 'tessile' ? 'Tessile' : 'Maglieria'}</Badge>
             <StatusBadge status={product.statoPubblicazioneShopify} />
+            {canEdit(role) && <Button variant="secondary" onClick={() => setEditOpen(true)}>Modifica dati</Button>}
           </div>
         }
       />
+
+      {editOpen && (
+        <EditProductForm
+          product={product}
+          onClose={() => setEditOpen(false)}
+          onSave={(patch) => updateProduct(product.id, patch)}
+        />
+      )}
 
       <div className="mb-6 flex flex-wrap gap-x-6 gap-y-1 border-b border-heemia-border">
         {TABS.filter((t) => t.visible).map((tab) => (

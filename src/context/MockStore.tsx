@@ -137,6 +137,7 @@ interface MockStoreValue {
   advanceProductionStep: (id: string) => { ok: boolean; reason?: string }
 
   addProduct: (input: NewProductInput) => Product
+  updateProduct: (id: string, patch: Partial<Product>) => void
   addMaterial: (input: NewMaterialInput) => Material
   addAccessory: (input: NewAccessoryInput) => Accessory
   addInvoice: (input: NewInvoiceInput) => Invoice
@@ -226,7 +227,24 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
           visibileShowroom: false,
         }
         setProducts((prev) => [product, ...prev])
+        // Ogni prodotto entra subito in pipeline dalla fase "Idea" (FR-07): senza questo step
+        // il capo non comparirebbe nel kanban Produzione né nella tabella sotto.
+        setProductionSteps((prev) => [
+          {
+            id: genId('step'),
+            productId: product.id,
+            fase: 'idea',
+            responsabile: 'Da assegnare',
+            dataInizio: new Date().toISOString().slice(0, 10),
+            bloccata: false,
+          },
+          ...prev,
+        ])
         return product
+      },
+
+      updateProduct: (id, patch) => {
+        setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
       },
 
       addMaterial: (input) => {

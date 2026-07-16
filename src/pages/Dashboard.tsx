@@ -27,11 +27,9 @@ import {
   getProductsByCategoria,
   getProductsByStagione,
 } from '../lib/dashboard'
-import { products } from '../mock'
-
 export function Dashboard() {
   const { role } = useRole()
-  const { productionSteps, supplierRequests } = useMockStore()
+  const { products, productionSteps, supplierRequests } = useMockStore()
   const loading = useMockLoading(700)
   const liveMargins = useLiveMargins()
 

@@ -1,11 +1,13 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
+import { Button } from '../../components/ui/Button'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { ProductionKanban } from '../../components/production/ProductionKanban'
+import { AddProductForm } from '../../components/products/AddProductForm'
 import { formatDateIt } from '../../lib/format'
 import { stageLabel } from '../../lib/production'
-import { products } from '../../mock'
 import type { ProductionStep } from '../../types'
 import { useMockStore } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
@@ -13,8 +15,9 @@ import { canEdit } from '../../lib/permissions'
 
 export function ProductionPipeline() {
   const { role } = useRole()
-  const { productionSteps, advanceProductionStep } = useMockStore()
+  const { products, productionSteps, advanceProductionStep, addProduct } = useMockStore()
   const canAct = canEdit(role)
+  const [addOpen, setAddOpen] = useState(false)
 
   const activeSteps = productionSteps.filter((s) => s.fase !== 'archivio')
 
@@ -42,6 +45,7 @@ export function ProductionPipeline() {
       <PageHeader
         title="Pipeline produzione"
         subtitle="Vista a fasi (kanban): una colonna per fase, dall'idea a pronto per ecommerce. L'avanzamento è bloccato se manca la scheda tecnica prima di Prototipo, Campionario o Produzione."
+        action={canAct ? <Button onClick={() => setAddOpen(true)}>Nuovo prodotto</Button> : undefined}
       />
 
       <ProductionKanban steps={activeSteps} canAct={canAct} onAdvance={advanceProductionStep} />
@@ -58,6 +62,10 @@ export function ProductionPipeline() {
           />
         </div>
       </Card>
+
+      {/* Il prodotto creato compare subito nella colonna "Idea" del kanban: si resta qui,
+          per aprire la scheda basta cliccare la card. */}
+      {addOpen && <AddProductForm onClose={() => setAddOpen(false)} onSubmit={addProduct} />}
     </div>
   )
 }
