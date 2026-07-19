@@ -1,19 +1,25 @@
 import { NavLink } from 'react-router-dom'
 import { useMemo } from 'react'
+import { ExternalLink } from 'lucide-react'
 import { useRole } from '../../context/RoleContext'
 import { canAccessModule } from '../../lib/permissions'
 import { NAV_GROUPS } from './nav'
 import { computeAlerts } from '../../lib/alerts'
 import { canSeeAlertModulo } from '../../lib/permissions'
 import { useLiveMargins } from '../../hooks/useLiveMargins'
+import { useMockStore } from '../../context/MockStore'
 
 export function Sidebar() {
   const { role } = useRole()
   const liveMargins = useLiveMargins()
+  const { products, materials, accessories, invoices, inventoryRecords, productVariants } = useMockStore()
 
   const criticalAlertCount = useMemo(
-    () => computeAlerts(liveMargins).filter((a) => a.livello === 'critico' && canSeeAlertModulo(role, a.modulo)).length,
-    [liveMargins, role],
+    () =>
+      computeAlerts({ products, materials, accessories, invoices, inventoryRecords, productVariants, margins: liveMargins }).filter(
+        (a) => a.livello === 'critico' && canSeeAlertModulo(role, a.modulo),
+      ).length,
+    [products, materials, accessories, invoices, inventoryRecords, productVariants, liveMargins, role],
   )
 
   // Solo voci di pagina, senza titoli di sezione: richiesta esplicita della founder
@@ -55,6 +61,20 @@ export function Sidebar() {
           ))}
         </ul>
       </nav>
+
+      {/* Vista cliente showroom (FR-29) con un click: si apre in una scheda separata, così il
+          gestionale non resta nella cronologia del dispositivo mostrato al cliente. */}
+      <div className="border-t border-white/10 px-4 py-4">
+        <a
+          href="/showroom"
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2 border-l-2 border-transparent px-2.5 py-1.5 text-sm text-white/60 transition-colors hover:border-white/25 hover:text-white"
+        >
+          <ExternalLink aria-hidden className="h-3.5 w-3.5" />
+          Apri vista showroom
+        </a>
+      </div>
     </aside>
   )
 }

@@ -8,6 +8,36 @@ export function computeQuotaPerCapo(fixedCostItems: FixedCostItem[], capiProdott
   return Math.round((totale / capiProdottiAnnui) * 100) / 100
 }
 
+// FR-10 §18: numero di unità da vendere per coprire i costi fissi allocati — costi fissi
+// annui totali diviso il margine lordo unitario (prezzo netto − costo diretto).
+export function computeUnitsToBreakEven(totaleCostiFissi: number, margin: Margin): number | null {
+  const margineLordoUnitario = margin.prezzoNettoIva - margin.costoDiretto
+  if (margineLordoUnitario <= 0) return null
+  return Math.ceil(totaleCostiFissi / margineLordoUnitario)
+}
+
+// FR-10 §18: margine residuo per fascia di prezzo (prezzo pieno e sconti tipici) con
+// segnalazione automatica se lo sconto porta il prodotto sotto break-even.
+export interface PriceBand {
+  label: string
+  prezzoNetto: number
+  margine: number
+  sottoBreakEven: boolean
+}
+
+export function computePriceBands(margin: Margin, sconti: number[] = [0, 10, 20, 30]): PriceBand[] {
+  return sconti.map((sconto) => {
+    const prezzoNetto = Math.round(margin.prezzoNettoIva * (1 - sconto / 100) * 100) / 100
+    const margine = Math.round((prezzoNetto - margin.costoTotale) * 100) / 100
+    return {
+      label: sconto === 0 ? 'Prezzo pieno' : `-${sconto}%`,
+      prezzoNetto,
+      margine,
+      sottoBreakEven: prezzoNetto < margin.breakEvenPrice,
+    }
+  })
+}
+
 // Ricalcola un margine con una nuova quota di costi indiretti allocati, mantenendo invariati
 // prezzo e costo diretto (dati per prodotto). Formule verificate sui dati mock esistenti:
 // costoTotale = costoDiretto + quota; margineLordo = prezzoNettoIva - costoDiretto;

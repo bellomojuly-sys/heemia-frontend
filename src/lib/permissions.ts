@@ -11,6 +11,7 @@ export type ModuleKey =
   | 'prodotti'
   | 'produzione'
   | 'inventario'
+  | 'ordini'
   | 'fatture'
   | 'scadenze'
   | 'costi-margini'
@@ -33,6 +34,9 @@ const MODULE_ACCESS: Record<ModuleKey, Role[]> = {
   // FR-36 / DEC-020: vista unica Inventario — le tre chiavi separate (tessuti/accessori/prodotti)
   // avevano comunque accesso identico, quindi la fusione non cambia alcun comportamento di gating.
   inventario: ADMIN_CEO_TEAM_VIEWER,
+  // La matrice assegna esplicitamente "ordini" al Team interno; pagina dedicata separata
+  // da Clienti (che resta Admin/CEO perché include dati commerciali e sconti).
+  ordini: ADMIN_CEO_TEAM_VIEWER,
   fatture: ADMIN_CEO,
   scadenze: ADMIN_CEO,
   'costi-margini': ADMIN_CEO,

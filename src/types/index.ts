@@ -85,6 +85,8 @@ export interface Product {
   disponibilitaOnline: boolean
   disponibilitaShowroom: boolean
   visibileShowroom: boolean
+  /** DEC-023: il capo è proposto anche nel catalogo su misura della sub-app showroom. */
+  personalizzabileSuMisura?: boolean
 }
 
 export interface ProductIdea {
@@ -313,6 +315,12 @@ export interface Invoice {
   paese: 'IT' | 'EU' | 'Extra-EU'
   valuta: string
   tassoCambio?: number
+  /** Data del cambio applicato (FR-22, fatture estere). */
+  dataCambio?: string
+  /** Imponibile nella valuta originale (FR-22); `imponibile` resta il valore in EUR. */
+  imponibileValutaOriginale?: number
+  /** Totale nella valuta originale (FR-22); la conversione EUR è calcolata con `tassoCambio`. */
+  totaleValutaOriginale?: number
   imponibile: number
   iva: number
   totale: number
@@ -376,6 +384,18 @@ export interface FixedCostItem {
   id: string
   nome: string
   importoAnnuo: number
+}
+
+// Registrazione storica della quota per stagione/periodo (FR-40): il valore corrente si può
+// salvare esplicitamente, mai sovrascritto in silenzio.
+export interface QuotaHistoryEntry {
+  id: string
+  periodo: string
+  capiProdottiAnnui: number
+  totaleCostiFissi: number
+  quotaPerCapo: number
+  registrataIl: string
+  nota?: string
 }
 
 // ---------------------------------------------------------------------------

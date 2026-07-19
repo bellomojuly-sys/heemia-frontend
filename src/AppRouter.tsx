@@ -12,6 +12,7 @@ import { InventoryPage } from './pages/inventory/InventoryPage'
 import { FabricsInventory } from './pages/inventory/FabricsInventory'
 import { AccessoriesInventory } from './pages/inventory/AccessoriesInventory'
 import { FinishedGoodsInventory } from './pages/inventory/FinishedGoodsInventory'
+import { OrdersPage } from './pages/orders/OrdersPage'
 import { InvoiceList } from './pages/invoices/InvoiceList'
 import { DeadlinesPage } from './pages/deadlines/DeadlinesPage'
 import { MarginsPage } from './pages/margins/MarginsPage'
@@ -45,6 +46,7 @@ export function AppRouter() {
               <Route path="accessori" element={<AccessoriesInventory />} />
               <Route path="prodotti-finiti" element={<FinishedGoodsInventory />} />
             </Route>
+            <Route path="/ordini" element={<RoleGuard moduleKey="ordini"><OrdersPage /></RoleGuard>} />
             <Route path="/fatture" element={<RoleGuard moduleKey="fatture"><InvoiceList /></RoleGuard>} />
             <Route path="/scadenze" element={<RoleGuard moduleKey="scadenze"><DeadlinesPage /></RoleGuard>} />
             <Route path="/margini" element={<RoleGuard moduleKey="costi-margini"><MarginsPage /></RoleGuard>} />

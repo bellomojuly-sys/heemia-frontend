@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Button } from '../../components/ui/Button'
 import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency } from '../../lib/format'
-import { suppliers, products, invoices } from '../../mock'
 import type { Accessory } from '../../types'
 import { useRole } from '../../context/RoleContext'
 import { canEdit } from '../../lib/permissions'
@@ -23,6 +22,7 @@ const emptyForm = {
 }
 
 function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewAccessoryInput) => void }) {
+  const { suppliers } = useMockStore()
   const [form, setForm] = useState(emptyForm)
 
   const submit = () => {
@@ -77,7 +77,8 @@ function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit
 
 export function AccessoriesInventory() {
   const { role } = useRole()
-  const { accessories, addAccessory } = useMockStore()
+  const navigate = useNavigate()
+  const { accessories, suppliers, products, invoices, addAccessory, addSupplierRequest } = useMockStore()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [addOpen, setAddOpen] = useState(false)
@@ -111,13 +112,18 @@ export function AccessoriesInventory() {
       header: '',
       accessor: (a) =>
         canEdit(role) && (a.stato === 'sotto_soglia' || a.stato === 'esaurito') ? (
-          <Link
-            to="/fornitori"
-            onClick={(e) => e.stopPropagation()}
+          <button
+            type="button"
+            onClick={(e) => {
+              // FR-05: genera una bozza email fornitore precompilata e apre la sezione Fornitori.
+              e.stopPropagation()
+              addSupplierRequest({ accessoryId: a.id })
+              navigate('/fornitori')
+            }}
             className="text-xs font-medium text-heemia-carmine hover:underline"
           >
             Genera richiesta →
-          </Link>
+          </button>
         ) : null,
     },
   ]

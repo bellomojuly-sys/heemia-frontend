@@ -7,8 +7,7 @@ import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatDateIt } from '../../lib/format'
-import { materials, accessories } from '../../mock'
-import type { Supplier, SupplierCategoria, SupplierRequest } from '../../types'
+import type { Accessory, Material, Supplier, SupplierCategoria, SupplierRequest } from '../../types'
 import { useMockStore, type NewSupplierInput } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
 import { canApproveEmailDrafts, canEdit } from '../../lib/permissions'
@@ -22,7 +21,7 @@ const SUPPLIER_CATEGORIES: SupplierCategoria[] = [
   'Modellistica', 'Ricami', 'Smacchinatore', 'Confezione', 'Commercialista', 'Marchi e brevetti', 'Consulenza',
 ]
 
-function suppliedItems(supplier: Supplier) {
+function suppliedItems(supplier: Supplier, materials: Material[], accessories: Accessory[]) {
   const mats = materials.filter((m) => m.supplierId === supplier.id).map((m) => m.nome)
   const accs = accessories.filter((a) => a.supplierId === supplier.id).map((a) => a.nome)
   return [...mats, ...accs].join(', ') || '–'
@@ -87,7 +86,7 @@ function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 
 export function SupplierList() {
   const { role } = useRole()
-  const { suppliers, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft } = useMockStore()
+  const { suppliers, materials, accessories, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft } = useMockStore()
   const [openId, setOpenId] = useState<string | null>(supplierRequests[0]?.id ?? null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftText, setDraftText] = useState('')
@@ -103,7 +102,7 @@ export function SupplierList() {
     { header: 'Categoria', accessor: (s) => s.categoria },
     { header: 'Città', accessor: (s) => s.citta },
     { header: 'Contatto', accessor: (s) => <span className="font-mono-heemia text-xs">{s.email ?? '–'}</span> },
-    { header: 'Fornisce', accessor: (s) => suppliedItems(s) },
+    { header: 'Fornisce', accessor: (s) => suppliedItems(s, materials, accessories) },
     { header: 'Tempi consegna', accessor: (s) => (s.tempiMediConsegnaGiorni ? `${s.tempiMediConsegnaGiorni}gg` : '–'), align: 'right' },
   ]
 

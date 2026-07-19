@@ -1,11 +1,11 @@
-import type { AlertItem, Margin } from '../types'
-import { products } from '../mock/products'
+import type { Accessory, AlertItem, InventoryRecord, Invoice, Margin, Material, Product, ProductVariant } from '../types'
+import { products as staticProducts } from '../mock/products'
 import { technicalSheets } from '../mock/technicalSheets'
-import { materials, accessories } from '../mock/materials'
-import { invoices } from '../mock/invoices'
-import { margins, MARGIN_THRESHOLD_PERCENT } from '../mock/margins'
-import { inventoryRecords } from '../mock/inventory'
-import { productVariants } from '../mock/products'
+import { materials as staticMaterials, accessories as staticAccessories } from '../mock/materials'
+import { invoices as staticInvoices } from '../mock/invoices'
+import { margins as staticMargins, MARGIN_THRESHOLD_PERCENT } from '../mock/margins'
+import { inventoryRecords as staticInventoryRecords } from '../mock/inventory'
+import { productVariants as staticVariants } from '../mock/products'
 import { monthlyReports } from '../mock/reports'
 
 // "Oggi" fissato per il prototipo a dati finti (coerente con le scadenze mock in invoices.ts).
@@ -16,14 +16,33 @@ export function daysBetween(dateStr: string): number {
   return Math.round((target.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-// Deriva gli alert direttamente dai dati mock (FR-27), cosi restano sempre coerenti
-// con prodotti, materiali, fatture e margini mostrati nel resto dell'app. liveMargins:
-// margini ricalcolati con la quota costi fissi corrente (lib/margins.ts); se omesso usa
-// i dati mock statici.
-export function computeAlerts(liveMargins: Margin[] = margins): AlertItem[] {
+// Sorgenti dati per gli alert: di default i mock statici, ma i chiamanti passano lo stato
+// del MockStore così gli alert riflettono anche i record creati/modificati in sessione
+// (un tessuto aggiunto già sotto soglia genera subito il suo alert).
+export interface AlertSources {
+  products?: Product[]
+  materials?: Material[]
+  accessories?: Accessory[]
+  invoices?: Invoice[]
+  inventoryRecords?: InventoryRecord[]
+  productVariants?: ProductVariant[]
+  margins?: Margin[]
+}
+
+// Deriva gli alert direttamente dai dati (FR-27), così restano sempre coerenti con
+// prodotti, materiali, fatture e margini mostrati nel resto dell'app.
+export function computeAlerts(src: AlertSources = {}): AlertItem[] {
+  const products = src.products ?? staticProducts
+  const materials = src.materials ?? staticMaterials
+  const accessories = src.accessories ?? staticAccessories
+  const invoices = src.invoices ?? staticInvoices
+  const inventoryRecords = src.inventoryRecords ?? staticInventoryRecords
+  const productVariants = src.productVariants ?? staticVariants
+  const margins = src.margins ?? staticMargins
+
   const alerts: AlertItem[] = []
 
-  for (const m of liveMargins) {
+  for (const m of margins) {
     if (m.sottoSoglia) {
       const p = products.find((pr) => pr.id === m.productId)
       alerts.push({
@@ -103,11 +122,20 @@ export function computeAlerts(liveMargins: Margin[] = margins): AlertItem[] {
         data: TODAY.toISOString(), entitaId: p.id, link: `/prodotti/${p.id}`,
       })
     }
-    const hasSheet = technicalSheets.some((ts) => ts.productId === p.id)
-    if (!hasSheet && p.stato !== 'idea') {
+    const sheets = technicalSheets.filter((ts) => ts.productId === p.id)
+    if (sheets.length === 0 && p.stato !== 'idea') {
       alerts.push({
         id: `alert-nosheet-${p.id}`, modulo: 'Anagrafica', livello: 'attenzione',
         messaggio: `${p.nome}: nessuna scheda tecnica presente`,
+        data: TODAY.toISOString(), entitaId: p.id, link: `/prodotti/${p.id}`,
+      })
+    }
+    // FR-27 "Costo prodotto incompleto": scheda tecnica presente ma con costi chiave a zero.
+    const sheet = sheets.find((s) => s.versione === 'finale') ?? sheets[sheets.length - 1]
+    if (sheet && p.stato !== 'idea' && p.stato !== 'archivio' && (sheet.costoTessuto <= 0 || sheet.costoManodopera <= 0)) {
+      alerts.push({
+        id: `alert-incompletecost-${p.id}`, modulo: 'Costi', livello: 'attenzione',
+        messaggio: `${p.nome}: costo prodotto incompleto nella scheda tecnica (tessuto o manodopera a zero)`,
         data: TODAY.toISOString(), entitaId: p.id, link: `/prodotti/${p.id}`,
       })
     }

@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Button } from '../../components/ui/Button'
 import { formatPercent } from '../../lib/format'
-import { materials, accessories, margins, products } from '../../mock'
-import type { AiMessage } from '../../types'
+import type { AiMessage, Accessory, Margin, Material, Product } from '../../types'
+import { useMockStore } from '../../context/MockStore'
+import { useLiveMargins } from '../../hooks/useLiveMargins'
 import { useRole } from '../../context/RoleContext'
 import { canAccessModule } from '../../lib/permissions'
 
@@ -14,9 +15,17 @@ const WELCOME: AiMessage = {
   data: new Date().toISOString(),
 }
 
-// FR-28: risposte sempre ancorate ai dati reali del mock, mai inventate; sui dati economici
-// il filtro segue lo stesso gating del modulo Costi e margini.
-function answer(question: string, canSeeEconomics: boolean): string {
+// FR-28: risposte sempre ancorate ai dati del gestionale (stato di sessione incluso), mai
+// inventate; sui dati economici il filtro segue lo stesso gating del modulo Costi e margini.
+interface AiData {
+  materials: Material[]
+  accessories: Accessory[]
+  products: Product[]
+  margins: Margin[]
+}
+
+function answer(question: string, canSeeEconomics: boolean, data: AiData): string {
+  const { materials, accessories, products, margins } = data
   const q = question.toLowerCase()
 
   if (q.includes('tessut') && (q.includes('scorta') || q.includes('sotto') || q.includes('disponibil'))) {
@@ -41,7 +50,11 @@ function answer(question: string, canSeeEconomics: boolean): string {
     const m = margins.find((mg) => mg.productId === target)
     const p = products.find((pr) => pr.id === target)
     if (!m || !p) return 'Non trovo dati sufficienti su questo prodotto.'
-    return `${p.nome} ha un margine netto stimato del ${formatPercent(m.marginePercentuale)}, sotto la soglia configurata. Il costo totale (${m.costoTotale.toFixed(2)}€) è vicino al prezzo netto (${m.prezzoNettoIva.toFixed(2)}€), quindi resta poco margine dopo la quota di costi fissi.`
+    const relazioneCosto =
+      m.costoTotale > m.prezzoNettoIva
+        ? `supera il prezzo netto (${m.prezzoNettoIva.toFixed(2)}€): il capo si vende in perdita`
+        : `è vicino al prezzo netto (${m.prezzoNettoIva.toFixed(2)}€), quindi resta poco margine`
+    return `${p.nome} ha un margine netto stimato del ${formatPercent(m.marginePercentuale)}, sotto la soglia configurata. Il costo totale (${m.costoTotale.toFixed(2)}€) ${relazioneCosto} dopo la quota di costi fissi.`
   }
 
   if (q.includes('fattura') && q.includes('prodotto')) {
@@ -49,7 +62,7 @@ function answer(question: string, canSeeEconomics: boolean): string {
   }
 
   if (q.includes('tessuto') && q.includes('aggiung')) {
-    return 'Per aggiungere un nuovo tessuto: vai su Inventario → Tessuti e usa "Nuovo tessuto" (visibile ad Admin, CEO e Team interno). Servono fornitore, composizione, prezzo al metro e soglia minima.'
+    return 'Per aggiungere un nuovo tessuto: vai su Inventario → Tessuti e usa "Aggiungi tessuto" (visibile ad Admin, CEO e Team interno). Servono fornitore, composizione, prezzo al metro e soglia minima.'
   }
 
   return 'Non ho una risposta pronta per questa domanda nei dati disponibili. Prova a riformulare, o chiedi a un membro del team con accesso al modulo specifico.'
@@ -57,6 +70,8 @@ function answer(question: string, canSeeEconomics: boolean): string {
 
 export function AiAssistantPage() {
   const { role } = useRole()
+  const { materials, accessories, products, logAction } = useMockStore()
+  const liveMargins = useLiveMargins()
   const canSeeEconomics = canAccessModule(role, 'costi-margini')
   const [messages, setMessages] = useState<AiMessage[]>([WELCOME])
   const [input, setInput] = useState('')
@@ -65,8 +80,14 @@ export function AiAssistantPage() {
     const text = input.trim()
     if (!text) return
     const userMsg: AiMessage = { id: `u-${Date.now()}`, autore: 'utente', testo: text, data: new Date().toISOString() }
-    const aiMsg: AiMessage = { id: `a-${Date.now()}`, autore: 'assistant', testo: answer(text, canSeeEconomics), data: new Date().toISOString() }
+    const aiMsg: AiMessage = {
+      id: `a-${Date.now()}`, autore: 'assistant',
+      testo: answer(text, canSeeEconomics, { materials, accessories, products, margins: liveMargins }),
+      data: new Date().toISOString(),
+    }
     setMessages((prev) => [...prev, userMsg, aiMsg])
+    // FR-28/FR-18: ogni domanda della sessione AI viene tracciata nell'activity log.
+    logAction('Domanda AI assistant', 'ai_sessions', userMsg.id, text)
     setInput('')
   }
 

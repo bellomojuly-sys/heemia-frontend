@@ -1,19 +1,34 @@
-import { products } from '../mock/products'
-import { productVariants } from '../mock/products'
-import { inventoryRecords } from '../mock/inventory'
-import { materials, accessories } from '../mock/materials'
-import { invoices, deadlines } from '../mock/invoices'
-import { margins } from '../mock/margins'
+import { products as staticProducts, productVariants as staticVariants } from '../mock/products'
+import { inventoryRecords as staticInventoryRecords } from '../mock/inventory'
+import { materials as staticMaterials, accessories as staticAccessories } from '../mock/materials'
+import { invoices as staticInvoices, deadlines } from '../mock/invoices'
+import { margins as staticMargins } from '../mock/margins'
 import { technicalSheets } from '../mock/technicalSheets'
-import type { Margin, ProductionStep, SupplierRequest } from '../types'
-import { orders } from '../mock/customers'
+import type { Accessory, InventoryRecord, Invoice, Margin, Material, Order, Product, ProductionStep, ProductVariant, SupplierRequest } from '../types'
+import { orders as staticOrders } from '../mock/customers'
 import { monthlyReports } from '../mock/reports'
 import { TODAY } from './alerts'
 
-// liveMargins: passare i margini ricalcolati con la quota costi fissi corrente (lib/margins.ts)
-// così i KPI restano coerenti con quanto configurato in Costi e margini; se omesso usa i dati
-// mock statici (quota di riferimento iniziale).
-export function getDashboardKpis(liveMargins: Margin[] = margins) {
+// Sorgenti dati: di default i mock statici; i chiamanti passano lo stato del MockStore
+// così KPI e conteggi riflettono anche i record creati/modificati in sessione.
+export interface DashboardSources {
+  products?: Product[]
+  materials?: Material[]
+  accessories?: Accessory[]
+  invoices?: Invoice[]
+  inventoryRecords?: InventoryRecord[]
+  productVariants?: ProductVariant[]
+  orders?: Order[]
+  margins?: Margin[]
+}
+
+export function getDashboardKpis(src: DashboardSources = {}) {
+  const products = src.products ?? staticProducts
+  const materials = src.materials ?? staticMaterials
+  const accessories = src.accessories ?? staticAccessories
+  const invoices = src.invoices ?? staticInvoices
+  const liveMargins = src.margins ?? staticMargins
+
   const prodottiTotali = products.length
   const prodottiAttivi = products.filter((p) => p.stato !== 'archivio' && p.stato !== 'idea').length
   const prodottiInSviluppo = products.filter((p) =>
@@ -80,7 +95,9 @@ export interface MaterialAlertRow {
   link: string
 }
 
-export function getMaterialAlerts(): MaterialAlertRow[] {
+export function getMaterialAlerts(src: DashboardSources = {}): MaterialAlertRow[] {
+  const materials = src.materials ?? staticMaterials
+  const accessories = src.accessories ?? staticAccessories
   const tessuti: MaterialAlertRow[] = materials
     .filter((m) => m.stato === 'sotto_soglia' || m.stato === 'esaurito')
     .map((m) => ({ id: m.id, nome: m.nome, tipo: 'tessuto', stato: m.stato as 'sotto_soglia' | 'esaurito', link: '/inventario/tessuti' }))
@@ -92,19 +109,22 @@ export function getMaterialAlerts(): MaterialAlertRow[] {
 }
 
 // "Per categoria" / "Per stagione" (FR-30 §5): conteggio neutro prodotti, nessun colore semantico.
-export function getProductsByCategoria(): { label: string; count: number }[] {
+export function getProductsByCategoria(products: Product[] = staticProducts): { label: string; count: number }[] {
   const counts = new Map<string, number>()
   for (const p of products) counts.set(p.categoria, (counts.get(p.categoria) ?? 0) + 1)
   return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count)
 }
 
-export function getProductsByStagione(): { label: string; count: number }[] {
+export function getProductsByStagione(products: Product[] = staticProducts): { label: string; count: number }[] {
   const counts = new Map<string, number>()
   for (const p of products) counts.set(p.stagione, (counts.get(p.stagione) ?? 0) + 1)
   return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count)
 }
 
-export function getTopSellingProducts(limit = 5) {
+export function getTopSellingProducts(limit = 5, src: DashboardSources = {}) {
+  const products = src.products ?? staticProducts
+  const inventoryRecords = src.inventoryRecords ?? staticInventoryRecords
+  const productVariants = src.productVariants ?? staticVariants
   const salesByProduct = new Map<string, number>()
   for (const rec of inventoryRecords) {
     const variant = productVariants.find((v) => v.id === rec.variantId)
@@ -113,12 +133,12 @@ export function getTopSellingProducts(limit = 5) {
   }
   return [...salesByProduct.entries()]
     .map(([productId, venduto]) => ({ product: products.find((p) => p.id === productId), venduto }))
-    .filter((r) => r.product)
+    .filter((r): r is { product: Product; venduto: number } => Boolean(r.product))
     .sort((a, b) => b.venduto - a.venduto)
-    .slice(0, limit) as { product: NonNullable<ReturnType<typeof products.find>>; venduto: number }[]
+    .slice(0, limit)
 }
 
-export function getRecentOrders(limit = 5) {
+export function getRecentOrders(limit = 5, orders: Order[] = staticOrders) {
   return [...orders].sort((a, b) => (a.data < b.data ? 1 : -1)).slice(0, limit)
 }
 
@@ -134,10 +154,12 @@ export function getPendingEmailDrafts(supplierRequests: SupplierRequest[]) {
   )
 }
 
-export function getStockOverview() {
-  const disponibile = inventoryRecords.reduce((sum, r) => sum + r.qtaMagazzino, 0)
-  const riservato = inventoryRecords.reduce((sum, r) => sum + r.qtaRiservata, 0)
-  const lowStock = inventoryRecords.filter((r) => r.stato === 'low_stock').length
-  const esaurito = inventoryRecords.filter((r) => r.stato === 'esaurito').length
+// records: passare i record dal MockStore (mutabili in sessione) per riflettere le quantità
+// modificate; se omesso usa i dati mock statici iniziali.
+export function getStockOverview(records: InventoryRecord[] = staticInventoryRecords) {
+  const disponibile = records.reduce((sum, r) => sum + r.qtaMagazzino, 0)
+  const riservato = records.reduce((sum, r) => sum + r.qtaRiservata, 0)
+  const lowStock = records.filter((r) => r.stato === 'low_stock').length
+  const esaurito = records.filter((r) => r.stato === 'esaurito').length
   return { disponibile, riservato, lowStock, esaurito }
 }

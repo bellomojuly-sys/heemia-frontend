@@ -12,7 +12,7 @@ export function RoleGuard({ moduleKey, children }: { moduleKey: ModuleKey; child
     return (
       <EmptyState
         title="Accesso non disponibile per questo ruolo"
-        description="Il ruolo attivo non è autorizzato a vedere questa sezione. Vedi 04_Security/User_Roles_Permissions.md."
+        description="Il ruolo attivo non è autorizzato a vedere questa sezione. Se ti serve l'accesso, chiedi a un amministratore."
       />
     )
   }

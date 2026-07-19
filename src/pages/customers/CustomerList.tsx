@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
@@ -106,7 +107,7 @@ function AddOrderForm({ customerName, onClose, onSubmit }: { customerName: strin
 
 export function CustomerList() {
   const { role } = useRole()
-  const { customers, orders, addCustomer, addOrder } = useMockStore()
+  const { customers, orders, invoices, products, addCustomer, addOrder } = useMockStore()
   const [search, setSearch] = useState('')
   const [tipologia, setTipologia] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -135,6 +136,11 @@ export function CustomerList() {
 
   const expandedCustomer = customers.find((c) => c.id === expandedId)
   const expandedOrders = expandedId ? orders.filter((o) => o.customerId === expandedId) : []
+  // FR-25: fatture collegate al cliente e prodotti acquistati (derivati dagli ordini).
+  const expandedInvoices = expandedId ? invoices.filter((i) => i.clienteId === expandedId) : []
+  const purchasedProducts = [...new Set(expandedOrders.flatMap((o) => o.prodottiIds))]
+    .map((pid) => products.find((p) => p.id === pid)?.nome)
+    .filter(Boolean)
 
   return (
     <div>
@@ -179,6 +185,33 @@ export function CustomerList() {
               ))}
             </ul>
           )}
+
+          <div className="mt-5 grid grid-cols-1 gap-4 border-t border-heemia-border pt-4 text-sm sm:grid-cols-3">
+            <div>
+              <p className="font-mono-heemia mb-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Prodotti acquistati</p>
+              <p className="text-heemia-black">{purchasedProducts.join(', ') || '–'}</p>
+            </div>
+            <div>
+              <p className="font-mono-heemia mb-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Fatture collegate</p>
+              {expandedInvoices.length === 0 ? (
+                <p className="text-heemia-black">–</p>
+              ) : (
+                <ul className="space-y-0.5">
+                  {expandedInvoices.map((i) => (
+                    <li key={i.id}>
+                      <Link to="/fatture" className="font-mono-heemia text-xs text-heemia-black hover:underline">
+                        {i.numero} · {formatCurrency(i.totale)}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <p className="font-mono-heemia mb-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Note commerciali</p>
+              <p className="text-heemia-black">{expandedCustomer.note ?? '–'}</p>
+            </div>
+          </div>
         </div>
       )}
 

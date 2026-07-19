@@ -29,23 +29,30 @@ import {
 } from '../lib/dashboard'
 export function Dashboard() {
   const { role } = useRole()
-  const { products, productionSteps, supplierRequests } = useMockStore()
+  const { products, materials, accessories, invoices, orders, productVariants, productionSteps, supplierRequests, inventoryRecords } = useMockStore()
   const loading = useMockLoading(700)
   const liveMargins = useLiveMargins()
 
-  const kpis = useMemo(() => getDashboardKpis(liveMargins), [liveMargins])
-  const topProducts = useMemo(() => getTopSellingProducts(5), [])
-  const recentOrders = useMemo(() => getRecentOrders(5), [])
+  // Tutte le viste aggregate ricevono lo stato del MockStore: i record creati o modificati
+  // in sessione (prodotti, tessuti, fatture, quantità) si riflettono su KPI, alert e liste.
+  const src = useMemo(
+    () => ({ products, materials, accessories, invoices, orders, productVariants, inventoryRecords, margins: liveMargins }),
+    [products, materials, accessories, invoices, orders, productVariants, inventoryRecords, liveMargins],
+  )
+
+  const kpis = useMemo(() => getDashboardKpis(src), [src])
+  const topProducts = useMemo(() => getTopSellingProducts(5, src), [src])
+  const recentOrders = useMemo(() => getRecentOrders(5, orders), [orders])
   const activeProduction = useMemo(() => getActiveProduction(productionSteps), [productionSteps])
   const pendingDrafts = useMemo(() => getPendingEmailDrafts(supplierRequests), [supplierRequests])
-  const stock = useMemo(() => getStockOverview(), [])
+  const stock = useMemo(() => getStockOverview(inventoryRecords), [inventoryRecords])
   const alerts = useMemo(
-    () => computeAlerts(liveMargins).filter((a) => canSeeAlertModulo(role, a.modulo)),
-    [liveMargins, role],
+    () => computeAlerts(src).filter((a) => canSeeAlertModulo(role, a.modulo)),
+    [src, role],
   )
-  const materialAlerts = useMemo(() => getMaterialAlerts(), [])
-  const byCategoria = useMemo(() => getProductsByCategoria(), [])
-  const byStagione = useMemo(() => getProductsByStagione(), [])
+  const materialAlerts = useMemo(() => getMaterialAlerts(src), [src])
+  const byCategoria = useMemo(() => getProductsByCategoria(products), [products])
+  const byStagione = useMemo(() => getProductsByStagione(products), [products])
   const canSeeEconomics = canAccessModule(role, 'costi-margini')
   const canSeeInvoices = canAccessModule(role, 'fatture')
   const canSeeDeadlines = canAccessModule(role, 'scadenze')

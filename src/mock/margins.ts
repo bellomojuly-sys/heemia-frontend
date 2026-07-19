@@ -1,4 +1,4 @@
-import type { FixedCostItem, Margin } from '../types'
+import type { FixedCostItem, Margin, QuotaHistoryEntry } from '../types'
 
 // Soglia margine configurabile (FR-10). Valore demo: 35%.
 export const MARGIN_THRESHOLD_PERCENT = 35
@@ -22,11 +22,21 @@ export const fixedCostItems: FixedCostItem[] = [
   { id: 'fc-14', nome: 'Scontrino elettronico', importoAnnuo: 100 },
 ]
 
-// Capi prodotti nell'anno (divisore della quota) — non documentato con precisione (OQ-02:
-// "su quanti capi/anno è stato calcolato €17,30?" resta aperta). Valore di partenza scelto
-// per riprodurre il riferimento noto di €17,30/capo su un totale costi fissi di €38.992,99;
-// editabile da chi ha accesso al modulo Costi e margini.
-export const DEFAULT_CAPI_PRODOTTI_ANNUI = 2254
+// Capi prodotti nell'anno (divisore della quota) — DEC-022: volume reale 442 capi/anno
+// (1.327 capi in 3 anni, dati Giulia, chiude OQ-15). Con i costi fissi §6.1 (€38.992,99)
+// la quota è ~€88,22/capo; il €89,05 citato in DEC-022 usa un totale leggermente diverso
+// (~€39.389), differenza segnalata come da riconciliare. Editabile da Costi e margini.
+export const DEFAULT_CAPI_PRODOTTI_ANNUI = 442
+
+// Storico quota per stagione/periodo (FR-40: "storicizzato, non sovrascritto silenziosamente").
+// Nuove registrazioni si aggiungono dal MockStore; queste sono le voci iniziali.
+export const initialQuotaHistory: QuotaHistoryEntry[] = [
+  {
+    id: 'qh-01', periodo: 'Storico 2023-2025 (media)', capiProdottiAnnui: 442,
+    totaleCostiFissi: 38992.99, quotaPerCapo: 88.22, registrataIl: '2026-07-17',
+    nota: 'Base volume reale: 1.327 capi in 3 anni (DEC-022). Sostituisce il target €17,30 mai validato.',
+  },
+]
 
 export const margins: Margin[] = [
   { productId: 'prod-01', prezzoVendita: 129.0, prezzoNettoIva: 105.74, costoDiretto: 16.65, costoIndirettoAllocato: 17.3, costoTotale: 33.95, margineLordo: 89.09, margineNettoStimato: 71.79, marginePercentuale: 67.9, breakEvenPrice: 33.95, prezzoMinimoConsigliato: 39.04, tipoDato: 'reale', sottoSoglia: false },

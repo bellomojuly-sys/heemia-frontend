@@ -1,5 +1,6 @@
-import { PRODUCT_STAGES, type ProductionStep, type ProductStage } from '../types'
+import { PRODUCT_STAGES, type Accessory, type Material, type ProductionStep, type ProductStage } from '../types'
 import { technicalSheets } from '../mock/technicalSheets'
+import { materials as staticMaterials, accessories as staticAccessories } from '../mock/materials'
 
 // FR-07: "Il sistema blocca il passaggio a fasi successive se mancano dati critici
 // (es. scheda tecnica assente prima di Produzione)". Estesa a Prototipo/Campionario:
@@ -23,11 +24,41 @@ export interface AdvanceCheck {
   reason?: string
 }
 
-export function checkAdvance(step: Pick<ProductionStep, 'fase' | 'productId'>): AdvanceCheck {
+// Sorgenti dati per il controllo materiali: di default i mock statici; il MockStore passa
+// il proprio stato per riflettere tessuti/accessori creati o modificati in sessione.
+export interface AdvanceContext {
+  materials?: Material[]
+  accessories?: Accessory[]
+}
+
+export function checkAdvance(step: Pick<ProductionStep, 'fase' | 'productId'>, ctx: AdvanceContext = {}): AdvanceCheck {
   const next = nextStage(step.fase)
   if (!next) return { ok: false, next: null, reason: 'Il prodotto ha già raggiunto l\'ultima fase della pipeline.' }
-  if (STAGES_REQUIRING_TECH_SHEET.includes(next) && !technicalSheets.some((ts) => ts.productId === step.productId)) {
+  const sheets = technicalSheets.filter((ts) => ts.productId === step.productId)
+  if (STAGES_REQUIRING_TECH_SHEET.includes(next) && sheets.length === 0) {
     return { ok: false, next, reason: `Scheda tecnica assente: impossibile avanzare a "${stageLabel(next)}".` }
   }
+
+  // FR-05: "materiale segnato come non disponibile → blocco fase produzione successiva".
+  // Verifica i materiali collegati dalla scheda tecnica quando si entra in Produzione.
+  if (next === 'produzione' && sheets.length > 0) {
+    const mats = ctx.materials ?? staticMaterials
+    const accs = ctx.accessories ?? staticAccessories
+    const sheet = sheets.find((s) => s.versione === 'finale') ?? sheets[sheets.length - 1]
+    const materialIds = [sheet.tessutoPrincipaleId, ...sheet.tessutiSecondariId]
+    const esauritoMat = materialIds
+      .map((id) => mats.find((m) => m.id === id))
+      .find((m) => m && m.stato === 'esaurito')
+    if (esauritoMat) {
+      return { ok: false, next, reason: `Materiale non disponibile (${esauritoMat.nome} esaurito): impossibile avanzare a "Produzione".` }
+    }
+    const esauritoAcc = sheet.accessoriIds
+      .map((id) => accs.find((a) => a.id === id))
+      .find((a) => a && a.stato === 'esaurito')
+    if (esauritoAcc) {
+      return { ok: false, next, reason: `Accessorio non disponibile (${esauritoAcc.nome} esaurito): impossibile avanzare a "Produzione".` }
+    }
+  }
+
   return { ok: true, next }
 }

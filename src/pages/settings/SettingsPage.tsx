@@ -15,7 +15,7 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Impostazioni" subtitle="Ruolo attivo, matrice permessi e parametri configurabili (04_Security/User_Roles_Permissions.md)." />
+      <PageHeader title="Impostazioni" subtitle="Ruolo attivo, matrice permessi e parametri configurabili." />
 
       <Card className="mb-6">
         <CardHeader title="Ruolo attivo" subtitle="Selettore demo nell'header: sostituisce l'autenticazione reale in questa fase." />

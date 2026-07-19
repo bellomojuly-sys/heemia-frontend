@@ -7,9 +7,9 @@ import { Button } from '../../components/ui/Button'
 import { InfoTooltip } from '../../components/ui/InfoTooltip'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { MarginSummaryCard } from '../../components/margins/MarginSummaryCard'
-import { formatCurrency, formatPercent } from '../../lib/format'
+import { formatCurrency, formatDateIt, formatPercent } from '../../lib/format'
 import { computeQuotaPerCapo, recomputeMargin } from '../../lib/margins'
-import { margins, MARGIN_THRESHOLD_PERCENT, costAllocations, invoices, products } from '../../mock'
+import { margins, MARGIN_THRESHOLD_PERCENT, costAllocations } from '../../mock'
 import type { Margin } from '../../types'
 import { useMockStore } from '../../context/MockStore'
 
@@ -19,9 +19,10 @@ const ALLOCATION_LABEL: Record<string, string> = {
 }
 
 function FixedCostsCard() {
-  const { fixedCostItems, capiProdottiAnnui, updateFixedCostItem, addFixedCostItem, removeFixedCostItem, setCapiProdottiAnnui } = useMockStore()
+  const { fixedCostItems, capiProdottiAnnui, quotaHistory, updateFixedCostItem, addFixedCostItem, removeFixedCostItem, setCapiProdottiAnnui, saveQuotaSnapshot } = useMockStore()
   const [newNome, setNewNome] = useState('')
   const [newImporto, setNewImporto] = useState('')
+  const [periodo, setPeriodo] = useState('')
 
   const totaleAnnuo = fixedCostItems.reduce((sum, item) => sum + item.importoAnnuo, 0)
   const quotaPerCapo = computeQuotaPerCapo(fixedCostItems, capiProdottiAnnui)
@@ -120,13 +121,52 @@ function FixedCostsCard() {
             <p className="font-mono-heemia mt-0.5 text-lg font-semibold text-heemia-black">{formatCurrency(quotaPerCapo)}</p>
           </div>
         </div>
+
+        {/* FR-40: la quota va storicizzata per stagione/periodo, mai sovrascritta in silenzio. */}
+        <div className="mt-5 border-t border-heemia-border pt-4">
+          <div className="mb-3 flex flex-wrap items-end gap-2">
+            <div className="flex-1">
+              <span className="font-mono-heemia mb-1 block text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Registra la quota corrente per stagione/periodo</span>
+              <input
+                type="text"
+                value={periodo}
+                onChange={(e) => setPeriodo(e.target.value)}
+                placeholder="Es. FW26"
+                className="w-full rounded-[3px] border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black focus:border-heemia-black focus:outline-none"
+              />
+            </div>
+            <Button
+              variant="secondary"
+              disabled={!periodo.trim()}
+              onClick={() => {
+                saveQuotaSnapshot(periodo.trim())
+                setPeriodo('')
+              }}
+            >
+              Registra nello storico
+            </Button>
+          </div>
+          <ul className="divide-y divide-heemia-border">
+            {quotaHistory.map((h) => (
+              <li key={h.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                <div>
+                  <span className="text-heemia-black">{h.periodo}</span>
+                  {h.nota && <p className="text-xs text-heemia-grey">{h.nota}</p>}
+                </div>
+                <span className="font-mono-heemia text-xs text-heemia-grey">
+                  {h.capiProdottiAnnui} capi · {formatCurrency(h.totaleCostiFissi)} → <span className="text-heemia-black">{formatCurrency(h.quotaPerCapo)}/capo</span> · {formatDateIt(h.registrataIl)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </Card>
   )
 }
 
 export function MarginsPage() {
-  const { fixedCostItems, capiProdottiAnnui } = useMockStore()
+  const { fixedCostItems, capiProdottiAnnui, products, invoices } = useMockStore()
   const quotaPerCapo = computeQuotaPerCapo(fixedCostItems, capiProdottiAnnui)
 
   const liveMargins = useMemo(

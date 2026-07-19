@@ -1,14 +1,21 @@
-import { useMemo } from 'react'
 import { KpiTile } from '../../components/dashboard/KpiTile'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { StatusBadge } from '../../lib/statusBadge'
 import { Badge } from '../../components/ui/Badge'
 import { getStockOverview } from '../../lib/dashboard'
-import { inventoryRecords, productVariants, products } from '../../mock'
 import type { InventoryRecord } from '../../types'
+import { useMockStore } from '../../context/MockStore'
+import { useRole } from '../../context/RoleContext'
+import { canEdit } from '../../lib/permissions'
 
 export function FinishedGoodsInventory() {
-  const stock = useMemo(() => getStockOverview(), [])
+  const { role } = useRole()
+  const { inventoryRecords, productVariants, products, updateVariantQuantities } = useMockStore()
+  const userCanEdit = canEdit(role)
+  const stock = getStockOverview(inventoryRecords)
+
+  const qtyInputClass =
+    'font-mono-heemia w-20 rounded-[3px] border border-heemia-border bg-white px-2 py-1 text-right text-sm text-heemia-black focus:border-heemia-black focus:outline-none'
 
   const columns: DataTableColumn<InventoryRecord>[] = [
     {
@@ -24,9 +31,59 @@ export function FinishedGoodsInventory() {
         )
       },
     },
-    { header: 'Magazzino', accessor: (r) => r.qtaMagazzino, align: 'right' },
-    { header: 'Laboratorio', accessor: (r) => r.qtaLaboratorio, align: 'right' },
-    { header: 'Riservato', accessor: (r) => r.qtaRiservata, align: 'right' },
+    {
+      header: 'Magazzino',
+      align: 'right',
+      // Modificabile: aggiorna anche la variante del prodotto (stessa fonte, updateVariantQuantities).
+      accessor: (r) =>
+        userCanEdit ? (
+          <input
+            type="number"
+            min="0"
+            value={r.qtaMagazzino}
+            onChange={(e) => updateVariantQuantities(r.variantId, { qtaMagazzino: Math.max(0, Number(e.target.value) || 0) })}
+            className={qtyInputClass}
+            aria-label={`Magazzino ${r.variantId}`}
+          />
+        ) : (
+          r.qtaMagazzino
+        ),
+    },
+    {
+      header: 'Laboratorio',
+      align: 'right',
+      // Capi piazzati in laboratorio (FR-INV-01): modificabile come Magazzino/Riservato.
+      accessor: (r) =>
+        userCanEdit ? (
+          <input
+            type="number"
+            min="0"
+            value={r.qtaLaboratorio}
+            onChange={(e) => updateVariantQuantities(r.variantId, { qtaLaboratorio: Math.max(0, Number(e.target.value) || 0) })}
+            className={qtyInputClass}
+            aria-label={`Laboratorio ${r.variantId}`}
+          />
+        ) : (
+          r.qtaLaboratorio
+        ),
+    },
+    {
+      header: 'Riservato',
+      align: 'right',
+      accessor: (r) =>
+        userCanEdit ? (
+          <input
+            type="number"
+            min="0"
+            value={r.qtaRiservata}
+            onChange={(e) => updateVariantQuantities(r.variantId, { qtaRiservata: Math.max(0, Number(e.target.value) || 0) })}
+            className={qtyInputClass}
+            aria-label={`Riservato ${r.variantId}`}
+          />
+        ) : (
+          r.qtaRiservata
+        ),
+    },
     { header: 'Venduto', accessor: (r) => r.qtaVenduta, align: 'right' },
     { header: 'Soglia min.', accessor: (r) => r.sogliaMinima, align: 'right' },
     { header: 'Stato', accessor: (r) => <StatusBadge status={r.stato} /> },
@@ -43,7 +100,7 @@ export function FinishedGoodsInventory() {
 
   return (
     <div>
-      <p className="mb-4 text-sm text-heemia-grey">Stock per variante, separato dai materiali (FR-INV-01).</p>
+      <p className="mb-4 text-sm text-heemia-grey">Stock per variante, separato dai materiali. Le quantità sono modificabili e collegate alle varianti in Anagrafica prodotti.</p>
 
       <div className="mb-6 flex flex-wrap gap-3">
         <KpiTile label="Disponibile" value={stock.disponibile} />

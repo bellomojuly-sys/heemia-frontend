@@ -10,16 +10,18 @@ import { AddProductForm } from '../../components/products/AddProductForm'
 import { StatusBadge } from '../../lib/statusBadge'
 import { stageLabel } from '../../lib/production'
 import { formatCurrency, formatPercent } from '../../lib/format'
-import { productVariants, margins } from '../../mock'
 import { PRODUCT_STAGES, type Product } from '../../types'
 import { useRole } from '../../context/RoleContext'
-import { canEdit } from '../../lib/permissions'
+import { canAccessModule, canEdit } from '../../lib/permissions'
 import { useMockStore } from '../../context/MockStore'
+import { useLiveMargins } from '../../hooks/useLiveMargins'
 
 export function ProductList() {
   const navigate = useNavigate()
   const { role } = useRole()
-  const { products, addProduct } = useMockStore()
+  const { products, productVariants, addProduct } = useMockStore()
+  const liveMargins = useLiveMargins()
+  const canSeeMargins = canAccessModule(role, 'costi-margini')
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [linea, setLinea] = useState('')
@@ -63,15 +65,21 @@ export function ProductList() {
         ),
     },
     { header: 'Shopify', accessor: (p) => <StatusBadge status={p.statoPubblicazioneShopify} /> },
-    {
-      header: 'Margine',
-      align: 'right',
-      accessor: (p) => {
-        const m = margins.find((mg) => mg.productId === p.id)
-        if (!m) return <span className="text-heemia-grey">–</span>
-        return <Badge variant={m.sottoSoglia ? 'critical' : 'success'}>{formatPercent(m.marginePercentuale)}</Badge>
-      },
-    },
+    // La colonna Margine segue il gating del modulo Costi e margini (User_Roles_Permissions:
+    // "Team interno non vede mai Costi e Margini") e usa i margini ricalcolati live.
+    ...(canSeeMargins
+      ? [
+          {
+            header: 'Margine',
+            align: 'right' as const,
+            accessor: (p: Product) => {
+              const m = liveMargins.find((mg) => mg.productId === p.id)
+              if (!m) return <span className="text-heemia-grey">–</span>
+              return <Badge variant={m.sottoSoglia ? 'critical' : 'success'}>{formatPercent(m.marginePercentuale)}</Badge>
+            },
+          },
+        ]
+      : []),
     {
       header: 'Varianti',
       align: 'right',

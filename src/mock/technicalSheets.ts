@@ -2,7 +2,26 @@ import type { TechnicalSheet } from '../types'
 
 // Scheda tecnica esiste in 3 versioni (FR-14). prod-03 (Berlino) non ha ancora nessuna scheda:
 // rappresenta il blocco "scheda tecnica assente prima di Produzione" richiesto da FR-07.
+// prod-01 (Detroit) ha tutte e tre le versioni: la finale è quella principale, le precedenti
+// restano archiviate ma consultabili dal selettore (FR-14).
 export const technicalSheets: TechnicalSheet[] = [
+  {
+    id: 'ts-01a', productId: 'prod-01', versione: 'preliminare', tessutoPrincipaleId: 'mat-01', tessutiSecondariId: [],
+    accessoriIds: ['acc-01'], composizioneCompleta: '100% Cotone', pesoCapoGrammi: 540,
+    lavorazione: 'Taglio e cucito standard (bozza per confezionista)', trattamenti: 'Nessuno',
+    lavaggioConsigliato: 'Lavaggio a 30°', difficoltaProduttiva: 'bassa', tempiStimatiOre: 1.5,
+    costoManodopera: 28, costoTessuto: 15.0, costoAccessori: 1.2, costoPackaging: 0.9, altriCostiDiretti: 1.0,
+    altriCostiIndiretti: 0, creataIl: '2026-03-02', archiviata: true,
+  },
+  {
+    id: 'ts-01b', productId: 'prod-01', versione: 'piazzamento', tessutoPrincipaleId: 'mat-01', tessutiSecondariId: [],
+    accessoriIds: ['acc-01'], composizioneCompleta: '100% Cotone', pesoCapoGrammi: 530,
+    lavorazione: 'Piazzamento tinta unita ottimizzato per h150', trattamenti: 'Nessuno',
+    lavaggioConsigliato: 'Lavaggio a 30°', difficoltaProduttiva: 'bassa', tempiStimatiOre: 1.5,
+    costoManodopera: 30, costoTessuto: 16.2, costoAccessori: 1.2, costoPackaging: 0.9, altriCostiDiretti: 1.0,
+    altriCostiIndiretti: 0, creataIl: '2026-03-20', archiviata: true,
+    pdfUrl: 'https://drive.google.com/heemia/schede-tecniche/ts-01-detroit-piazzamento.pdf', pdfCaricatoIl: '2026-03-21',
+  },
   {
     id: 'ts-01', productId: 'prod-01', versione: 'finale', tessutoPrincipaleId: 'mat-01', tessutiSecondariId: [],
     accessoriIds: ['acc-01', 'acc-04'], composizioneCompleta: '100% Cotone', pesoCapoGrammi: 520,

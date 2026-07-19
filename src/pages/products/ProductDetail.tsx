@@ -11,12 +11,13 @@ import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { StageProgress } from '../../components/production/StageProgress'
 import { MarginSummaryCard } from '../../components/margins/MarginSummaryCard'
 import { EditProductForm } from '../../components/products/EditProductForm'
+import { AddVariantForm } from '../../components/products/AddVariantForm'
 import { StatusBadge } from '../../lib/statusBadge'
 import { checkAdvance, stageLabel } from '../../lib/production'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import { TODAY } from '../../lib/alerts'
 import { computeQuotaPerCapo, recomputeMargin } from '../../lib/margins'
-import { productVariants, technicalSheets, margins, materials, accessories, MARGIN_THRESHOLD_PERCENT } from '../../mock'
+import { technicalSheets, margins, materials, accessories, MARGIN_THRESHOLD_PERCENT } from '../../mock'
 import type { Material, ProductVariant, TechnicalSheet, TechnicalSheetVersion } from '../../types'
 import { useMockStore } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
@@ -64,12 +65,13 @@ function FabricRow({ material, ruolo }: { material: Material; ruolo: string }) {
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>()
   const { role } = useRole()
-  const { productionSteps, products, updateProduct, fixedCostItems, capiProdottiAnnui } = useMockStore()
+  const { productionSteps, products, productVariants, updateProduct, addVariant, updateVariantQuantities, fixedCostItems, capiProdottiAnnui } = useMockStore()
   const product = products.find((p) => p.id === id)
   const sheets = technicalSheets.filter((ts) => ts.productId === id)
 
   const [activeTab, setActiveTab] = useState<TabId>('panoramica')
   const [editOpen, setEditOpen] = useState(false)
+  const [addVariantOpen, setAddVariantOpen] = useState(false)
   const [activeVersion, setActiveVersion] = useState<TechnicalSheetVersion | null>(
     sheets.find((s) => s.versione === 'finale')?.versione ?? sheets[0]?.versione ?? null,
   )
@@ -101,7 +103,9 @@ export function ProductDetail() {
   const quotaPerCapo = computeQuotaPerCapo(fixedCostItems, capiProdottiAnnui)
   const margin = baseMargin ? recomputeMargin(baseMargin, quotaPerCapo, MARGIN_THRESHOLD_PERCENT) : undefined
   const variants = productVariants.filter((v) => v.productId === product.id)
+  const stockModello = variants.reduce((sum, v) => sum + v.stockDisponibile, 0)
   const canSeeEconomics = canAccessModule(role, 'costi-margini')
+  const userCanEdit = canEdit(role)
 
   // Tab Tessuto: usa la versione finale se esiste, altrimenti la più recente disponibile.
   const fabricSheet: TechnicalSheet | undefined = sheets.find((s) => s.versione === 'finale') ?? sheets[0]
@@ -124,12 +128,62 @@ export function ProductDetail() {
     { id: 'note', label: 'Note', visible: true },
   ]
 
+  const qtyInputClass =
+    'font-mono-heemia w-20 rounded-[3px] border border-heemia-border bg-white px-2 py-1 text-right text-sm text-heemia-black focus:border-heemia-black focus:outline-none'
+
+  // Stock e riservato modificabili in linea: la modifica aggiorna anche il record di
+  // inventario prodotti finiti collegato (updateVariantQuantities nel MockStore).
   const variantColumns: DataTableColumn<ProductVariant>[] = [
     { header: 'SKU', accessor: (v) => v.sku, className: 'font-mono-heemia text-[12px]' },
     { header: 'Taglia', accessor: (v) => v.taglia },
     { header: 'Colore', accessor: (v) => v.colore },
-    { header: 'Stock', accessor: (v) => v.stockDisponibile, align: 'right' },
-    { header: 'Riservato', accessor: (v) => v.stockRiservato, align: 'right' },
+    {
+      header: 'Stock',
+      align: 'right',
+      accessor: (v) =>
+        userCanEdit ? (
+          <input
+            type="number"
+            min="0"
+            value={v.stockDisponibile}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => updateVariantQuantities(v.id, { qtaMagazzino: Math.max(0, Number(e.target.value) || 0) })}
+            className={qtyInputClass}
+            aria-label={`Stock ${v.sku}`}
+          />
+        ) : (
+          v.stockDisponibile
+        ),
+    },
+    {
+      header: 'Riservato',
+      align: 'right',
+      accessor: (v) =>
+        userCanEdit ? (
+          <input
+            type="number"
+            min="0"
+            value={v.stockRiservato}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => updateVariantQuantities(v.id, { qtaRiservata: Math.max(0, Number(e.target.value) || 0) })}
+            className={qtyInputClass}
+            aria-label={`Riservato ${v.sku}`}
+          />
+        ) : (
+          v.stockRiservato
+        ),
+    },
+    {
+      header: 'Immagine',
+      accessor: (v) =>
+        v.immagineUrl ? (
+          <a href={v.immagineUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-heemia-black hover:underline">
+            Apri →
+          </a>
+        ) : (
+          <span className="text-xs text-heemia-grey-light">–</span>
+        ),
+    },
     { header: 'Stato', accessor: (v) => <StatusBadge status={v.statoDisponibilita} /> },
   ]
 
@@ -161,6 +215,10 @@ export function ProductDetail() {
           onClose={() => setEditOpen(false)}
           onSave={(patch) => updateProduct(product.id, patch)}
         />
+      )}
+
+      {addVariantOpen && (
+        <AddVariantForm product={product} onClose={() => setAddVariantOpen(false)} onSubmit={addVariant} />
       )}
 
       <div className="mb-6 flex flex-wrap gap-x-6 gap-y-1 border-b border-heemia-border">
@@ -205,9 +263,16 @@ export function ProductDetail() {
           </Card>
 
           <Card>
-            <CardHeader title="Varianti" subtitle={`${variants.length} combinazioni taglia/colore`} />
+            <CardHeader
+              title="Varianti e quantità"
+              subtitle={`${variants.length} combinazioni taglia/colore · ${stockModello} capi disponibili sul modello`}
+              action={userCanEdit ? <Button variant="secondary" onClick={() => setAddVariantOpen(true)}>Aggiungi variante</Button> : undefined}
+            />
             <div className="p-5">
-              <DataTable columns={variantColumns} rows={variants} keyExtractor={(v) => v.id} emptyTitle="Nessuna variante" emptyDescription="Nessuna combinazione taglia/colore censita per questo prodotto." />
+              <DataTable columns={variantColumns} rows={variants} keyExtractor={(v) => v.id} emptyTitle="Nessuna variante" emptyDescription="Nessuna combinazione taglia/colore censita per questo prodotto. Usa 'Aggiungi variante' per crearne una con il suo stock." />
+              <p className="mt-3 text-xs text-heemia-grey">
+                Le quantità sono collegate all'<Link to="/inventario/prodotti-finiti" className="underline hover:text-heemia-black">inventario prodotti finiti</Link>: una modifica qui aggiorna la giacenza e viceversa.
+              </p>
             </div>
           </Card>
         </div>

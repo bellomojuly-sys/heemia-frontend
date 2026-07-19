@@ -32,7 +32,7 @@ export const products: Product[] = [
     statoPubblicazioneShopify: 'non_pubblicato', disponibilitaOnline: false, disponibilitaShowroom: false, visibileShowroom: false,
   },
   {
-    id: 'prod-04', nome: 'Vienna', codiceProdotto: 'HE-TES-VIE-01', categoria: 'Giacca', collezione: 'Core FW26',
+    id: 'prod-04', personalizzabileSuMisura: true, nome: 'Vienna', codiceProdotto: 'HE-TES-VIE-01', categoria: 'Giacca', collezione: 'Core FW26',
     stagione: 'FW26', linea: 'tessile', stato: 'in_vendita',
     descrizioneBreve: 'Giacca destrutturata in twill di cotone.', descrizioneBreveStato: 'approvata',
     consigliCuraStato: 'approvata',
@@ -68,7 +68,7 @@ export const products: Product[] = [
     statoPubblicazioneShopify: 'pubblicato', disponibilitaOnline: true, disponibilitaShowroom: true, visibileShowroom: true,
   },
   {
-    id: 'prod-08', nome: 'Praga', codiceProdotto: 'HE-TES-PRA-01', categoria: 'Abito', collezione: 'Core FW26',
+    id: 'prod-08', personalizzabileSuMisura: true, nome: 'Praga', codiceProdotto: 'HE-TES-PRA-01', categoria: 'Abito', collezione: 'Core FW26',
     stagione: 'FW26', linea: 'tessile', stato: 'prototipo',
     descrizioneBreveStato: 'bozza', consigliCuraStato: 'bozza',
     taglieDisponibili: ['S', 'M'], coloriDisponibili: ['Nero'],
@@ -84,7 +84,7 @@ export const products: Product[] = [
     statoPubblicazioneShopify: 'non_pubblicato', disponibilitaOnline: false, disponibilitaShowroom: false, visibileShowroom: false,
   },
   {
-    id: 'prod-10', nome: 'Copenaghen', codiceProdotto: 'HE-TES-COP-01', categoria: 'Cappotto', collezione: 'Core FW25',
+    id: 'prod-10', personalizzabileSuMisura: true, nome: 'Copenaghen', codiceProdotto: 'HE-TES-COP-01', categoria: 'Cappotto', collezione: 'Core FW25',
     stagione: 'FW25', linea: 'tessile', stato: 'archivio',
     descrizioneBreve: 'Cappotto doppiopetto in lana.', descrizioneBreveStato: 'approvata',
     consigliCuraStato: 'approvata',

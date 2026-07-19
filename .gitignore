@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code local settings (percorsi macchina locale)
+.claude/settings.local.json
+.claude/settings.json.save

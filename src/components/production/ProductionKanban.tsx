@@ -19,7 +19,7 @@ export function ProductionKanban({
   canAct: boolean
   onAdvance: (id: string) => void
 }) {
-  const { products } = useMockStore()
+  const { products, materials, accessories } = useMockStore()
   return (
     <div className="mb-8 overflow-x-auto pb-2">
       <div className="flex min-w-max gap-3">
@@ -37,7 +37,7 @@ export function ProductionKanban({
                 ) : (
                   stepsInStage.map((step) => {
                     const product = products.find((p) => p.id === step.productId)
-                    const check = checkAdvance(step)
+                    const check = checkAdvance(step, { materials, accessories })
                     return (
                       <div
                         key={step.id}

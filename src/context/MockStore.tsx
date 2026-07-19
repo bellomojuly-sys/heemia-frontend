@@ -1,15 +1,19 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import type {
   Accessory,
+  ActivityLogEntry,
   CategoriaCosto,
   Customer,
   FixedCostItem,
+  InventoryRecord,
   Invoice,
   Linea,
   Material,
   Order,
   Product,
   ProductionStep,
+  ProductVariant,
+  QuotaHistoryEntry,
   Supplier,
   SupplierCategoria,
   SupplierRequest,
@@ -18,21 +22,24 @@ import type {
 } from '../types'
 import { supplierRequests as initialSupplierRequests } from '../mock/supplierRequests'
 import { productionSteps as initialProductionSteps } from '../mock/production'
-import { products as initialProducts } from '../mock/products'
+import { products as initialProducts, productVariants as initialVariants } from '../mock/products'
+import { inventoryRecords as initialInventoryRecords } from '../mock/inventory'
 import { materials as initialMaterials, accessories as initialAccessories } from '../mock/materials'
 import { invoices as initialInvoices } from '../mock/invoices'
 import { suppliers as initialSuppliers } from '../mock/suppliers'
 import { customers as initialCustomers, orders as initialOrders } from '../mock/customers'
-import { fixedCostItems as initialFixedCostItems, DEFAULT_CAPI_PRODOTTI_ANNUI } from '../mock/margins'
-import { checkAdvance } from '../lib/production'
+import { activityLogs as initialActivityLogs } from '../mock/activityLogs'
+import { fixedCostItems as initialFixedCostItems, DEFAULT_CAPI_PRODOTTI_ANNUI, initialQuotaHistory } from '../mock/margins'
+import { checkAdvance, stageLabel } from '../lib/production'
+import { computeQuotaPerCapo } from '../lib/margins'
+import { useRole } from './RoleContext'
+import { ROLE_LABELS } from '../lib/permissions'
 
 // Entità con stato mutabile a runtime nel prototipo (DEC-015: nessun backend/DB — la mutazione
-// vive solo in memoria per la sessione del browser, si resetta al reload). L'elenco anagrafiche
-// (prodotti, tessuti, accessori, fatture, fornitori, clienti, ordini) è mutabile qui così i
-// pulsanti "Aggiungi" possono creare un nuovo record visibile subito nella lista. Le viste
-// aggregate (Dashboard KPI, Alert, Report) restano calcolate sui dati mock statici iniziali:
-// rifattorizzarle per riflettere in tempo reale ogni nuovo record andrebbe oltre lo scope di
-// questa correzione e rischierebbe di rompere il gating FR-07 già verificato.
+// vive solo in memoria per la sessione del browser, si resetta al reload). Tutte le anagrafiche
+// sono mutabili qui e le viste aggregate (Dashboard KPI, alert, conteggi Inventario) ricevono
+// questo stato come sorgente, così i record creati in sessione compaiono ovunque. Le azioni
+// critiche vengono registrate in activityLogs (FR-18) con il ruolo attivo come utente.
 
 let idCounter = 0
 function genId(prefix: string): string {
@@ -79,12 +86,21 @@ export interface NewInvoiceInput {
   clienteId?: string
   paese: 'IT' | 'EU' | 'Extra-EU'
   valuta: string
+  /** FR-22 (fatture estere): tasso e data cambio; imponibile/iva restano in EUR. */
+  tassoCambio?: number
+  dataCambio?: string
+  imponibileValutaOriginale?: number
+  totaleValutaOriginale?: number
   imponibile: number
   iva: number
   categoriaCosto: CategoriaCosto
   metodoPagamento: string
   statoPagamento: 'da_pagare' | 'pagata' | 'scaduta'
   dataScadenza?: string
+  /** FR-19: link al PDF della fattura (Drive, coerente con FR-16). */
+  documentoUrl?: string
+  prodottiCollegatiIds?: string[]
+  materialiCollegatiIds?: string[]
   noteAmministrative?: string
 }
 
@@ -111,6 +127,8 @@ export interface NewOrderInput {
   stato: 'in_lavorazione' | 'spedito' | 'consegnato' | 'annullato'
   data: string
   totale: number
+  /** Prodotti dell'ordine (es. capo base di un ordine su misura, DEC-023). */
+  prodottiIds?: string[]
 }
 
 function stockStato(disponibili: number, sogliaMinima: number): 'disponibile' | 'sotto_soglia' | 'esaurito' {
@@ -119,10 +137,36 @@ function stockStato(disponibili: number, sogliaMinima: number): 'disponibile' | 
   return 'disponibile'
 }
 
+// Stato per varianti e inventario prodotti finiti (usa 'low_stock', non 'sotto_soglia').
+function variantStato(qta: number, sogliaMinima: number): 'disponibile' | 'low_stock' | 'esaurito' {
+  if (qta <= 0) return 'esaurito'
+  if (qta <= sogliaMinima) return 'low_stock'
+  return 'disponibile'
+}
+
+export interface NewVariantInput {
+  productId: string
+  sku: string
+  taglia: string
+  colore: string
+  stockIniziale: number
+  sogliaMinima: number
+  /** Immagine specifica della variante (FR-03, opzionale) — link, coerente con FR-16. */
+  immagineUrl?: string
+}
+
+export interface VariantQuantitiesPatch {
+  qtaMagazzino?: number
+  qtaRiservata?: number
+  qtaLaboratorio?: number
+}
+
 interface MockStoreValue {
   supplierRequests: SupplierRequest[]
   productionSteps: ProductionStep[]
   products: Product[]
+  productVariants: ProductVariant[]
+  inventoryRecords: InventoryRecord[]
   materials: Material[]
   accessories: Accessory[]
   invoices: Invoice[]
@@ -131,6 +175,17 @@ interface MockStoreValue {
   orders: Order[]
   fixedCostItems: FixedCostItem[]
   capiProdottiAnnui: number
+  activityLogs: ActivityLogEntry[]
+  quotaHistory: QuotaHistoryEntry[]
+
+  /** Registra un'azione critica nell'activity log (FR-18) con il ruolo attivo come utente. */
+  logAction: (azione: string, entita: string, entitaId: string, valoreNuovo?: string, valorePrecedente?: string) => void
+  /** FR-05: genera una bozza email fornitore precompilata da un materiale/accessorio sotto scorta. */
+  addSupplierRequest: (input: { materialId?: string; accessoryId?: string }) => SupplierRequest | null
+  /** FR-19: associa una fattura a prodotti/materiali (aggiorna anche il flag `associata`). */
+  updateInvoiceAssociations: (id: string, prodottiIds: string[], materialiIds: string[]) => void
+  /** FR-40: registra la quota corrente nello storico per stagione/periodo. */
+  saveQuotaSnapshot: (periodo: string, nota?: string) => void
 
   setSupplierRequestStatus: (id: string, stato: SupplierRequestStato, extra?: Partial<SupplierRequest>) => void
   updateSupplierRequestDraft: (id: string, patch: Partial<Pick<SupplierRequest, 'testo' | 'quantitaRichiesta' | 'deadlineIdeale'>>) => void
@@ -138,6 +193,8 @@ interface MockStoreValue {
 
   addProduct: (input: NewProductInput) => Product
   updateProduct: (id: string, patch: Partial<Product>) => void
+  addVariant: (input: NewVariantInput) => ProductVariant
+  updateVariantQuantities: (variantId: string, patch: VariantQuantitiesPatch) => void
   addMaterial: (input: NewMaterialInput) => Material
   addAccessory: (input: NewAccessoryInput) => Accessory
   addInvoice: (input: NewInvoiceInput) => Invoice
@@ -154,9 +211,12 @@ interface MockStoreValue {
 const MockStoreContext = createContext<MockStoreValue | undefined>(undefined)
 
 export function MockStoreProvider({ children }: { children: ReactNode }) {
+  const { role } = useRole()
   const [supplierRequests, setSupplierRequests] = useState<SupplierRequest[]>(initialSupplierRequests)
   const [productionSteps, setProductionSteps] = useState<ProductionStep[]>(initialProductionSteps)
   const [products, setProducts] = useState<Product[]>(initialProducts)
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>(initialVariants)
+  const [inventoryRecords, setInventoryRecords] = useState<InventoryRecord[]>(initialInventoryRecords)
   const [materials, setMaterials] = useState<Material[]>(initialMaterials)
   const [accessories, setAccessories] = useState<Accessory[]>(initialAccessories)
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices)
@@ -165,12 +225,24 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [fixedCostItems, setFixedCostItems] = useState<FixedCostItem[]>(initialFixedCostItems)
   const [capiProdottiAnnui, setCapiProdottiAnniState] = useState<number>(DEFAULT_CAPI_PRODOTTI_ANNUI)
+  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>(initialActivityLogs)
+  const [quotaHistory, setQuotaHistory] = useState<QuotaHistoryEntry[]>(initialQuotaHistory)
+
+  const utente = ROLE_LABELS[role]
+  const pushLog = (azione: string, entita: string, entitaId: string, valoreNuovo?: string, valorePrecedente?: string) => {
+    setActivityLogs((prev) => [
+      { id: genId('log'), utente, azione, entita, entitaId, valorePrecedente, valoreNuovo, data: new Date().toISOString() },
+      ...prev,
+    ])
+  }
 
   const value = useMemo<MockStoreValue>(
     () => ({
       supplierRequests,
       productionSteps,
       products,
+      productVariants,
+      inventoryRecords,
       materials,
       accessories,
       invoices,
@@ -179,15 +251,76 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
       orders,
       fixedCostItems,
       capiProdottiAnnui,
+      activityLogs,
+      quotaHistory,
+
+      logAction: (azione, entita, entitaId, valoreNuovo, valorePrecedente) =>
+        pushLog(azione, entita, entitaId, valoreNuovo, valorePrecedente),
+
+      addSupplierRequest: ({ materialId, accessoryId }) => {
+        const material = materialId ? materials.find((m) => m.id === materialId) : undefined
+        const accessory = accessoryId ? accessories.find((a) => a.id === accessoryId) : undefined
+        const item = material ?? accessory
+        if (!item) return null
+        const disponibile = material
+          ? material.metriAcquistati - material.metriUtilizzati
+          : accessory!.quantitaAcquistata - accessory!.quantitaUtilizzata
+        const richiesta = Math.max(item.sogliaMinima * 3, 10)
+        const mancante = Math.max(richiesta - Math.max(disponibile, 0), 0)
+        const esaurito = item.stato === 'esaurito'
+        const request: SupplierRequest = {
+          id: genId('sr'),
+          supplierId: item.supplierId,
+          materialId,
+          accessoryId,
+          oggetto: `${esaurito ? 'Riordino urgente' : 'Richiesta disponibilità'} ${item.nome}: ${esaurito ? 'scorta esaurita' : 'sotto soglia minima'}`,
+          testo: `Buongiorno, la scorta di ${item.nome} (${item.codice}) risulta ${esaurito ? 'esaurita' : `sotto la soglia minima di ${item.sogliaMinima}`}. Potete confermare disponibilità, tempi di consegna, costo aggiornato e quantità minima ordinabile per un riordino di almeno ${richiesta} ${material ? material.unitaMisura : accessory!.unitaMisura}?`,
+          quantitaRichiesta: richiesta,
+          quantitaDisponibile: Math.max(disponibile, 0),
+          quantitaMancante: mancante,
+          urgenza: esaurito ? 'alta' : 'media',
+          stato: 'bozza_generata',
+          creataIl: new Date().toISOString().slice(0, 10),
+        }
+        setSupplierRequests((prev) => [request, ...prev])
+        pushLog('Generazione bozza email fornitore', 'supplier_requests', request.id, `stato: bozza_generata (${item.nome})`)
+        return request
+      },
+
+      updateInvoiceAssociations: (id, prodottiIds, materialiIds) => {
+        setInvoices((prev) =>
+          prev.map((i) =>
+            i.id === id
+              ? { ...i, prodottiCollegatiIds: prodottiIds, materialiCollegatiIds: materialiIds, associata: prodottiIds.length > 0 || materialiIds.length > 0 }
+              : i,
+          ),
+        )
+        pushLog('Associazione fattura', 'invoices', id, `${prodottiIds.length} prodotti, ${materialiIds.length} materiali`)
+      },
+
+      saveQuotaSnapshot: (periodo, nota) => {
+        const totale = fixedCostItems.reduce((sum, item) => sum + item.importoAnnuo, 0)
+        const quota = computeQuotaPerCapo(fixedCostItems, capiProdottiAnnui)
+        setQuotaHistory((prev) => [
+          {
+            id: genId('qh'), periodo, capiProdottiAnnui, totaleCostiFissi: Math.round(totale * 100) / 100,
+            quotaPerCapo: quota, registrataIl: new Date().toISOString().slice(0, 10), nota,
+          },
+          ...prev,
+        ])
+        pushLog('Registrazione quota costi fissi', 'margins', periodo, `€${quota.toFixed(2)}/capo su ${capiProdottiAnnui} capi`)
+      },
 
       setSupplierRequestStatus: (id, stato, extra) => {
         setSupplierRequests((prev) => prev.map((r) => (r.id === id ? { ...r, stato, ...extra } : r)))
+        pushLog('Cambio stato bozza email', 'supplier_requests', id, `stato: ${stato}`)
       },
 
       updateSupplierRequestDraft: (id, patch) => {
         setSupplierRequests((prev) =>
           prev.map((r) => (r.id === id ? { ...r, ...patch, stato: 'modificata' } : r)),
         )
+        pushLog('Modifica bozza email', 'supplier_requests', id, 'stato: modificata')
       },
 
       advanceProductionStep: (id) => {
@@ -195,12 +328,13 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
         setProductionSteps((prev) =>
           prev.map((step) => {
             if (step.id !== id) return step
-            const check = checkAdvance(step)
+            const check = checkAdvance(step, { materials, accessories })
             if (!check.ok || !check.next) {
               result = { ok: false, reason: check.reason }
               return { ...step, bloccata: true, motivoBlocco: check.reason }
             }
             result = { ok: true }
+            pushLog('Cambio fase produzione', 'production', step.id, stageLabel(check.next), stageLabel(step.fase))
             return { ...step, fase: check.next, bloccata: false, motivoBlocco: undefined }
           }),
         )
@@ -227,6 +361,7 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
           visibileShowroom: false,
         }
         setProducts((prev) => [product, ...prev])
+        pushLog('Creazione prodotto', 'products', product.id, `${product.nome} (stato: idea)`)
         // Ogni prodotto entra subito in pipeline dalla fase "Idea" (FR-07): senza questo step
         // il capo non comparirebbe nel kanban Produzione né nella tabella sotto.
         setProductionSteps((prev) => [
@@ -245,6 +380,70 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
 
       updateProduct: (id, patch) => {
         setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+        pushLog('Modifica prodotto', 'products', id, Object.keys(patch).join(', '))
+      },
+
+      // Variante + record inventario nascono insieme e restano collegati: la quantità
+      // si modifica con updateVariantQuantities, che aggiorna entrambi (FR-03/FR-INV-01).
+      addVariant: (input) => {
+        const variant: ProductVariant = {
+          id: genId('var'),
+          productId: input.productId,
+          sku: input.sku,
+          taglia: input.taglia,
+          colore: input.colore,
+          stockDisponibile: input.stockIniziale,
+          stockRiservato: 0,
+          immagineUrl: input.immagineUrl,
+          statoDisponibilita: variantStato(input.stockIniziale, input.sogliaMinima),
+        }
+        setProductVariants((prev) => [...prev, variant])
+        pushLog('Creazione variante', 'product_variants', variant.id, variant.sku)
+        setInventoryRecords((prev) => [
+          ...prev,
+          {
+            id: genId('inv-rec'),
+            variantId: variant.id,
+            qtaMagazzino: input.stockIniziale,
+            qtaLaboratorio: 0,
+            qtaRiservata: 0,
+            qtaVenduta: 0,
+            sogliaMinima: input.sogliaMinima,
+            stato: variantStato(input.stockIniziale, input.sogliaMinima),
+            stockShopify: input.stockIniziale,
+            divergenzaShopify: false,
+          },
+        ])
+        return variant
+      },
+
+      updateVariantQuantities: (variantId, patch) => {
+        const rec = inventoryRecords.find((r) => r.variantId === variantId)
+        const next: InventoryRecord = rec
+          ? { ...rec, ...patch }
+          : {
+              // Variante senza record inventario (non dovrebbe accadere: addVariant li crea in coppia).
+              id: genId('inv-rec'),
+              variantId,
+              qtaMagazzino: patch.qtaMagazzino ?? 0,
+              qtaLaboratorio: patch.qtaLaboratorio ?? 0,
+              qtaRiservata: patch.qtaRiservata ?? 0,
+              qtaVenduta: 0,
+              sogliaMinima: 0,
+              stato: 'disponibile',
+              stockShopify: patch.qtaMagazzino ?? 0,
+              divergenzaShopify: false,
+            }
+        next.stato = variantStato(next.qtaMagazzino, next.sogliaMinima)
+        next.divergenzaShopify = next.stockShopify !== next.qtaMagazzino
+        setInventoryRecords((prev) => (rec ? prev.map((r) => (r.variantId === variantId ? next : r)) : [...prev, next]))
+        setProductVariants((prev) =>
+          prev.map((v) =>
+            v.id === variantId
+              ? { ...v, stockDisponibile: next.qtaMagazzino, stockRiservato: next.qtaRiservata, statoDisponibilita: next.stato }
+              : v,
+          ),
+        )
       },
 
       addMaterial: (input) => {
@@ -259,6 +458,7 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
           unitaMisura: 'm',
         }
         setMaterials((prev) => [material, ...prev])
+        pushLog('Creazione tessuto', 'materials', material.id, material.nome)
         return material
       },
 
@@ -273,19 +473,23 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
           unitaMisura: 'cad',
         }
         setAccessories((prev) => [accessory, ...prev])
+        pushLog('Creazione accessorio', 'accessories', accessory.id, accessory.nome)
         return accessory
       },
 
       addInvoice: (input) => {
+        const prodottiCollegatiIds = input.prodottiCollegatiIds ?? []
+        const materialiCollegatiIds = input.materialiCollegatiIds ?? []
         const invoice: Invoice = {
           id: genId('inv'),
           ...input,
           totale: Math.round((input.imponibile + input.iva) * 100) / 100,
-          prodottiCollegatiIds: [],
-          materialiCollegatiIds: [],
-          associata: false,
+          prodottiCollegatiIds,
+          materialiCollegatiIds,
+          associata: prodottiCollegatiIds.length > 0 || materialiCollegatiIds.length > 0,
         }
         setInvoices((prev) => [invoice, ...prev])
+        pushLog('Caricamento fattura', 'invoices', invoice.id, `${invoice.numero} (${invoice.statoPagamento})`)
         return invoice
       },
 
@@ -297,6 +501,7 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
           accessoriIds: [],
         }
         setSuppliers((prev) => [supplier, ...prev])
+        pushLog('Creazione fornitore', 'suppliers', supplier.id, supplier.nome)
         return supplier
       },
 
@@ -308,6 +513,7 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
           numeroOrdini: 0,
         }
         setCustomers((prev) => [customer, ...prev])
+        pushLog('Creazione cliente', 'customers', customer.id, customer.nome)
         return customer
       },
 
@@ -321,7 +527,7 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
           priorita: 'normale',
           data: input.data,
           totale: input.totale,
-          prodottiIds: [],
+          prodottiIds: input.prodottiIds ?? [],
         }
         setOrders((prev) => [order, ...prev])
         setCustomers((prev) =>
@@ -331,27 +537,34 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
               : c,
           ),
         )
+        pushLog('Creazione ordine', 'orders', order.id, order.numero)
         return order
       },
 
       updateFixedCostItem: (id, importoAnnuo) => {
         setFixedCostItems((prev) => prev.map((item) => (item.id === id ? { ...item, importoAnnuo } : item)))
+        pushLog('Modifica voce costi fissi', 'costs', id, `€${importoAnnuo}`)
       },
 
       addFixedCostItem: (nome, importoAnnuo) => {
         setFixedCostItems((prev) => [...prev, { id: genId('fc'), nome, importoAnnuo }])
+        pushLog('Nuova voce costi fissi', 'costs', nome, `€${importoAnnuo}`)
       },
 
       removeFixedCostItem: (id) => {
         setFixedCostItems((prev) => prev.filter((item) => item.id !== id))
+        pushLog('Rimozione voce costi fissi', 'costs', id)
       },
 
       setCapiProdottiAnnui: (n) => setCapiProdottiAnniState(n),
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       supplierRequests,
       productionSteps,
       products,
+      productVariants,
+      inventoryRecords,
       materials,
       accessories,
       invoices,
@@ -360,6 +573,9 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
       orders,
       fixedCostItems,
       capiProdottiAnnui,
+      activityLogs,
+      quotaHistory,
+      role,
     ],
   )
 

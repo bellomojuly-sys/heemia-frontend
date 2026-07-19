@@ -1,5 +1,7 @@
+import { Link } from 'react-router-dom'
+import { Sparkles } from 'lucide-react'
 import { useRole } from '../../context/RoleContext'
-import { ROLE_LABELS } from '../../lib/permissions'
+import { canAccessModule, ROLE_LABELS } from '../../lib/permissions'
 import type { Role } from '../../types'
 import { formatDateIt } from '../../lib/format'
 import { TODAY } from '../../lib/alerts'
@@ -15,6 +17,15 @@ export function Header() {
         {formatDateIt(TODAY.toISOString())}
       </p>
       <div className="flex items-center gap-3">
+        {/* FR-28: l'assistente è raggiungibile da qualsiasi sezione tramite l'header. */}
+        {canAccessModule(role, 'ai-assistant') && (
+          <Link
+            to="/assistente"
+            className="inline-flex items-center gap-1.5 rounded-[3px] border border-heemia-border px-2.5 py-1.5 text-xs text-heemia-grey transition-colors hover:border-heemia-black hover:text-heemia-black"
+          >
+            <Sparkles aria-hidden className="h-3.5 w-3.5" /> AI Assistant
+          </Link>
+        )}
         <span className="font-mono-heemia text-[10px] uppercase tracking-[0.1em] text-heemia-grey-light">
           Ruolo demo
         </span>
