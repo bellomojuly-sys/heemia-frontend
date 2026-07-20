@@ -26,3 +26,5 @@ dist-ssr
 # Claude Code local settings (percorsi macchina locale)
 .claude/settings.local.json
 .claude/settings.json.save
+.vercel
+.env*

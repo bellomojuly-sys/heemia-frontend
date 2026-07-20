@@ -28,7 +28,7 @@ export function Toolbar({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}
-          className="w-56 rounded-[3px] border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black transition-colors placeholder:text-heemia-grey-light focus:border-heemia-black focus:outline-none"
+          className="w-full rounded-[3px] sm:w-56 border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black transition-colors placeholder:text-heemia-grey-light focus:border-heemia-black focus:outline-none"
         />
       )}
       {filters.map((f) => (

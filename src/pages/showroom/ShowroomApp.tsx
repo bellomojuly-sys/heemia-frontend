@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { formatCurrency } from '../../lib/format'
 import { showroomClients } from '../../mock'
 import { useMockStore } from '../../context/MockStore'
+import { getMisureForCategoria } from '../../lib/measurements'
 import type { Product } from '../../types'
 
 // FR-29: sub-app separata, login proprio, nessun accesso al gestionale interno.
@@ -33,6 +34,10 @@ function SuMisuraForm({
   const [materialeId, setMaterialeId] = useState('')
   const [taglia, setTaglia] = useState('')
   const [note, setNote] = useState('')
+  // Misure da prendere (estensione DEC-026, set proposto in lib/measurements.ts — da validare).
+  // Facoltative: se il cliente non le conosce vengono prese in showroom alla prova.
+  const misureDef = getMisureForCategoria(product.categoria)
+  const [misure, setMisure] = useState<Record<string, string>>({})
 
   // Il cliente vede solo nome e composizione dei materiali disponibili (FR-29), niente costi o scorte.
   const availableMaterials = materials.filter((m) => m.stato === 'disponibile')
@@ -55,11 +60,15 @@ function SuMisuraForm({
       totale: product.prezzoShowroom,
       prodottiIds: [product.id],
     })
+    const misurePrese = misureDef
+      .filter((m) => misure[m.id]?.trim())
+      .map((m) => `${m.label.toLowerCase()} ${misure[m.id].trim()} cm`)
+      .join(', ')
     logAction(
       'Ordine su misura showroom',
       'orders',
       numero,
-      `${product.nome} · ${materiale?.nome ?? materialeId} · taglia ${taglia}${note.trim() ? ` · note: ${note.trim()}` : ''}`,
+      `${product.nome} · ${materiale?.nome ?? materialeId} · taglia ${taglia}${misurePrese ? ` · misure: ${misurePrese}` : ''}${note.trim() ? ` · note: ${note.trim()}` : ''}`,
     )
     onSubmitted(numero)
   }
@@ -91,13 +100,34 @@ function SuMisuraForm({
             {taglie.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </label>
+        <div className="sm:col-span-2">
+          <p className="font-mono-heemia mb-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Misure da prendere (cm)</p>
+          <p className="mb-2 text-xs text-heemia-grey">Se non le conosci, le prendiamo insieme in showroom alla prova.</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {misureDef.map((m) => (
+              <label key={m.id} className="block">
+                <span className="mb-0.5 block text-[11px] text-heemia-grey">{m.label}</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  inputMode="decimal"
+                  value={misure[m.id] ?? ''}
+                  onChange={(e) => setMisure((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                  className={inputClass}
+                  placeholder="cm"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
         <label className="block sm:col-span-2">
           <span className="font-mono-heemia mb-1 block text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Personalizzazioni richieste</span>
-          <textarea rows={3} className={inputClass} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Es. maniche più corte, fodera in contrasto, misure particolari…" />
+          <textarea rows={3} className={inputClass} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Es. maniche più corte, fodera in contrasto, richieste particolari…" />
         </label>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-4">
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-heemia-grey">L'ordine viene inviato all'atelier con la tua email ({clientEmail}); ti ricontattiamo per conferma e prova.</p>
         <Button onClick={submit} disabled={!materialeId || !taglia}>Invia ordine su misura</Button>
       </div>
@@ -161,14 +191,14 @@ export function ShowroomApp() {
 
   return (
     <div className="min-h-screen bg-heemia-cream">
-      <header className="border-b border-heemia-border bg-heemia-black px-8 py-6 text-white">
+      <header className="border-b border-heemia-border bg-heemia-black px-4 py-5 text-white sm:px-8 sm:py-6">
         <p className="font-display text-xl italic">Heemia Showroom</p>
         <p className="font-mono-heemia mt-1 text-[10px] uppercase tracking-[0.1em] text-white/50">
           {matchedClient ? `Bentornato, ${matchedClient.nome}` : `Benvenuto, ${name || 'ospite'}`}
         </p>
       </header>
 
-      <main className="px-8 py-8">
+      <main className="px-4 py-6 sm:px-8 sm:py-8">
         <div className="mb-6 flex gap-5 border-b border-heemia-border">
           {([['pronti', 'Capi pronti'], ['su_misura', 'Su misura']] as const).map(([id, label]) => (
             <button

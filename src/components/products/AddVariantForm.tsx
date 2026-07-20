@@ -40,7 +40,7 @@ export function AddVariantForm({
 
   return (
     <Modal title="Aggiungi variante" subtitle={`${product.nome}: nuova combinazione taglia/colore con stock iniziale.`} onClose={onClose}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Taglia">
           <input className={fieldClass} value={form.taglia} onChange={(e) => setForm({ ...form, taglia: e.target.value })} placeholder="S, M, L…" />
         </Field>

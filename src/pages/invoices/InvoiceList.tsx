@@ -115,7 +115,7 @@ function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
 
   return (
     <Modal title="Aggiungi fattura" subtitle="Numero, importi, allegato e collegamenti a prodotti o materiali." onClose={onClose}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Numero fattura">
           <input className={fieldClass} value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} placeholder="FT-2026-0001" />
         </Field>

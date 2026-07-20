@@ -186,7 +186,7 @@ export function Dashboard() {
 
         <Card>
           <CardHeader title="Stock overview" subtitle="Prodotti finiti" />
-          <div className="grid grid-cols-2 gap-3 p-5 text-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 p-5 text-sm">
             <div>
               <p className="text-xs text-heemia-grey">Disponibile</p>
               <p className="text-lg font-semibold text-heemia-black">{stock.disponibile}</p>

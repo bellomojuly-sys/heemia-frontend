@@ -41,7 +41,7 @@ function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit
 
   return (
     <Modal title="Aggiungi accessorio" onClose={onClose}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nome">
           <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
         </Field>

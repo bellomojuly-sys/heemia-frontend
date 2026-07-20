@@ -35,7 +35,7 @@ function AddCustomerForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 
   return (
     <Modal title="Aggiungi cliente" onClose={onClose}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nome">
           <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
         </Field>
@@ -72,7 +72,7 @@ function AddOrderForm({ customerName, onClose, onSubmit }: { customerName: strin
 
   return (
     <Modal title="Aggiungi ordine" subtitle={`Cliente: ${customerName}`} onClose={onClose}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Numero ordine">
           <input className={fieldClass} value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} placeholder="SH-10099" />
         </Field>

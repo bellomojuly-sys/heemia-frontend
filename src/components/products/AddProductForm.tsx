@@ -33,7 +33,7 @@ export function AddProductForm({ onClose, onSubmit }: { onClose: () => void; onS
 
   return (
     <Modal title="Nuovo prodotto" subtitle="Crea la scheda base. Entra nella scheda prodotto per completare prezzi, varianti e scheda tecnica." onClose={onClose}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nome prodotto">
           <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Es. Cortina" />
         </Field>
