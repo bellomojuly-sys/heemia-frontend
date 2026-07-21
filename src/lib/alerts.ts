@@ -1,4 +1,4 @@
-import type { Accessory, AlertItem, InventoryRecord, Invoice, Margin, Material, Order, Product, ProductVariant } from '../types'
+import type { Accessory, AlertItem, CashClosure, InventoryRecord, Invoice, Margin, Material, Order, Product, ProductVariant } from '../types'
 import { products as staticProducts } from '../mock/products'
 import { technicalSheets } from '../mock/technicalSheets'
 import { materials as staticMaterials, accessories as staticAccessories } from '../mock/materials'
@@ -6,6 +6,7 @@ import { invoices as staticInvoices } from '../mock/invoices'
 import { margins as staticMargins, MARGIN_THRESHOLD_PERCENT } from '../mock/margins'
 import { inventoryRecords as staticInventoryRecords } from '../mock/inventory'
 import { orders as staticOrders } from '../mock/customers'
+import { cashClosures as staticCashClosures } from '../mock/cashClosures'
 import { productVariants as staticVariants } from '../mock/products'
 import { monthlyReports } from '../mock/reports'
 
@@ -29,6 +30,22 @@ export interface AlertSources {
   productVariants?: ProductVariant[]
   orders?: Order[]
   margins?: Margin[]
+  cashClosures?: CashClosure[]
+}
+
+// Mese precedente rispetto a TODAY, in formato "YYYY-MM" (per il promemoria chiusura cassa).
+function meseprecedente(): string {
+  const d = new Date(TODAY)
+  d.setDate(1)
+  d.setMonth(d.getMonth() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+const MESI_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
+function meseLabelIt(mese: string): string {
+  const [anno, m] = mese.split('-')
+  const i = Number(m) - 1
+  return i >= 0 && i < 12 ? `${MESI_IT[i]} ${anno}` : mese
 }
 
 // Deriva gli alert direttamente dai dati (FR-27), così restano sempre coerenti con
@@ -42,8 +59,20 @@ export function computeAlerts(src: AlertSources = {}): AlertItem[] {
   const productVariants = src.productVariants ?? staticVariants
   const orders = src.orders ?? staticOrders
   const margins = src.margins ?? staticMargins
+  const cashClosures = src.cashClosures ?? staticCashClosures
 
   const alerts: AlertItem[] = []
+
+  // FR-41: promemoria mensile di chiusura di cassa. Se il mese precedente non ha
+  // ancora una chiusura registrata (import dell'export scontrini Billy), lo segnala.
+  const mesePrec = meseprecedente()
+  if (!cashClosures.some((c) => c.mese === mesePrec)) {
+    alerts.push({
+      id: `alert-chiusura-${mesePrec}`, modulo: 'Fatture', livello: 'attenzione',
+      messaggio: `Chiusura di cassa di ${meseLabelIt(mesePrec)} non ancora registrata: carica l'export scontrini da Billy`,
+      data: TODAY.toISOString(), entitaId: mesePrec, link: '/fatture',
+    })
+  }
 
   // FR-29 (requisito 2026-07-20): un ordine su misura arrivato dallo showroom deve
   // comparire come alert nell'app principale finché è in lavorazione.

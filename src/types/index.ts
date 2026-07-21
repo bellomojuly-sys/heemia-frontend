@@ -530,3 +530,24 @@ export interface MonthlyReport {
   prodottoPiuCostoso: string
   prodottoMenoRedditizio: string
 }
+
+// ---------------------------------------------------------------------------
+// Chiusura di cassa mensile (FR-41)
+// ---------------------------------------------------------------------------
+// Heemia vende con scontrino (corrispettivi), non fattura: l'incassato reale si
+// conosce solo caricando una volta al mese l'export scontrini da Billy. Questa è
+// la "chiusura di cassa": import manuale del file + totale del mese, riepilogato
+// dall'AI assistant. Nessuna API Billy (non esposta) — vedi DEC-031.
+export interface CashClosure {
+  id: string
+  /** Mese di riferimento in formato "YYYY-MM". */
+  mese: string
+  totaleIncassato: number
+  numeroScontrini: number
+  /** Nome del file export Billy caricato (traccia di provenienza). */
+  fileNome?: string
+  importatoIl: string
+  /** Riepilogo generato dall'AI assistant sul mese (FR-28). */
+  riepilogoAI: string
+  note?: string
+}

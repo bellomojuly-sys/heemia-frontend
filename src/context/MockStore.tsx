@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
 import type {
   Accessory,
   ActivityLogEntry,
+  CashClosure,
   CategoriaCosto,
   Customer,
   FixedCostItem,
@@ -29,6 +30,7 @@ import { invoices as initialInvoices } from '../mock/invoices'
 import { suppliers as initialSuppliers } from '../mock/suppliers'
 import { customers as initialCustomers, orders as initialOrders } from '../mock/customers'
 import { activityLogs as initialActivityLogs } from '../mock/activityLogs'
+import { cashClosures as initialCashClosures } from '../mock/cashClosures'
 import { fixedCostItems as initialFixedCostItems, DEFAULT_CAPI_PRODOTTI_ANNUI, initialQuotaHistory } from '../mock/margins'
 import { checkAdvance, stageLabel } from '../lib/production'
 import { computeQuotaPerCapo } from '../lib/margins'
@@ -131,6 +133,28 @@ export interface NewOrderInput {
   prodottiIds?: string[]
 }
 
+export interface NewCashClosureInput {
+  /** Mese "YYYY-MM" a cui si riferisce la chiusura. */
+  mese: string
+  totaleIncassato: number
+  numeroScontrini: number
+  fileNome?: string
+  note?: string
+}
+
+const MESI_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
+
+/** "2026-06" → "giugno 2026". */
+export function meseLabel(mese: string): string {
+  const [anno, m] = mese.split('-')
+  const idx = Number(m) - 1
+  return idx >= 0 && idx < 12 ? `${MESI_IT[idx]} ${anno}` : mese
+}
+
+function formatEuro(n: number): string {
+  return `€${n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 function stockStato(disponibili: number, sogliaMinima: number): 'disponibile' | 'sotto_soglia' | 'esaurito' {
   if (disponibili <= 0) return 'esaurito'
   if (disponibili <= sogliaMinima) return 'sotto_soglia'
@@ -177,6 +201,7 @@ interface MockStoreValue {
   capiProdottiAnnui: number
   activityLogs: ActivityLogEntry[]
   quotaHistory: QuotaHistoryEntry[]
+  cashClosures: CashClosure[]
 
   /** Registra un'azione critica nell'activity log (FR-18) con il ruolo attivo come utente. */
   logAction: (azione: string, entita: string, entitaId: string, valoreNuovo?: string, valorePrecedente?: string) => void
@@ -186,6 +211,8 @@ interface MockStoreValue {
   updateInvoiceAssociations: (id: string, prodottiIds: string[], materialiIds: string[]) => void
   /** FR-40: registra la quota corrente nello storico per stagione/periodo. */
   saveQuotaSnapshot: (periodo: string, nota?: string) => void
+  /** FR-41: registra la chiusura di cassa di un mese dall'export scontrini Billy. */
+  addCashClosure: (input: NewCashClosureInput) => CashClosure
 
   setSupplierRequestStatus: (id: string, stato: SupplierRequestStato, extra?: Partial<SupplierRequest>) => void
   updateSupplierRequestDraft: (id: string, patch: Partial<Pick<SupplierRequest, 'testo' | 'quantitaRichiesta' | 'deadlineIdeale'>>) => void
@@ -227,6 +254,7 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
   const [capiProdottiAnnui, setCapiProdottiAnniState] = useState<number>(DEFAULT_CAPI_PRODOTTI_ANNUI)
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>(initialActivityLogs)
   const [quotaHistory, setQuotaHistory] = useState<QuotaHistoryEntry[]>(initialQuotaHistory)
+  const [cashClosures, setCashClosures] = useState<CashClosure[]>(initialCashClosures)
 
   const utente = ROLE_LABELS[role]
   const pushLog = (azione: string, entita: string, entitaId: string, valoreNuovo?: string, valorePrecedente?: string) => {
@@ -253,6 +281,7 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
       capiProdottiAnnui,
       activityLogs,
       quotaHistory,
+      cashClosures,
 
       logAction: (azione, entita, entitaId, valoreNuovo, valorePrecedente) =>
         pushLog(azione, entita, entitaId, valoreNuovo, valorePrecedente),
@@ -309,6 +338,27 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
           ...prev,
         ])
         pushLog('Registrazione quota costi fissi', 'margins', periodo, `€${quota.toFixed(2)}/capo su ${capiProdottiAnnui} capi`)
+      },
+
+      addCashClosure: (input) => {
+        const media = input.numeroScontrini > 0 ? input.totaleIncassato / input.numeroScontrini : 0
+        // Riepilogo "AI" nel prototipo: testo derivato dai dati caricati (nessun backend AI).
+        // In produzione questo sarà l'endpoint POST /api/v1/ai/cash-closure che chiama Claude API.
+        const riepilogoAI = `A ${meseLabel(input.mese)} sono entrati ${formatEuro(input.totaleIncassato)} con ${input.numeroScontrini} scontrini (media ${formatEuro(media)} a scontrino). Dato da chiusura di cassa: è quanto effettivamente incassato dagli scontrini del mese.`
+        const closure: CashClosure = {
+          id: genId('cc'),
+          mese: input.mese,
+          totaleIncassato: Math.round(input.totaleIncassato * 100) / 100,
+          numeroScontrini: input.numeroScontrini,
+          fileNome: input.fileNome,
+          importatoIl: new Date().toISOString().slice(0, 10),
+          riepilogoAI,
+          note: input.note,
+        }
+        // Se esiste già una chiusura per quel mese, la sostituisce (ri-caricamento export).
+        setCashClosures((prev) => [closure, ...prev.filter((c) => c.mese !== input.mese)])
+        pushLog('Chiusura di cassa mensile', 'cash_closures', input.mese, `${formatEuro(input.totaleIncassato)} · ${input.numeroScontrini} scontrini`)
+        return closure
       },
 
       setSupplierRequestStatus: (id, stato, extra) => {
@@ -575,6 +625,7 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
       capiProdottiAnnui,
       activityLogs,
       quotaHistory,
+      cashClosures,
       role,
     ],
   )

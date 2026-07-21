@@ -1,18 +1,52 @@
-import { useMemo, useState } from 'react'
-import { FileText, ExternalLink } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { FileText, ExternalLink, Upload, Sparkles } from 'lucide-react'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
+import { Card, CardHeader } from '../../components/ui/Card'
 import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import { costAllocations } from '../../mock'
 import type { Invoice, CategoriaCosto } from '../../types'
-import { useMockStore, type NewInvoiceInput } from '../../context/MockStore'
+import { useMockStore, meseLabel, type NewInvoiceInput, type NewCashClosureInput } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
 import { canEdit } from '../../lib/permissions'
+
+// FR-41: parsing "best-effort" dell'export scontrini di Billy. Formato non ancora verificato
+// sul file reale (Billy non ha API): si accetta un CSV con una colonna importo/totale e si
+// somma; l'utente può comunque correggere i valori precompilati. DA VALIDARE sul vero export.
+function parseScontriniCsv(text: string): { totale: number; numero: number } {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  if (lines.length < 2) return { totale: 0, numero: 0 }
+  const delim = lines[0].includes(';') ? ';' : ','
+  const header = lines[0].split(delim).map((h) => h.trim().toLowerCase())
+  let col = header.findIndex((h) => /(totale|importo|incass|ammontare)/i.test(h))
+  if (col < 0) col = header.length - 1 // fallback: ultima colonna
+  let totale = 0
+  let numero = 0
+  for (const line of lines.slice(1)) {
+    const cells = line.split(delim)
+    const raw = (cells[col] ?? '').replace(/[€\s]/g, '')
+    // gestisce sia "1.234,56" (it) sia "1234.56" (en)
+    const norm = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw
+    const val = parseFloat(norm)
+    if (Number.isFinite(val)) {
+      totale += val
+      numero += 1
+    }
+  }
+  return { totale: Math.round(totale * 100) / 100, numero }
+}
+
+function mesePrecedente(): string {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
 
 const CATEGORIA_LABEL: Record<string, string> = {
   tessuto: 'Tessuto', accessori: 'Accessori', manodopera: 'Manodopera', packaging: 'Packaging',
@@ -296,6 +330,152 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   )
 }
 
+function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewCashClosureInput) => void }) {
+  const [mese, setMese] = useState(mesePrecedente())
+  const [totale, setTotale] = useState('')
+  const [numero, setNumero] = useState('')
+  const [fileNome, setFileNome] = useState('')
+  const [note, setNote] = useState('')
+  const [parseInfo, setParseInfo] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const onFile = (file: File) => {
+    setFileNome(file.name)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const { totale: t, numero: n } = parseScontriniCsv(String(reader.result ?? ''))
+      if (n > 0) {
+        setTotale(String(t))
+        setNumero(String(n))
+        setParseInfo(`Letti ${n} scontrini dall'export, totale ${formatCurrency(t)}. Verifica e correggi se serve.`)
+      } else {
+        setParseInfo('Non sono riuscito a leggere automaticamente gli importi da questo file: inseriscili a mano qui sotto.')
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const submit = () => {
+    if (!mese || !totale) return
+    onSubmit({
+      mese,
+      totaleIncassato: Number(totale),
+      numeroScontrini: Number(numero || 0),
+      fileNome: fileNome || undefined,
+      note: note.trim() || undefined,
+    })
+    onClose()
+  }
+
+  return (
+    <Modal title="Chiusura di cassa mensile" subtitle="Carica l'export scontrini scaricato da Billy: il totale del mese viene calcolato in automatico." onClose={onClose}>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Mese di riferimento">
+          <input type="month" className={fieldClass} value={mese} onChange={(e) => setMese(e.target.value)} />
+        </Field>
+        <Field label="Export scontrini (Billy)">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,.txt,text/csv"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+          />
+          <Button variant="secondary" onClick={() => fileRef.current?.click()}>
+            <Upload aria-hidden className="mr-1.5 inline h-3.5 w-3.5" />
+            {fileNome || 'Carica file CSV'}
+          </Button>
+        </Field>
+      </div>
+      {parseInfo && <p className="mt-2 rounded-[3px] bg-heemia-cream px-3 py-2 text-xs text-heemia-black">{parseInfo}</p>}
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Totale incassato (EUR)">
+          <input type="number" step="0.01" className={fieldClass} value={totale} onChange={(e) => setTotale(e.target.value)} placeholder="0,00" />
+        </Field>
+        <Field label="Numero scontrini">
+          <input type="number" className={fieldClass} value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="0" />
+        </Field>
+      </div>
+      <div className="mt-3">
+        <Field label="Note (opzionale)">
+          <input className={fieldClass} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Es. include il mercatino del 12" />
+        </Field>
+      </div>
+      <FormActions>
+        <Button variant="secondary" onClick={onClose}>Annulla</Button>
+        <Button onClick={submit} disabled={!mese || !totale}>Registra chiusura</Button>
+      </FormActions>
+    </Modal>
+  )
+}
+
+function CashClosureSection() {
+  const { role } = useRole()
+  const { cashClosures, addCashClosure } = useMockStore()
+  const [open, setOpen] = useState(false)
+
+  const closures = useMemo(() => [...cashClosures].sort((a, b) => b.mese.localeCompare(a.mese)), [cashClosures])
+  const ultima = closures[0]
+  const mesePrec = mesePrecedente()
+  const mancaPrec = !cashClosures.some((c) => c.mese === mesePrec)
+
+  return (
+    <Card className="mb-6">
+      <CardHeader
+        title="Chiusura di cassa mensile"
+        subtitle="Vendiamo con scontrino, non con fattura: qui carichi una volta al mese l'export scontrini da Billy per sapere quanto hai incassato."
+        action={canEdit(role) ? <Button onClick={() => setOpen(true)}>Registra chiusura del mese</Button> : undefined}
+      />
+      <div className="space-y-4 p-4">
+        {mancaPrec && (
+          <div className="rounded-[3px] border-l-2 border-heemia-carmine bg-heemia-cream px-3 py-2 text-sm text-heemia-black">
+            Promemoria: la chiusura di <strong>{meseLabel(mesePrec)}</strong> non è ancora stata registrata. Vai su Billy, scarica l'export scontrini del mese e caricalo qui.
+          </div>
+        )}
+
+        {ultima && (
+          <div className="rounded-[3px] border border-heemia-border p-3">
+            <div className="flex items-center gap-1.5">
+              <Sparkles aria-hidden className="h-3.5 w-3.5 text-heemia-grey" />
+              <span className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Riepilogo assistant · {meseLabel(ultima.mese)}</span>
+            </div>
+            <p className="mt-1 text-sm text-heemia-black">{ultima.riepilogoAI}</p>
+          </div>
+        )}
+
+        {closures.length > 0 ? (
+          <table className="w-full text-sm [&_td]:px-2 [&_th]:px-2 [&_td:first-child]:pl-0 [&_th:first-child]:pl-0 [&_td:last-child]:pr-0 [&_th:last-child]:pr-0">
+            <thead>
+              <tr className="border-b border-heemia-border text-left">
+                <th className="py-1.5 font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Mese</th>
+                <th className="py-1.5 text-right font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Incassato</th>
+                <th className="py-1.5 text-right font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Scontrini</th>
+                <th className="py-1.5 font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Registrata il</th>
+                <th className="py-1.5 font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">File</th>
+              </tr>
+            </thead>
+            <tbody>
+              {closures.map((c) => (
+                <tr key={c.id} className="border-b border-heemia-border/60">
+                  <td className="py-1.5 text-heemia-black">{meseLabel(c.mese)}</td>
+                  <td className="py-1.5 text-right font-mono-heemia text-heemia-black">{formatCurrency(c.totaleIncassato)}</td>
+                  <td className="py-1.5 text-right font-mono-heemia text-heemia-grey">{c.numeroScontrini}</td>
+                  <td className="py-1.5 text-heemia-grey">{formatDateIt(c.importatoIl)}</td>
+                  <td className="py-1.5 text-heemia-grey">{c.fileNome ?? '–'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-sm text-heemia-grey">Nessuna chiusura registrata. Registra la prima chiusura per iniziare a tenere il quadro degli incassi.</p>
+        )}
+      </div>
+
+      {open && <CashClosureModal onClose={() => setOpen(false)} onSubmit={addCashClosure} />}
+    </Card>
+  )
+}
+
 export function InvoiceList() {
   const { role } = useRole()
   const { invoices, suppliers, customers, addInvoice } = useMockStore()
@@ -371,6 +551,9 @@ export function InvoiceList() {
         subtitle="Fatture fornitori, clienti, materiali e costi aziendali centralizzati. Apri una riga per allegato e associazioni."
         action={canEdit(role) ? <Button onClick={() => setModalOpen(true)}>Aggiungi fattura</Button> : undefined}
       />
+
+      <CashClosureSection />
+
       <Toolbar
         search={search}
         onSearchChange={setSearch}
