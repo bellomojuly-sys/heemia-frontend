@@ -436,6 +436,7 @@ export type AlertModulo =
   | 'Anagrafica'
   | 'Shopify'
   | 'Report'
+  | 'Ordini'
 
 export interface AlertItem {
   id: string

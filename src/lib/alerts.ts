@@ -1,10 +1,11 @@
-import type { Accessory, AlertItem, InventoryRecord, Invoice, Margin, Material, Product, ProductVariant } from '../types'
+import type { Accessory, AlertItem, InventoryRecord, Invoice, Margin, Material, Order, Product, ProductVariant } from '../types'
 import { products as staticProducts } from '../mock/products'
 import { technicalSheets } from '../mock/technicalSheets'
 import { materials as staticMaterials, accessories as staticAccessories } from '../mock/materials'
 import { invoices as staticInvoices } from '../mock/invoices'
 import { margins as staticMargins, MARGIN_THRESHOLD_PERCENT } from '../mock/margins'
 import { inventoryRecords as staticInventoryRecords } from '../mock/inventory'
+import { orders as staticOrders } from '../mock/customers'
 import { productVariants as staticVariants } from '../mock/products'
 import { monthlyReports } from '../mock/reports'
 
@@ -26,6 +27,7 @@ export interface AlertSources {
   invoices?: Invoice[]
   inventoryRecords?: InventoryRecord[]
   productVariants?: ProductVariant[]
+  orders?: Order[]
   margins?: Margin[]
 }
 
@@ -38,9 +40,22 @@ export function computeAlerts(src: AlertSources = {}): AlertItem[] {
   const invoices = src.invoices ?? staticInvoices
   const inventoryRecords = src.inventoryRecords ?? staticInventoryRecords
   const productVariants = src.productVariants ?? staticVariants
+  const orders = src.orders ?? staticOrders
   const margins = src.margins ?? staticMargins
 
   const alerts: AlertItem[] = []
+
+  // FR-29 (requisito 2026-07-20): un ordine su misura arrivato dallo showroom deve
+  // comparire come alert nell'app principale finché è in lavorazione.
+  for (const o of orders) {
+    if (o.numero.startsWith('SM-') && o.stato === 'in_lavorazione') {
+      alerts.push({
+        id: `alert-sumisura-${o.id}`, modulo: 'Ordini', livello: 'attenzione',
+        messaggio: `Nuovo ordine su misura ${o.numero} dallo showroom: da prendere in carico`,
+        data: o.data, entitaId: o.id, link: '/ordini',
+      })
+    }
+  }
 
   for (const m of margins) {
     if (m.sottoSoglia) {

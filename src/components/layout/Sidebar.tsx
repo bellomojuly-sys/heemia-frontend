@@ -12,14 +12,14 @@ import { useMockStore } from '../../context/MockStore'
 export function Sidebar() {
   const { role } = useRole()
   const liveMargins = useLiveMargins()
-  const { products, materials, accessories, invoices, inventoryRecords, productVariants } = useMockStore()
+  const { products, materials, accessories, invoices, inventoryRecords, productVariants, orders } = useMockStore()
 
   const criticalAlertCount = useMemo(
     () =>
-      computeAlerts({ products, materials, accessories, invoices, inventoryRecords, productVariants, margins: liveMargins }).filter(
+      computeAlerts({ products, materials, accessories, invoices, inventoryRecords, productVariants, orders, margins: liveMargins }).filter(
         (a) => a.livello === 'critico' && canSeeAlertModulo(role, a.modulo),
       ).length,
-    [products, materials, accessories, invoices, inventoryRecords, productVariants, liveMargins, role],
+    [products, materials, accessories, invoices, inventoryRecords, productVariants, orders, liveMargins, role],
   )
 
   // Solo voci di pagina, senza titoli di sezione: richiesta esplicita della founder

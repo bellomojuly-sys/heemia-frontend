@@ -14,17 +14,17 @@ const LEVEL_LABEL: Record<AlertItem['livello'], string> = { critico: 'Critici', 
 export function AlertsPage() {
   const { role } = useRole()
   const liveMargins = useLiveMargins()
-  const { products, materials, accessories, invoices, inventoryRecords, productVariants } = useMockStore()
+  const { products, materials, accessories, invoices, inventoryRecords, productVariants, orders } = useMockStore()
 
   // Il gating per-modulo va applicato qui (non da RoleGuard): la rotta /alert è aperta
   // a team/viewer, ma alcune categorie di alert (Margini, Fatture, Scadenze…) restano
   // riservate ad Admin/CEO anche dentro questa pagina.
   const visible = useMemo(
     () =>
-      computeAlerts({ products, materials, accessories, invoices, inventoryRecords, productVariants, margins: liveMargins }).filter(
+      computeAlerts({ products, materials, accessories, invoices, inventoryRecords, productVariants, orders, margins: liveMargins }).filter(
         (a) => canSeeAlertModulo(role, a.modulo),
       ),
-    [products, materials, accessories, invoices, inventoryRecords, productVariants, liveMargins, role],
+    [products, materials, accessories, invoices, inventoryRecords, productVariants, orders, liveMargins, role],
   )
 
   const groups: AlertItem['livello'][] = ['critico', 'attenzione', 'info']
