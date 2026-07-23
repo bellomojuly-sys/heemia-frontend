@@ -1,0 +1,785 @@
+// Heemia App — schema Prisma (Fase 12)
+// Derivato 1:1 dal DDL PostgreSQL approvato in Database_Schema.md (Fase 10, v1.0).
+// La tabella `sessions` è aggiunta come da System_Architecture §4 ("sessioni server-side revocabili").
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- ENUM ----------
+enum Role {
+  admin
+  ceo
+  team
+  viewer
+  showroom
+}
+
+enum ProductStage {
+  idea
+  concept
+  sviluppo_modello
+  scelta_tessuto
+  scelta_accessori
+  prototipo
+  campionario
+  produzione
+  foto_contenuti
+  scheda_ecommerce
+  pubblicato_shopify
+  in_vendita
+  archivio
+}
+
+enum Linea {
+  tessile
+  maglieria
+}
+
+enum BozzaStato {
+  bozza
+  approvata
+}
+
+enum PubblicazioneShopify {
+  non_pubblicato
+  bozza
+  pubblicato
+}
+
+enum VariantStato {
+  disponibile
+  esaurito
+  low_stock
+}
+
+enum IdeaStato {
+  nuova
+  in_valutazione
+  promossa
+}
+
+enum TsVersion {
+  preliminare
+  piazzamento
+  finale
+}
+
+enum Difficolta {
+  bassa
+  media
+  alta
+}
+
+enum MaterialStato {
+  disponibile
+  sotto_soglia
+  esaurito
+  da_verificare
+}
+
+enum MaterialUnita {
+  m
+  kg
+}
+
+enum AccessoryUnita {
+  cad
+  m
+}
+
+enum SupplierCategoria {
+  Tessuti
+  Filati
+  Passamaneria
+  Lycra
+  Felpa
+  Asole_Bottoni      @map("Asole/Bottoni")
+  Fodere
+  Cartellini_Etichette @map("Cartellini/Etichette")
+  Accessori
+  Zip
+  Bottoni
+  Accessori_vari     @map("Accessori vari")
+  Biglietti
+  Spalline
+  Modellistica_Confezione @map("Modellistica/Confezione")
+  Modellistica
+  Ricami
+  Smacchinatore
+  Confezione
+  Commercialista
+  Marchi_e_brevetti  @map("Marchi e brevetti")
+  Consulenza
+}
+
+enum SupplierReqStato {
+  bozza_generata
+  in_attesa_approvazione
+  modificata
+  approvata
+  inviata
+  risposta_ricevuta
+  chiusa
+  annullata
+}
+
+enum Urgenza {
+  bassa
+  media
+  alta
+}
+
+enum CategoriaCosto {
+  tessuto
+  accessori
+  manodopera
+  packaging
+  spedizione
+  marketing
+  logistica
+  servizi
+  costi_generali
+}
+
+enum InvoicePaese {
+  IT
+  EU
+  Extra_EU           @map("Extra-EU")
+}
+
+enum InvoicePagamento {
+  da_pagare
+  pagata
+  scaduta
+}
+
+enum ModalitaAllocazione {
+  diretto_prodotto
+  per_categoria
+  per_collezione
+  per_numero_capi
+  per_fatturato
+  per_mese
+  non_allocabile
+}
+
+enum TipoScadenza {
+  fattura_da_pagare
+  fattura_da_incassare
+  iva
+  contributi
+  fornitore
+  commercialista
+  reminder
+  abbonamento
+}
+
+enum DeadlineStato {
+  in_arrivo
+  in_ritardo
+  saldata
+}
+
+enum TipologiaCliente {
+  ecommerce
+  showroom
+  b2b
+  retailer
+  showroom_partner
+}
+
+enum OrderCanale {
+  shopify
+  fisico
+}
+
+enum OrderStato {
+  in_lavorazione
+  spedito
+  consegnato
+  annullato
+}
+
+enum OrderPriorita {
+  normale
+  alta
+}
+
+enum InventoryStato {
+  disponibile
+  esaurito
+  low_stock
+}
+
+enum AiAutore {
+  utente
+  assistant
+}
+
+// ---------- MODELLI ----------
+model User {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome          String
+  email         String   @unique
+  role          Role
+  passwordHash  String?  @map("password_hash")
+  attivo        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  activityLogs     ActivityLog[]
+  aiSessions       AiSession[]
+  sessions         Session[]
+  approvedRequests SupplierRequest[] @relation("ApprovedBy")
+
+  @@map("users")
+}
+
+// Sessioni server-side revocabili (System_Architecture §4).
+model Session {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role
+  scope     String   @default("interno") // "interno" | "showroom"
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model AppSetting {
+  chiave    String   @id
+  valore    String
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("app_settings")
+}
+
+model ActivityLog {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String?  @map("user_id") @db.Uuid
+  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  azione           String
+  entita           String
+  entitaId         String?  @map("entita_id")
+  valorePrecedente String?  @map("valore_precedente")
+  valoreNuovo      String?  @map("valore_nuovo")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+model AiSession {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?     @map("user_id") @db.Uuid
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  messages  AiMessage[]
+
+  @@map("ai_sessions")
+}
+
+model AiMessage {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String    @map("session_id") @db.Uuid
+  session   AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  autore    AiAutore
+  testo     String
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("ai_messages")
+}
+
+model Supplier {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                 String
+  categoria            SupplierCategoria
+  citta                String?
+  paese                String            @default("IT")
+  email                String?
+  referente            String?
+  telefono             String?
+  tempiMediConsegnaGg  Int?              @map("tempi_medi_consegna_gg")
+  condizioniPagamento  String?           @map("condizioni_pagamento")
+  note                 String?
+  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  materials   Material[]
+  accessories Accessory[]
+  requests    SupplierRequest[]
+  invoices    Invoice[]
+
+  @@map("suppliers")
+}
+
+model Product {
+  id                        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                      String
+  codiceProdotto            String               @unique @map("codice_prodotto")
+  categoria                 String?
+  collezione                String?
+  stagione                  String?
+  linea                     Linea
+  stato                     ProductStage         @default(idea)
+  descrizioneBreve          String?              @map("descrizione_breve")
+  descrizioneBreveStato     BozzaStato           @default(bozza) @map("descrizione_breve_stato")
+  descrizioneEcommerce      String?              @map("descrizione_ecommerce")
+  descrizioneTecnica        String?              @map("descrizione_tecnica")
+  consigliCura              String?              @map("consigli_cura")
+  consigliCuraStato         BozzaStato           @default(bozza) @map("consigli_cura_stato")
+  vestibilita               String?
+  taglieDisponibili         String[]             @default([]) @map("taglie_disponibili")
+  coloriDisponibili         String[]             @default([]) @map("colori_disponibili")
+  immaginiUrl               String[]             @default([]) @map("immagini_url")
+  prezzoVendita             Decimal              @default(0) @map("prezzo_vendita") @db.Decimal(12, 2)
+  prezzoNettoIva            Decimal              @default(0) @map("prezzo_netto_iva") @db.Decimal(12, 2)
+  prezzoShowroom            Decimal              @default(0) @map("prezzo_showroom") @db.Decimal(12, 2)
+  prezzoConsigliato         Decimal              @default(0) @map("prezzo_consigliato") @db.Decimal(12, 2)
+  statoPubblicazioneShopify PubblicazioneShopify @default(non_pubblicato) @map("stato_pubblicazione_shopify")
+  disponibilitaOnline       Boolean              @default(false) @map("disponibilita_online")
+  disponibilitaShowroom     Boolean              @default(false) @map("disponibilita_showroom")
+  visibileShowroom          Boolean              @default(false) @map("visibile_showroom")
+  personalizzabileSuMisura  Boolean              @default(false) @map("personalizzabile_su_misura")
+  createdAt                 DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  variants        ProductVariant[]
+  technicalSheets TechnicalSheet[]
+  productionSteps ProductionStep[]
+  materials       ProductMaterial[]
+  accessories     ProductAccessory[]
+  orderItems      OrderItem[]
+  invoiceLinks    InvoiceProduct[]
+  supplierReqs    SupplierRequest[]
+
+  @@map("products")
+}
+
+model ProductIdea {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome             String
+  concept          String?
+  materialiStimati String?   @map("materiali_stimati")
+  quantitaStimate  Int       @default(0) @map("quantita_stimate")
+  noteCreative     String?   @map("note_creative")
+  stato            IdeaStato @default(nuova)
+  scanBozzettoUrl  String?   @map("scan_bozzetto_url")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("product_ideas")
+}
+
+model ProductVariant {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId          String       @map("product_id") @db.Uuid
+  product            Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku                String       @unique
+  taglia             String
+  colore             String
+  stockDisponibile   Int          @default(0) @map("stock_disponibile")
+  stockRiservato     Int          @default(0) @map("stock_riservato")
+  immagineUrl        String?      @map("immagine_url")
+  statoDisponibilita VariantStato @default(disponibile) @map("stato_disponibilita")
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  inventory  InventoryRecord?
+  orderItems OrderItem[]
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model Material {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome             String
+  codice           String        @unique
+  supplierId       String?       @map("supplier_id") @db.Uuid
+  supplier         Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  composizione     String?
+  colore           String?
+  altezzaCm        Decimal?      @map("altezza_cm") @db.Decimal(6, 1)
+  prezzoAlMetro    Decimal       @default(0) @map("prezzo_al_metro") @db.Decimal(10, 2)
+  metriAcquistati  Decimal       @default(0) @map("metri_acquistati") @db.Decimal(10, 2)
+  metriUtilizzati  Decimal       @default(0) @map("metri_utilizzati") @db.Decimal(10, 2)
+  dataAcquisto     DateTime?     @map("data_acquisto") @db.Date
+  stagione         String?
+  consigliLavaggio String?       @map("consigli_lavaggio")
+  noteTecniche     String?       @map("note_tecniche")
+  sogliaMinima     Decimal       @default(0) @map("soglia_minima") @db.Decimal(10, 2)
+  stato            MaterialStato @default(disponibile)
+  unitaMisura      MaterialUnita @default(m) @map("unita_misura")
+  fatturaId        String?       @map("fattura_id") @db.Uuid
+  fattura          Invoice?      @relation(fields: [fatturaId], references: [id], onDelete: SetNull)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  products        ProductMaterial[]
+  tsPrincipale    TechnicalSheet[]         @relation("TessutoPrincipale")
+  tsSecondari     TechnicalSheetMaterial[]
+  invoiceLinks    InvoiceMaterial[]
+  supplierReqs    SupplierRequest[]
+  orderItems      OrderItem[]
+
+  @@index([supplierId])
+  @@map("materials")
+}
+
+model Accessory {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome               String
+  codice             String         @unique
+  categoria          String?
+  supplierId         String?        @map("supplier_id") @db.Uuid
+  supplier           Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  quantitaAcquistata Decimal        @default(0) @map("quantita_acquistata") @db.Decimal(10, 2)
+  quantitaUtilizzata Decimal        @default(0) @map("quantita_utilizzata") @db.Decimal(10, 2)
+  costoUnitario      Decimal        @default(0) @map("costo_unitario") @db.Decimal(10, 2)
+  sogliaMinima       Decimal        @default(0) @map("soglia_minima") @db.Decimal(10, 2)
+  stato              MaterialStato  @default(disponibile)
+  unitaMisura        AccessoryUnita @default(cad) @map("unita_misura")
+  fatturaId          String?        @map("fattura_id") @db.Uuid
+  fattura            Invoice?       @relation(fields: [fatturaId], references: [id], onDelete: SetNull)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  products     ProductAccessory[]
+  tsAccessori  TechnicalSheetAccessory[]
+  supplierReqs SupplierRequest[]
+
+  @@index([supplierId])
+  @@map("accessories")
+}
+
+model ProductMaterial {
+  productId  String   @map("product_id") @db.Uuid
+  materialId String   @map("material_id") @db.Uuid
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@id([productId, materialId])
+  @@map("product_materials")
+}
+
+model ProductAccessory {
+  productId   String    @map("product_id") @db.Uuid
+  accessoryId String    @map("accessory_id") @db.Uuid
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  accessory   Accessory @relation(fields: [accessoryId], references: [id], onDelete: Cascade)
+
+  @@id([productId, accessoryId])
+  @@map("product_accessories")
+}
+
+model TechnicalSheet {
+  id                   String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId            String     @map("product_id") @db.Uuid
+  product              Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  versione             TsVersion
+  tessutoPrincipaleId  String?    @map("tessuto_principale_id") @db.Uuid
+  tessutoPrincipale    Material?  @relation("TessutoPrincipale", fields: [tessutoPrincipaleId], references: [id], onDelete: SetNull)
+  composizioneCompleta String?    @map("composizione_completa")
+  pesoCapoGrammi       Decimal?   @map("peso_capo_grammi") @db.Decimal(8, 1)
+  lavorazione          String?
+  trattamenti          String?
+  lavaggioConsigliato  String?    @map("lavaggio_consigliato")
+  noteProduzione       String?    @map("note_produzione")
+  difficoltaProduttiva Difficolta @default(media) @map("difficolta_produttiva")
+  tempiStimatiOre      Decimal    @default(0) @map("tempi_stimati_ore") @db.Decimal(8, 2)
+  costoManodopera      Decimal    @default(0) @map("costo_manodopera") @db.Decimal(10, 2)
+  costoTessuto         Decimal    @default(0) @map("costo_tessuto") @db.Decimal(10, 2)
+  costoAccessori       Decimal    @default(0) @map("costo_accessori") @db.Decimal(10, 2)
+  costoPackaging       Decimal    @default(0) @map("costo_packaging") @db.Decimal(10, 2)
+  altriCostiDiretti    Decimal    @default(0) @map("altri_costi_diretti") @db.Decimal(10, 2)
+  altriCostiIndiretti  Decimal    @default(0) @map("altri_costi_indiretti") @db.Decimal(10, 2)
+  archiviata           Boolean    @default(false)
+  pdfUrl               String?    @map("pdf_url")
+  pdfCaricatoIl        DateTime?  @map("pdf_caricato_il") @db.Timestamptz(6)
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  materiali   TechnicalSheetMaterial[]
+  accessori   TechnicalSheetAccessory[]
+
+  @@unique([productId, versione])
+  @@index([productId])
+  @@map("technical_sheets")
+}
+
+model TechnicalSheetMaterial {
+  technicalSheetId String         @map("technical_sheet_id") @db.Uuid
+  materialId       String         @map("material_id") @db.Uuid
+  technicalSheet   TechnicalSheet @relation(fields: [technicalSheetId], references: [id], onDelete: Cascade)
+  material         Material       @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@id([technicalSheetId, materialId])
+  @@map("technical_sheet_materials")
+}
+
+model TechnicalSheetAccessory {
+  technicalSheetId String         @map("technical_sheet_id") @db.Uuid
+  accessoryId      String         @map("accessory_id") @db.Uuid
+  technicalSheet   TechnicalSheet @relation(fields: [technicalSheetId], references: [id], onDelete: Cascade)
+  accessory        Accessory      @relation(fields: [accessoryId], references: [id], onDelete: Cascade)
+
+  @@id([technicalSheetId, accessoryId])
+  @@map("technical_sheet_accessories")
+}
+
+model ProductionStep {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId    String       @map("product_id") @db.Uuid
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fase         ProductStage
+  responsabile String?
+  dataInizio   DateTime?    @map("data_inizio") @db.Date
+  dataFine     DateTime?    @map("data_fine") @db.Date
+  note         String?
+  bloccata     Boolean      @default(false)
+  motivoBlocco String?      @map("motivo_blocco")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([productId])
+  @@map("production_steps")
+}
+
+model Customer {
+  id                     String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                   String
+  email                  String?
+  paese                  String           @default("IT")
+  tipologia              TipologiaCliente @default(ecommerce)
+  valoreTotaleAcquistato Decimal          @default(0) @map("valore_totale_acquistato") @db.Decimal(12, 2)
+  numeroOrdini           Int              @default(0) @map("numero_ordini")
+  sconto                 Decimal?         @db.Decimal(5, 2)
+  note                   String?
+  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  invoices Invoice[]
+  orders   Order[]
+
+  @@map("customers")
+}
+
+model Invoice {
+  id                        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero                    String
+  data                      DateTime         @db.Date
+  fornitoreId               String?          @map("fornitore_id") @db.Uuid
+  fornitore                 Supplier?        @relation(fields: [fornitoreId], references: [id], onDelete: SetNull)
+  clienteId                 String?          @map("cliente_id") @db.Uuid
+  cliente                   Customer?        @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  paese                     InvoicePaese     @default(IT)
+  valuta                    String           @default("EUR")
+  tassoCambio               Decimal?         @map("tasso_cambio") @db.Decimal(10, 4)
+  dataCambio                DateTime?        @map("data_cambio") @db.Date
+  imponibileValutaOriginale Decimal?         @map("imponibile_valuta_originale") @db.Decimal(12, 2)
+  totaleValutaOriginale     Decimal?         @map("totale_valuta_originale") @db.Decimal(12, 2)
+  imponibile                Decimal          @default(0) @db.Decimal(12, 2)
+  iva                       Decimal          @default(0) @db.Decimal(12, 2)
+  totale                    Decimal          @default(0) @db.Decimal(12, 2)
+  categoriaCosto            CategoriaCosto   @default(costi_generali) @map("categoria_costo")
+  metodoPagamento           String?          @map("metodo_pagamento")
+  statoPagamento            InvoicePagamento @default(da_pagare) @map("stato_pagamento")
+  dataScadenza              DateTime?        @map("data_scadenza") @db.Date
+  documentoUrl              String?          @map("documento_url")
+  noteAmministrative        String?          @map("note_amministrative")
+  associata                 Boolean          @default(false)
+  reverseCharge             Boolean          @default(false) @map("reverse_charge")
+  createdAt                 DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  products        InvoiceProduct[]
+  materialiLinks  InvoiceMaterial[]
+  costAllocations CostAllocation[]
+  deadlines       Deadline[]
+  materials       Material[]
+  accessories     Accessory[]
+
+  @@index([fornitoreId])
+  @@index([clienteId])
+  @@index([dataScadenza])
+  @@map("invoices")
+}
+
+model InvoiceProduct {
+  invoiceId String  @map("invoice_id") @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([invoiceId, productId])
+  @@map("invoice_products")
+}
+
+model InvoiceMaterial {
+  invoiceId  String   @map("invoice_id") @db.Uuid
+  materialId String   @map("material_id") @db.Uuid
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@id([invoiceId, materialId])
+  @@map("invoice_materials")
+}
+
+model CostAllocation {
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId String              @map("invoice_id") @db.Uuid
+  invoice   Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  modalita  ModalitaAllocazione
+  targetId  String?             @map("target_id")
+  note      String?
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("cost_allocations")
+}
+
+model FixedCostItem {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome         String
+  importoAnnuo Decimal  @default(0) @map("importo_annuo") @db.Decimal(12, 2)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("fixed_cost_items")
+}
+
+model QuotaHistory {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  periodo           String
+  capiProdottiAnnui Int      @map("capi_prodotti_annui")
+  totaleCostiFissi  Decimal  @map("totale_costi_fissi") @db.Decimal(12, 2)
+  quotaPerCapo      Decimal  @map("quota_per_capo") @db.Decimal(12, 2)
+  nota              String?
+  registrataIl      DateTime @default(now()) @map("registrata_il") @db.Timestamptz(6)
+
+  @@map("quota_history")
+}
+
+model Deadline {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo        TipoScadenza
+  descrizione String
+  data        DateTime      @db.Date
+  importo     Decimal?      @db.Decimal(12, 2)
+  stato       DeadlineStato @default(in_arrivo)
+  invoiceId   String?       @map("invoice_id") @db.Uuid
+  invoice     Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([data])
+  @@map("deadlines")
+}
+
+model CashClosure {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mese            String   @unique @db.Char(7)
+  totaleIncassato Decimal  @default(0) @map("totale_incassato") @db.Decimal(12, 2)
+  numeroScontrini Int      @default(0) @map("numero_scontrini")
+  fileNome        String?  @map("file_nome")
+  riepilogoAi     String?  @map("riepilogo_ai")
+  note            String?
+  importatoIl     DateTime @default(now()) @map("importato_il") @db.Timestamptz(6)
+
+  @@map("cash_closures")
+}
+
+model SupplierRequest {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplierId           String           @map("supplier_id") @db.Uuid
+  supplier             Supplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  materialId           String?          @map("material_id") @db.Uuid
+  material             Material?        @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  accessoryId          String?          @map("accessory_id") @db.Uuid
+  accessory            Accessory?       @relation(fields: [accessoryId], references: [id], onDelete: SetNull)
+  productId            String?          @map("product_id") @db.Uuid
+  product              Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  oggetto              String
+  testo                String
+  quantitaRichiesta    Decimal          @default(0) @map("quantita_richiesta") @db.Decimal(10, 2)
+  quantitaDisponibile  Decimal          @default(0) @map("quantita_disponibile") @db.Decimal(10, 2)
+  quantitaMancante     Decimal          @default(0) @map("quantita_mancante") @db.Decimal(10, 2)
+  urgenza              Urgenza          @default(media)
+  deadlineIdeale       DateTime?        @map("deadline_ideale") @db.Date
+  stato                SupplierReqStato @default(bozza_generata)
+  noteTecniche         String?          @map("note_tecniche")
+  rispostaFornitore    String?          @map("risposta_fornitore")
+  approvataDa          String?          @map("approvata_da") @db.Uuid
+  approver             User?            @relation("ApprovedBy", fields: [approvataDa], references: [id], onDelete: SetNull)
+  inviataIl            DateTime?        @map("inviata_il") @db.Timestamptz(6)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([supplierId])
+  @@map("supplier_requests")
+}
+
+model Order {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero     String        @unique
+  customerId String?       @map("customer_id") @db.Uuid
+  customer   Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  canale     OrderCanale
+  stato      OrderStato    @default(in_lavorazione)
+  priorita   OrderPriorita @default(normale)
+  data       DateTime      @db.Date
+  totale     Decimal       @default(0) @db.Decimal(12, 2)
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  items OrderItem[]
+
+  @@index([customerId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId           String          @map("order_id") @db.Uuid
+  order             Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId         String?         @map("product_id") @db.Uuid
+  product           Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId         String?         @map("variant_id") @db.Uuid
+  variant           ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  quantita          Int             @default(1)
+  prezzoUnitario    Decimal         @default(0) @map("prezzo_unitario") @db.Decimal(12, 2)
+  suMisura          Boolean         @default(false) @map("su_misura")
+  materialeSceltoId String?         @map("materiale_scelto_id") @db.Uuid
+  materialeScelto   Material?       @relation(fields: [materialeSceltoId], references: [id], onDelete: SetNull)
+  tagliaScelta      String?         @map("taglia_scelta")
+  misure            Json?
+  noteSuMisura      String?         @map("note_su_misura")
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model InventoryRecord {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  variantId         String         @unique @map("variant_id") @db.Uuid
+  variant           ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  qtaMagazzino      Int            @default(0) @map("qta_magazzino")
+  qtaLaboratorio    Int            @default(0) @map("qta_laboratorio")
+  qtaRiservata      Int            @default(0) @map("qta_riservata")
+  qtaVenduta        Int            @default(0) @map("qta_venduta")
+  sogliaMinima      Int            @default(0) @map("soglia_minima")
+  stato             InventoryStato @default(disponibile)
+  stockShopify      Int            @default(0) @map("stock_shopify")
+  divergenzaShopify Boolean        @default(false) @map("divergenza_shopify")
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("inventory_records")
+}

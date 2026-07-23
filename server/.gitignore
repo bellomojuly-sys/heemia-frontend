@@ -1,0 +1,6 @@
+node_modules
+dist
+.env
+
+# file temporanei del mount
+.fuse_hidden*

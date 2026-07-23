@@ -28,3 +28,9 @@ dist-ssr
 .claude/settings.json.save
 .vercel
 .env*
+
+# eccezione: il template env va versionato
+!.env.example
+
+# file temporanei del mount
+.fuse_hidden*
