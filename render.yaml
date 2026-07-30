@@ -1,0 +1,89 @@
+
+
+databases:
+  - name: heemia-db
+    databaseName: heemia
+    user: heemia
+    plan: basic-256mb # piano a pagamento: il free scade dopo 30 giorni e non ha backup
+    region: frankfurt # dati in UE
+    postgresMajorVersion: "16" # stessa versione dello sviluppo locale
+
+services:
+  # --- Backend: API Fastify + Prisma ---
+  - type: web
+    name: heemia-api
+    runtime: node
+    plan: starter
+    region: frankfurt
+    rootDir: server
+    # prisma generate serve prima di compilare; migrate deploy applica le migrazioni
+    # versionate a ogni deploy (mai `db push` in produzione).
+    buildCommand: npm ci && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: heemia-db
+          property: connectionString # connessione interna, non passa da internet
+      - key: SESSION_SECRET
+        generateValue: true # generato da Render, mai visibile nel repo
+      - key: SESSION_TTL_HOURS
+        value: "12"
+      - key: APP_BASE_URL
+        fromService:
+          type: web
+          name: heemia-api
+          property: host
+      - key: CORS_ORIGIN
+        fromService:
+          type: web
+          name: heemia-app
+          property: host
+      # Segreti delle integrazioni: si aggiungono nel dashboard quando le
+      # rispettive integrazioni entrano in servizio (oggi gli endpoint
+      # rispondono 409 finché mancano — API_Mapping §B1/§B2/§B4).
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SHOPIFY_STORE_DOMAIN
+        sync: false
+      - key: SHOPIFY_ADMIN_API_TOKEN
+        sync: false
+      - key: SHOPIFY_WEBHOOK_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Password del primo amministratore, usata una sola volta dal seed.
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+
+  # --- Frontend: build statica Vite ---
+  - type: web
+    name: heemia-app
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      # Variabile di BUILD: l'URL dell'API finisce dentro il bundle.
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: heemia-api
+          property: host
+    routes:
+      # SPA: ogni percorso sconosciuto torna index.html, così i link diretti
+      # (es. /prodotti/<id>) funzionano anche al primo caricamento.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Robots-Tag
+        value: noindex # gestionale interno: fuori dai motori di ricerca
