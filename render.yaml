@@ -33,16 +33,14 @@ services:
         generateValue: true # generato da Render, mai visibile nel repo
       - key: SESSION_TTL_HOURS
         value: "12"
+      # ⚠️ Qui servono gli URL PUBBLICI. `fromService … property: host` restituisce
+      # l'hostname interno della rete privata Render (es. "heemia-api"), che il browser
+      # non sa risolvere: il frontend chiamerebbe https://heemia-api e ogni richiesta
+      # fallirebbe. Perciò i due indirizzi sono scritti per esteso.
       - key: APP_BASE_URL
-        fromService:
-          type: web
-          name: heemia-api
-          property: host
+        value: https://heemia-api.onrender.com
       - key: CORS_ORIGIN
-        fromService:
-          type: web
-          name: heemia-app
-          property: host
+        value: https://heemia-app.onrender.com
       # Segreti delle integrazioni: si aggiungono nel dashboard quando le
       # rispettive integrazioni entrano in servizio (oggi gli endpoint
       # rispondono 409 finché mancano — API_Mapping §B1/§B2/§B4).
@@ -71,12 +69,11 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     envVars:
-      # Variabile di BUILD: l'URL dell'API finisce dentro il bundle.
+      # Variabile di BUILD: l'URL dell'API finisce dentro il bundle, quindi deve essere
+      # l'indirizzo pubblico raggiungibile dal browser (non l'hostname interno Render).
+      # Cambiandolo va rifatto il deploy del sito statico, non basta salvare la variabile.
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: heemia-api
-          property: host
+        value: https://heemia-api.onrender.com
     routes:
       # SPA: ogni percorso sconosciuto torna index.html, così i link diretti
       # (es. /prodotti/<id>) funzionano anche al primo caricamento.
