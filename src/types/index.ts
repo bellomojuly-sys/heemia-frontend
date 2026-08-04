@@ -106,6 +106,87 @@ export interface ProductIdea {
 
 export type TechnicalSheetVersion = 'preliminare' | 'piazzamento' | 'finale'
 
+// Provenienza dichiarata di un valore di costo (tracciabilità, spec §6). `stimato` = calcolato
+// dall'app (es. consumo stimato); `manuale` = inserito a mano; `ai` = estratto dalla scansione
+// del PDF della scheda tecnica; gli altri risalgono all'origine dato.
+export type CostSource = 'fattura' | 'materiale' | 'fornitore' | 'manuale' | 'stimato' | 'ai'
+
+// Un costo o è diretto del capo, o è un costo di sviluppo/progettazione da ammortizzare sui capi previsti.
+export type CostKind = 'diretto' | 'sviluppo_ammortizzato'
+
+// Riga "materiale utilizzato" della scheda tecnica (spec §2 e §3). Tiene separato il valore
+// suggerito automaticamente dall'app (quantitaSuggerita) da quello confermato dall'utente
+// (quantitaConfermata): entrambi vengono conservati.
+export interface SheetMaterialUsage {
+  id: string
+  /** Collegamento a un tessuto (Material) o a un accessorio (Accessory) in anagrafica. */
+  materialId?: string
+  accessoryId?: string
+  /** Descrizione libera se non collegato a un'anagrafica. */
+  descrizione: string
+  unitaMisura: string
+  /** Stima automatica del consumo per un capo (motore in lib/materialCosting.ts). */
+  quantitaSuggerita: number
+  /** Quantità confermata/corretta a mano dall'utente. Se assente, si usa la suggerita. */
+  quantitaConfermata?: number
+  percentualeScarto: number
+  supplierId?: string
+  fattureCollegateIds: string[]
+  /** Costo unitario risolto (medio ponderato da fatture o fallback), fotografato per tracciabilità. */
+  costoUnitario: number
+  fonteCosto: CostSource
+  fatturaCostoId?: string
+  costoUnitarioAggiornatoIl: string
+}
+
+// Voce di costo aggiuntiva della scheda oltre ai materiali (spec §4: le 12 categorie di costo).
+export type SheetCostVoce =
+  | 'accessori'
+  | 'lavorazioni'
+  | 'taglio'
+  | 'confezione'
+  | 'ricamo_stampa'
+  | 'sviluppo_modello'
+  | 'disegno'
+  | 'scheda_tecnica'
+  | 'prototipazione'
+  | 'logistica'
+  | 'altro'
+
+export interface SheetCostLine {
+  id: string
+  voce: SheetCostVoce
+  label: string
+  importo: number
+  kind: CostKind
+  fonte: CostSource
+  fatturaId?: string
+  /** true per i costi di sviluppo/progettazione/disegno/prototipazione da ripartire sui capi. */
+  ammortizzabile: boolean
+  /** Divisore di ammortamento; se assente usa sheet.quantitaPrevistaProduzione. */
+  quantitaPrevista?: number
+}
+
+// Foto del prototipo caricata dall'utente (spec §1). data URL (base64) persistito in localStorage.
+export interface TechnicalSheetPhoto {
+  id: string
+  dataUrl: string
+  nome: string
+  caricataIl: string
+}
+
+// Snapshot storico del calcolo costi (spec §6): mai sovrascritto, si aggiunge in coda.
+export interface SheetCostSnapshot {
+  id: string
+  registratoIl: string
+  motivo: string
+  costoMaterialiUnitario: number
+  costoTotaleUnitario: number
+  prezzoBreakEven: number
+}
+
+export type StatoScheda = 'bozza' | 'in_revisione' | 'approvata' | 'archiviata'
+
 export interface TechnicalSheet {
   id: string
   productId: string
@@ -132,6 +213,45 @@ export interface TechnicalSheet {
   /** Documento PDF collegato a questa versione (DEC-021). Link Drive, non file caricato — FR-16. */
   pdfUrl?: string
   pdfCaricatoIl?: string
+
+  // --- Scheda tecnica strutturata (compilabile dal form, campi opzionali retro-compatibili) ---
+  /** Anagrafica denormalizzata sulla scheda: precompilata dal Product ma editabile per versione. */
+  nomeProdotto?: string
+  codiceProdotto?: string
+  collezione?: string
+  categoria?: string
+  statoScheda?: StatoScheda
+  descrizioneTecnica?: string
+  taglieDisponibili?: string[]
+  misureVestibilita?: string
+  istruzioniConfezione?: string
+  noteTecniche?: string
+  /** Fornitore o laboratorio di confezione coinvolto (Supplier). */
+  fornitoreLaboratorioId?: string
+  /** Righe materiali con stima consumo e costo (spec §2/§3). */
+  materiali?: SheetMaterialUsage[]
+  /** Voci di costo aggiuntive oltre ai materiali (spec §4). */
+  costiAggiuntivi?: SheetCostLine[]
+  /** Numero di capi previsti in produzione, divisore per l'ammortamento dei costi di sviluppo. */
+  quantitaPrevistaProduzione?: number
+  foto?: TechnicalSheetPhoto[]
+  aggiornataIl?: string
+  /** Storico dei calcoli costo (spec §6), non sovrascritto. */
+  storicoCosti?: SheetCostSnapshot[]
+
+  // --- Versioni Finale e Piazzamento: PDF caricato + note + scansione AI ---
+  /** PDF della scheda caricato dal dispositivo (data URL), persistito come le foto. */
+  pdfFile?: { dataUrl: string; nome: string; caricatoIl: string }
+  /** Note libere sulla versione, scritte a mano accanto al PDF. */
+  noteVersione?: string
+  /** Esito dell'ultima scansione AI del PDF: i costi estratti finiscono in `materiali`/`costiAggiuntivi`. */
+  scanAI?: {
+    analizzatoIl: string
+    nomeFile?: string
+    note: string
+    affidabilita: 'alta' | 'media' | 'bassa'
+    vociEstratte: number
+  }
 }
 
 // ---------------------------------------------------------------------------

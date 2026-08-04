@@ -130,8 +130,9 @@ export function ProductList() {
       {addOpen && (
         <AddProductForm
           onClose={() => setAddOpen(false)}
-          onSubmit={(input) => {
-            const created = addProduct(input)
+          onSubmit={async (input) => {
+            // L'id lo assegna il database: si attende la risposta prima di aprire il dettaglio.
+            const created = await addProduct(input)
             navigate(`/prodotti/${created.id}`)
           }}
         />

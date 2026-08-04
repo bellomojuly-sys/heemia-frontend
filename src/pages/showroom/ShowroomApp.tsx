@@ -1,9 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ImagePlaceholder } from '../../components/ui/ImagePlaceholder'
 import { Button } from '../../components/ui/Button'
 import { formatCurrency } from '../../lib/format'
-import { showroomClients } from '../../mock'
-import { useMockStore } from '../../context/MockStore'
+import { api, num } from '../../lib/api'
 import { getMisureForCategoria } from '../../lib/measurements'
 import type { Product } from '../../types'
 
@@ -30,7 +29,18 @@ function SuMisuraForm({
   onClose: () => void
   onSubmitted: (numeroOrdine: string) => void
 }) {
-  const { materials, customers, addCustomer, addOrder, logAction } = useMockStore()
+  // Lo showroom non ha sessione interna: legge e scrive solo sui suoi endpoint pubblici
+  // (/api/showroom), che espongono soltanto campi pubblici — mai costi o scorte (A5, FR-29).
+  const [materials, setMaterials] = useState<{ id: string; nome: string; composizione?: string }[]>([])
+  const [invioErrore, setInvioErrore] = useState<string | null>(null)
+  const [invioInCorso, setInvioInCorso] = useState(false)
+
+  useEffect(() => {
+    api.showroom
+      .get<{ id: string; nome: string; composizione?: string }[]>('/materials')
+      .then(setMaterials)
+      .catch(() => setMaterials([]))
+  }, [])
   const [materialeId, setMaterialeId] = useState('')
   const [taglia, setTaglia] = useState('')
   const [note, setNote] = useState('')
@@ -39,38 +49,35 @@ function SuMisuraForm({
   const misureDef = getMisureForCategoria(product.categoria)
   const [misure, setMisure] = useState<Record<string, string>>({})
 
-  // Il cliente vede solo nome e composizione dei materiali disponibili (FR-29), niente costi o scorte.
-  const availableMaterials = materials.filter((m) => m.stato === 'disponibile')
+  // L'endpoint restituisce già i soli materiali disponibili, con nome e composizione (FR-29).
+  const availableMaterials = materials
   const taglie = product.taglieDisponibili.length > 0 ? product.taglieDisponibili : ['XS', 'S', 'M', 'L', 'XL']
 
-  const submit = () => {
-    if (!materialeId || !taglia) return
-    const materiale = availableMaterials.find((m) => m.id === materialeId)
-    // DEC-023: il contatto è collegato all'app principale — riusa il cliente se l'email esiste,
-    // altrimenti lo crea con tipologia showroom (comparirà nella sezione Clienti).
-    const existing = customers.find((c) => c.email?.toLowerCase() === clientEmail.toLowerCase())
-    const customer = existing ?? addCustomer({ nome: clientName, email: clientEmail, paese: 'IT', tipologia: 'showroom' })
-    const numero = `SM-${Date.now().toString().slice(-5)}`
-    addOrder({
-      customerId: customer.id,
-      numero,
-      canale: 'fisico',
-      stato: 'in_lavorazione',
-      data: new Date().toISOString().slice(0, 10),
-      totale: product.prezzoShowroom,
-      prodottiIds: [product.id],
-    })
-    const misurePrese = misureDef
-      .filter((m) => misure[m.id]?.trim())
-      .map((m) => `${m.label.toLowerCase()} ${misure[m.id].trim()} cm`)
-      .join(', ')
-    logAction(
-      'Ordine su misura showroom',
-      'orders',
-      numero,
-      `${product.nome} · ${materiale?.nome ?? materialeId} · taglia ${taglia}${misurePrese ? ` · misure: ${misurePrese}` : ''}${note.trim() ? ` · note: ${note.trim()}` : ''}`,
+  const submit = async () => {
+    if (!materialeId || !taglia || invioInCorso) return
+    setInvioInCorso(true)
+    setInvioErrore(null)
+    // Numero ordine, riuso del cliente per email e registrazione nel log li fa il server
+    // (DEC-023): l'ordine compare in Ordini e genera l'alert FR-29 nell'app principale.
+    const misurePrese = Object.fromEntries(
+      misureDef.filter((m) => misure[m.id]?.trim()).map((m) => [m.label.toLowerCase(), misure[m.id].trim()]),
     )
-    onSubmitted(numero)
+    try {
+      const esito = await api.showroom.post<{ numero: string }>('/orders', {
+        productId: product.id,
+        clienteNome: clientName,
+        clienteEmail: clientEmail,
+        materialeId,
+        taglia,
+        misure: misurePrese,
+        note: note.trim() || undefined,
+      })
+      onSubmitted(esito.numero)
+    } catch (e) {
+      setInvioErrore(e instanceof Error ? e.message : 'Invio non riuscito, riprova.')
+    } finally {
+      setInvioInCorso(false)
+    }
   }
 
   return (
@@ -127,16 +134,31 @@ function SuMisuraForm({
         </label>
       </div>
 
+      {invioErrore && (
+        <p role="alert" className="mt-4 rounded-[3px] bg-heemia-cream px-3 py-2 text-xs text-heemia-black">
+          {invioErrore}
+        </p>
+      )}
+
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-heemia-grey">L'ordine viene inviato all'atelier con la tua email ({clientEmail}); ti ricontattiamo per conferma e prova.</p>
-        <Button onClick={submit} disabled={!materialeId || !taglia}>Invia ordine su misura</Button>
+        <Button onClick={submit} disabled={!materialeId || !taglia || invioInCorso}>
+          {invioInCorso ? 'Invio in corso…' : 'Invia ordine su misura'}
+        </Button>
       </div>
     </div>
   )
 }
 
 export function ShowroomApp() {
-  const { products, logAction } = useMockStore()
+  // Catalogo dal solo endpoint pubblico: contiene già unicamente i capi visibili in showroom.
+  const [products, setProducts] = useState<Product[]>([])
+  useEffect(() => {
+    api.showroom
+      .get<Product[]>('/catalog')
+      .then((rows) => setProducts(rows.map((p) => ({ ...p, prezzoShowroom: num(p.prezzoShowroom) }))))
+      .catch(() => setProducts([]))
+  }, [])
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [entered, setEntered] = useState(false)
@@ -144,8 +166,7 @@ export function ShowroomApp() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [confirmedOrder, setConfirmedOrder] = useState<string | null>(null)
 
-  const matchedClient = showroomClients.find((c) => c.email.toLowerCase() === email.trim().toLowerCase())
-  const catalog = products.filter((p) => p.visibileShowroom)
+  const catalog = products
   const suMisura = products.filter((p) => p.personalizzabileSuMisura)
   const selectedProduct = suMisura.find((p) => p.id === selectedId) ?? null
 
@@ -159,8 +180,8 @@ export function ShowroomApp() {
             className="space-y-3 text-left"
             onSubmit={(e) => {
               e.preventDefault()
-              // FR-29/FR-18: ogni accesso cliente alla sub-app viene registrato.
-              logAction('Accesso sub-app showroom', 'showroom_sessions', email.trim().toLowerCase(), name.trim() || 'ospite')
+              // L'accesso del cliente non tocca il gestionale: l'evento tracciato è
+              // l'ordine, registrato dal server nell'activity log (FR-18).
               setEntered(true)
             }}
           >
@@ -194,7 +215,7 @@ export function ShowroomApp() {
       <header className="border-b border-heemia-border bg-heemia-black px-4 py-5 text-white sm:px-8 sm:py-6">
         <p className="font-display text-xl italic">Heemia Showroom</p>
         <p className="font-mono-heemia mt-1 text-[10px] uppercase tracking-[0.1em] text-white/50">
-          {matchedClient ? `Bentornato, ${matchedClient.nome}` : `Benvenuto, ${name || 'ospite'}`}
+          {`Benvenuto, ${name || 'ospite'}`}
         </p>
       </header>
 
@@ -249,7 +270,7 @@ export function ShowroomApp() {
             {selectedProduct ? (
               <SuMisuraForm
                 product={selectedProduct}
-                clientName={name.trim() || matchedClient?.nome || 'Ospite showroom'}
+                clientName={name.trim() || 'Ospite showroom'}
                 clientEmail={email.trim().toLowerCase()}
                 onClose={() => setSelectedId(null)}
                 onSubmitted={(numero) => { setSelectedId(null); setConfirmedOrder(numero) }}

@@ -3,10 +3,10 @@ import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { formatCurrency, formatPercent, formatDateIt } from '../../lib/format'
-import { monthlyReports } from '../../mock'
 import { EmptyState } from '../../components/ui/States'
 import { useMockStore } from '../../context/MockStore'
 import { useLiveMargins } from '../../hooks/useLiveMargins'
+import { useServerReports } from '../../hooks/useServerReports'
 
 function StatRow({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
@@ -20,6 +20,8 @@ function StatRow({ label, value, accent = false }: { label: string; value: strin
 export function ReportsPage() {
   const { products, materials, accessories, invoices, orders, suppliers, inventoryRecords, productVariants } = useMockStore()
   const liveMargins = useLiveMargins()
+  // Report calcolati dal server sui dati correnti (non una fotografia salvata).
+  const monthlyReports = useServerReports()
 
   // FR-26: margine per categoria/collezione, costi per fornitore/materiale, valore magazzini
   // e andamento mensile, derivati dai dati correnti (stato di sessione incluso).
@@ -84,13 +86,13 @@ export function ReportsPage() {
       <PageHeader title="Report economici" subtitle="Report mensili generati automaticamente, con notifica alla data di generazione." />
 
       {monthlyReports.length === 0 ? (
-        <EmptyState title="Nessun report generato" description="Il primo report mensile verrà generato automaticamente a fine mese." />
+        <EmptyState title="Nessun report generato" description="I report si generano dai movimenti registrati: appena ci sono ordini o fatture, qui compare il mese corrispondente." />
       ) : (
         <div className="space-y-4">
           {monthlyReports.map((r) => (
-            <Card key={r.id} className="p-5">
+            <Card key={r.mese} className="p-5">
               <div className="mb-5 flex items-center justify-between">
-                <p className="font-display text-lg italic text-heemia-black">{r.mese}</p>
+                <p className="font-display text-lg italic text-heemia-black">{r.meseLabel}</p>
                 <Badge variant="info">Report pronto: {formatDateIt(r.generatoIl)}</Badge>
               </div>
               <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">

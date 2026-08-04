@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
@@ -8,8 +8,10 @@ import { InfoTooltip } from '../../components/ui/InfoTooltip'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { MarginSummaryCard } from '../../components/margins/MarginSummaryCard'
 import { formatCurrency, formatDateIt, formatPercent } from '../../lib/format'
-import { computeQuotaPerCapo, recomputeMargin } from '../../lib/margins'
-import { margins, MARGIN_THRESHOLD_PERCENT, costAllocations } from '../../mock'
+import { computeQuotaPerCapo } from '../../lib/margins'
+import { useMarginThreshold } from '../../hooks/useMarginThreshold'
+import { useLiveMargins } from '../../hooks/useLiveMargins'
+import { useServerCostAllocations } from '../../hooks/useServerCostAllocations'
 import type { Margin } from '../../types'
 import { useMockStore } from '../../context/MockStore'
 
@@ -166,13 +168,12 @@ function FixedCostsCard() {
 }
 
 export function MarginsPage() {
-  const { fixedCostItems, capiProdottiAnnui, products, invoices } = useMockStore()
-  const quotaPerCapo = computeQuotaPerCapo(fixedCostItems, capiProdottiAnnui)
+  const { products, invoices } = useMockStore()
 
-  const liveMargins = useMemo(
-    () => margins.map((m) => recomputeMargin(m, quotaPerCapo, MARGIN_THRESHOLD_PERCENT)),
-    [quotaPerCapo],
-  )
+  // Margini calcolati dal server sui dati reali (stessa formula: quota costi fissi + costo diretto).
+  const liveMargins = useLiveMargins()
+  const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
+  const costAllocations = useServerCostAllocations()
 
   const sottoSoglia = liveMargins.filter((m) => m.sottoSoglia)
   const productsWithoutMargin = products.filter((p) => p.stato !== 'idea' && p.stato !== 'archivio' && !liveMargins.some((m) => m.productId === p.id))
@@ -233,7 +234,7 @@ export function MarginsPage() {
             return (
               <li key={ca.id} className="flex items-center justify-between px-5 py-3 text-sm">
                 <div>
-                  <p className="font-mono-heemia text-[12px] text-heemia-black">{inv?.numero ?? ca.invoiceId}</p>
+                  <p className="font-mono-heemia text-[12px] text-heemia-black">{ca.numeroFattura ?? inv?.numero ?? ca.invoiceId}</p>
                   {ca.note && <p className="mt-0.5 text-xs text-heemia-grey">{ca.note}</p>}
                 </div>
                 <Badge variant="neutral">{ALLOCATION_LABEL[ca.modalita]}</Badge>

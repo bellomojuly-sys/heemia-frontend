@@ -33,6 +33,20 @@ export function canAccessModule(role: Role, moduleKey: ModuleKey): boolean {
   return MODULE_ACCESS[moduleKey].includes(role)
 }
 
+// Etichette di modulo usate dagli alert (FR-27): non coincidono con le ModuleKey delle pagine.
+export type AlertModulo =
+  | 'Margini' | 'Costi' | 'Fatture' | 'Inventario tessuti' | 'Inventario accessori'
+  | 'Scadenze' | 'Anagrafica' | 'Shopify' | 'Report' | 'Ordini'
+
+// Alert la cui visibilità segue lo stesso gating del modulo economico corrispondente
+// (porting di RESTRICTED_ALERT_MODULES in src/lib/permissions.ts).
+const RESTRICTED_ALERT_MODULES: AlertModulo[] = ['Margini', 'Costi', 'Fatture', 'Scadenze', 'Shopify', 'Report']
+
+export function canSeeAlertModulo(role: Role, modulo: AlertModulo): boolean {
+  if (!RESTRICTED_ALERT_MODULES.includes(modulo)) return true
+  return ADMIN_CEO.includes(role)
+}
+
 // Chi può scrivere (create/update). Viewer è in sola lettura; showroom non tocca il gestionale.
 export function canEdit(role: Role): boolean {
   return role === 'admin' || role === 'ceo' || role === 'team'

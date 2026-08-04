@@ -2,7 +2,7 @@ import type { Margin } from '../../types'
 import { InfoTooltip } from '../ui/InfoTooltip'
 import { Badge } from '../ui/Badge'
 import { formatCurrency, formatPercent } from '../../lib/format'
-import { MARGIN_THRESHOLD_PERCENT } from '../../mock/margins'
+import { useMarginThreshold } from '../../hooks/useMarginThreshold'
 import { computePriceBands, computeUnitsToBreakEven } from '../../lib/margins'
 import { useMockStore } from '../../context/MockStore'
 
@@ -35,6 +35,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 export function MarginSummaryCard({ margin, productName }: { margin: Margin; productName: string }) {
+  const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
   const { fixedCostItems } = useMockStore()
   const totaleCostiFissi = fixedCostItems.reduce((sum, item) => sum + item.importoAnnuo, 0)
   // FR-10 §18: unità di pareggio sui costi fissi e margine residuo per fascia di prezzo,

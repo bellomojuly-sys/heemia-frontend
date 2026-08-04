@@ -1,6 +1,5 @@
 import { PRODUCT_STAGES, type Accessory, type Material, type ProductionStep, type ProductStage } from '../types'
-import { technicalSheets } from '../mock/technicalSheets'
-import { materials as staticMaterials, accessories as staticAccessories } from '../mock/materials'
+import type { TechnicalSheet } from '../types'
 
 // FR-07: "Il sistema blocca il passaggio a fasi successive se mancano dati critici
 // (es. scheda tecnica assente prima di Produzione)". Estesa a Prototipo/Campionario:
@@ -24,17 +23,19 @@ export interface AdvanceCheck {
   reason?: string
 }
 
-// Sorgenti dati per il controllo materiali: di default i mock statici; il MockStore passa
-// il proprio stato per riflettere tessuti/accessori creati o modificati in sessione.
+// Sorgenti dati del controllo. Fase 13: arrivano tutte dallo store (quindi dal database);
+// non ci sono più mock statici come default. Senza dati il controllo è permissivo: la
+// decisione vera la prende comunque il server, che rifiuta con 409 e la ragione.
 export interface AdvanceContext {
   materials?: Material[]
   accessories?: Accessory[]
+  technicalSheets?: TechnicalSheet[]
 }
 
 export function checkAdvance(step: Pick<ProductionStep, 'fase' | 'productId'>, ctx: AdvanceContext = {}): AdvanceCheck {
   const next = nextStage(step.fase)
   if (!next) return { ok: false, next: null, reason: 'Il prodotto ha già raggiunto l\'ultima fase della pipeline.' }
-  const sheets = technicalSheets.filter((ts) => ts.productId === step.productId)
+  const sheets = (ctx.technicalSheets ?? []).filter((ts) => ts.productId === step.productId)
   if (STAGES_REQUIRING_TECH_SHEET.includes(next) && sheets.length === 0) {
     return { ok: false, next, reason: `Scheda tecnica assente: impossibile avanzare a "${stageLabel(next)}".` }
   }
@@ -42,8 +43,8 @@ export function checkAdvance(step: Pick<ProductionStep, 'fase' | 'productId'>, c
   // FR-05: "materiale segnato come non disponibile → blocco fase produzione successiva".
   // Verifica i materiali collegati dalla scheda tecnica quando si entra in Produzione.
   if (next === 'produzione' && sheets.length > 0) {
-    const mats = ctx.materials ?? staticMaterials
-    const accs = ctx.accessories ?? staticAccessories
+    const mats = ctx.materials ?? []
+    const accs = ctx.accessories ?? []
     const sheet = sheets.find((s) => s.versione === 'finale') ?? sheets[sheets.length - 1]
     const materialIds = [sheet.tessutoPrincipaleId, ...sheet.tessutiSecondariId]
     const esauritoMat = materialIds

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { FileText, Upload, ExternalLink } from 'lucide-react'
+import { FileText, Upload, ExternalLink, Printer, Plus, Pencil } from 'lucide-react'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
@@ -12,22 +12,30 @@ import { StageProgress } from '../../components/production/StageProgress'
 import { MarginSummaryCard } from '../../components/margins/MarginSummaryCard'
 import { EditProductForm } from '../../components/products/EditProductForm'
 import { AddVariantForm } from '../../components/products/AddVariantForm'
+import { TechnicalSheetForm } from '../../components/products/TechnicalSheetForm'
+import { SheetCostBreakdown } from '../../components/products/SheetCostBreakdown'
+import { SheetPdfDocument } from '../../components/products/SheetPdfDocument'
 import { StatusBadge } from '../../lib/statusBadge'
 import { checkAdvance, stageLabel } from '../../lib/production'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import { TODAY } from '../../lib/alerts'
 import { computeQuotaPerCapo, recomputeMargin } from '../../lib/margins'
-import { technicalSheets, margins, materials, accessories, MARGIN_THRESHOLD_PERCENT } from '../../mock'
+import { computeSheetCost } from '../../lib/sheetCost'
+import { useMarginThreshold } from '../../hooks/useMarginThreshold'
+import { useLiveMargins } from '../../hooks/useLiveMargins'
 import type { Material, ProductVariant, TechnicalSheet, TechnicalSheetVersion } from '../../types'
 import { useMockStore } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
 import { canAccessModule, canEdit } from '../../lib/permissions'
 
+// FR-14 + spec versioning: le tre versioni sono numerate e ordinate V1 → V2 → V3.
 const VERSION_LABEL: Record<TechnicalSheetVersion, string> = {
-  preliminare: 'Preliminare',
-  piazzamento: 'Piazzamento taglio',
-  finale: 'Finale',
+  preliminare: 'V1 · Preliminare',
+  finale: 'V2 · Finale',
+  piazzamento: 'V3 · Piazzamento e taglio',
 }
+
+const VERSION_ORDER: TechnicalSheetVersion[] = ['preliminare', 'finale', 'piazzamento']
 
 type TabId = 'panoramica' | 'tessuto' | 'costi' | 'tecnico' | 'produzione' | 'shopify' | 'media' | 'note'
 
@@ -65,9 +73,20 @@ function FabricRow({ material, ruolo }: { material: Material; ruolo: string }) {
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>()
   const { role } = useRole()
-  const { productionSteps, products, productVariants, updateProduct, addVariant, updateVariantQuantities, fixedCostItems, capiProdottiAnnui } = useMockStore()
+  const {
+    productionSteps, products, productVariants, updateProduct, addVariant, updateVariantQuantities,
+    fixedCostItems, capiProdottiAnnui, technicalSheets, invoices, suppliers, addTechnicalSheet, persistenzaAvviso,
+    materials, accessories,
+  } = useMockStore()
+  // Margini dal server: stessa formula, ma su prodotti e schede reali.
+  const liveMargins = useLiveMargins()
+  const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
   const product = products.find((p) => p.id === id)
-  const sheets = technicalSheets.filter((ts) => ts.productId === id)
+  // Le versioni si mostrano sempre in ordine V1 → V2 → V3, non nell'ordine di creazione.
+  const sheets = technicalSheets
+    .filter((ts) => ts.productId === id)
+    .slice()
+    .sort((a, b) => VERSION_ORDER.indexOf(a.versione) - VERSION_ORDER.indexOf(b.versione))
 
   const [activeTab, setActiveTab] = useState<TabId>('panoramica')
   const [editOpen, setEditOpen] = useState(false)
@@ -75,6 +94,7 @@ export function ProductDetail() {
   const [activeVersion, setActiveVersion] = useState<TechnicalSheetVersion | null>(
     sheets.find((s) => s.versione === 'finale')?.versione ?? sheets[0]?.versione ?? null,
   )
+  const [sheetFormId, setSheetFormId] = useState<string | null>(null)
   const activeSheet = sheets.find((s) => s.versione === activeVersion) ?? sheets[0]
 
   // DEC-021: documento PDF per versione, aggiunto sopra ai campi strutturati (non li sostituisce —
@@ -99,9 +119,14 @@ export function ProductDetail() {
   }
 
   const step = productionSteps.find((s) => s.productId === product.id)
-  const baseMargin = margins.find((m) => m.productId === product.id)
+  const baseMargin = liveMargins.find((m) => m.productId === product.id)
   const quotaPerCapo = computeQuotaPerCapo(fixedCostItems, capiProdottiAnnui)
-  const margin = baseMargin ? recomputeMargin(baseMargin, quotaPerCapo, MARGIN_THRESHOLD_PERCENT) : undefined
+  // Se la scheda tecnica attiva ha costi strutturati compilati, quello è il costo diretto reale
+  // del capo: prevale sul valore statico del mock margini, che copriva il solo tessuto.
+  const sheetCost = activeSheet ? computeSheetCost(activeSheet, { materials, accessories, invoices }) : undefined
+  const hasSheetCost = Boolean(sheetCost && sheetCost.righe.length > 0 && sheetCost.costoTotaleUnitario > 0)
+  const marginBase = baseMargin && hasSheetCost ? { ...baseMargin, costoDiretto: sheetCost!.costoTotaleUnitario } : baseMargin
+  const margin = marginBase ? recomputeMargin(marginBase, quotaPerCapo, MARGIN_THRESHOLD_PERCENT) : undefined
   const variants = productVariants.filter((v) => v.productId === product.id)
   const stockModello = variants.reduce((sum, v) => sum + v.stockDisponibile, 0)
   const canSeeEconomics = canAccessModule(role, 'costi-margini')
@@ -331,15 +356,18 @@ export function ProductDetail() {
             <EmptyState title="Margine non calcolabile" description="Manca prezzo o costo completo per calcolare il margine di questo prodotto." />
           )}
 
-          {activeSheet && (
+          {activeSheet && sheetCost && (
             <Card>
-              <CardHeader title="Costi diretti da scheda tecnica" subtitle={`Versione ${VERSION_LABEL[activeSheet.versione].toLowerCase()}`} />
+              <CardHeader
+                title="Costi diretti da scheda tecnica"
+                subtitle={`${VERSION_LABEL[activeSheet.versione]} · il dettaglio completo con la tracciabilità è nel tab Tecnico.`}
+              />
               <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3 lg:grid-cols-6">
-                <DetailField label="Tessuto"><span className="font-mono-heemia">{formatCurrency(activeSheet.costoTessuto)}</span></DetailField>
-                <DetailField label="Accessori"><span className="font-mono-heemia">{formatCurrency(activeSheet.costoAccessori)}</span></DetailField>
-                <DetailField label="Manodopera"><span className="font-mono-heemia">{formatCurrency(activeSheet.costoManodopera)}</span></DetailField>
-                <DetailField label="Packaging"><span className="font-mono-heemia">{formatCurrency(activeSheet.costoPackaging)}</span></DetailField>
-                <DetailField label="Altri diretti"><span className="font-mono-heemia">{formatCurrency(activeSheet.altriCostiDiretti)}</span></DetailField>
+                <DetailField label="Materiali"><span className="font-mono-heemia">{formatCurrency(sheetCost.costoMateriali)}</span></DetailField>
+                <DetailField label="Accessori"><span className="font-mono-heemia">{formatCurrency(sheetCost.costoAccessori)}</span></DetailField>
+                <DetailField label="Lavorazioni"><span className="font-mono-heemia">{formatCurrency(sheetCost.costoLavorazioni)}</span></DetailField>
+                <DetailField label="Quota sviluppo"><span className="font-mono-heemia">{formatCurrency(sheetCost.quotaSviluppo)}</span></DetailField>
+                <DetailField label="Altri diretti"><span className="font-mono-heemia">{formatCurrency(sheetCost.altriCosti)}</span></DetailField>
                 <DetailField label="Quota costi fissi"><span className="font-mono-heemia">{formatCurrency(quotaPerCapo)}</span></DetailField>
               </div>
             </Card>
@@ -352,15 +380,66 @@ export function ProductDetail() {
       )}
 
       {activeTab === 'tecnico' && (
+        <div className="space-y-4">
+          {persistenzaAvviso && (
+            <p className="rounded-[3px] border-l-2 border-heemia-carmine bg-white px-3 py-2 text-xs text-heemia-black">
+              {persistenzaAvviso}
+            </p>
+          )}
+
+          {/* Form di compilazione: sostituisce la vista finché è aperto. */}
+          {sheetFormId && activeSheet && sheetFormId === activeSheet.id ? (
+            <TechnicalSheetForm product={product} sheet={activeSheet} onClose={() => setSheetFormId(null)} />
+          ) : (
         <Card>
-          <CardHeader title="Scheda tecnica" subtitle="Preliminare, piazzamento, finale" />
+          <CardHeader
+            title="Scheda tecnica"
+            subtitle="Tre versioni: preliminare, finale, piazzamento e taglio. Ogni versione si salva ed esporta separatamente."
+            action={
+              userCanEdit ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Crea le versioni mancanti, nell'ordine V1 → V2 → V3. */}
+                  {VERSION_ORDER.filter((v) => !sheets.some((s) => s.versione === v)).map((v) => (
+                    <Button
+                      key={v}
+                      variant="secondary"
+                      onClick={async () => {
+                        // L'id lo assegna il database: si attende la risposta prima di aprire il form.
+                        const creata = await addTechnicalSheet(product.id, v)
+                        setActiveVersion(v)
+                        setSheetFormId(creata.id)
+                      }}
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <Plus aria-hidden className="h-3.5 w-3.5" /> {VERSION_LABEL[v]}
+                      </span>
+                    </Button>
+                  ))}
+                  {activeSheet && (
+                    <>
+                      <Button variant="secondary" onClick={() => setSheetFormId(activeSheet.id)}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Pencil aria-hidden className="h-3.5 w-3.5" /> Compila / modifica
+                        </span>
+                      </Button>
+                      <Button onClick={() => window.print()}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Printer aria-hidden className="h-3.5 w-3.5" /> Esporta PDF
+                        </span>
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ) : undefined
+            }
+          />
           <div className="p-5">
             {sheets.length === 0 ? (
               <EmptyState
                 title="Nessuna scheda tecnica"
                 description={
                   step
-                    ? (step.motivoBlocco ?? checkAdvance(step).reason ?? 'Scheda tecnica non ancora creata per questo prodotto.')
+                    ? (step.motivoBlocco ?? checkAdvance(step, { materials, accessories, technicalSheets }).reason ?? 'Scheda tecnica non ancora creata per questo prodotto.')
                     : 'Scheda tecnica non ancora creata per questo prodotto.'
                 }
               />
@@ -386,7 +465,22 @@ export function ProductDetail() {
                   <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-heemia-border bg-heemia-cream px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <FileText aria-hidden className="h-4 w-4 shrink-0 text-heemia-grey" />
-                      {pdfLinks[activeSheet.id] ? (
+                      {/* Due origini possibili: il PDF caricato dal dispositivo (versioni Finale e
+                          Piazzamento) e il vecchio collegamento a un file su Drive (DEC-021). */}
+                      {activeSheet.pdfFile ? (
+                        <div className="min-w-0">
+                          <a
+                            href={activeSheet.pdfFile.dataUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-sm text-heemia-black hover:underline"
+                            title={activeSheet.pdfFile.nome}
+                          >
+                            {activeSheet.pdfFile.nome} <ExternalLink aria-hidden className="h-3 w-3 shrink-0" />
+                          </a>
+                          <p className="text-xs text-heemia-grey">Caricato il {formatDateIt(activeSheet.pdfFile.caricatoIl)}</p>
+                        </div>
+                      ) : pdfLinks[activeSheet.id] ? (
                         <div>
                           <a
                             href={pdfLinks[activeSheet.id].url}
@@ -445,26 +539,98 @@ export function ProductDetail() {
                 )}
 
                 {activeSheet && (
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
-                    <DetailField label="Composizione">{activeSheet.composizioneCompleta}</DetailField>
-                    <DetailField label="Peso capo"><span className="font-mono-heemia">{activeSheet.pesoCapoGrammi}g</span></DetailField>
-                    <DetailField label="Lavorazione">{activeSheet.lavorazione}</DetailField>
-                    <DetailField label="Difficoltà"><span className="capitalize">{activeSheet.difficoltaProduttiva}</span></DetailField>
-                    <DetailField label="Tempi stimati"><span className="font-mono-heemia">{activeSheet.tempiStimatiOre}h</span></DetailField>
-                    <DetailField label="Lavaggio consigliato">{activeSheet.lavaggioConsigliato}</DetailField>
-                    <DetailField label="Tessuto principale">
-                      <span className="font-display italic">{materials.find((m) => m.id === activeSheet.tessutoPrincipaleId)?.nome ?? '–'}</span>
-                    </DetailField>
-                    <DetailField label="Accessori">
-                      {activeSheet.accessoriIds.map((aid) => accessories.find((a) => a.id === aid)?.nome).filter(Boolean).join(', ') || '–'}
-                    </DetailField>
-                    <DetailField label="Creata il"><span className="font-mono-heemia">{formatDateIt(activeSheet.creataIl)}</span></DetailField>
-                  </div>
+                  <>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
+                      <DetailField label="Stato scheda"><span className="capitalize">{(activeSheet.statoScheda ?? 'bozza').replace('_', ' ')}</span></DetailField>
+                      <DetailField label="Composizione">{activeSheet.composizioneCompleta || '–'}</DetailField>
+                      <DetailField label="Peso capo"><span className="font-mono-heemia">{activeSheet.pesoCapoGrammi ? `${activeSheet.pesoCapoGrammi}g` : '–'}</span></DetailField>
+                      <DetailField label="Taglie disponibili">{(activeSheet.taglieDisponibili ?? []).join(', ') || '–'}</DetailField>
+                      <DetailField label="Misure e vestibilità">{activeSheet.misureVestibilita ?? '–'}</DetailField>
+                      <DetailField label="Descrizione tecnica">{activeSheet.descrizioneTecnica ?? '–'}</DetailField>
+                      <DetailField label="Lavorazione">{activeSheet.lavorazione || '–'}</DetailField>
+                      <DetailField label="Istruzioni di confezione">{activeSheet.istruzioniConfezione ?? '–'}</DetailField>
+                      <DetailField label="Difficoltà"><span className="capitalize">{activeSheet.difficoltaProduttiva}</span></DetailField>
+                      <DetailField label="Tempi stimati"><span className="font-mono-heemia">{activeSheet.tempiStimatiOre ? `${activeSheet.tempiStimatiOre}h` : '–'}</span></DetailField>
+                      <DetailField label="Lavaggio consigliato">{activeSheet.lavaggioConsigliato || '–'}</DetailField>
+                      <DetailField label="Trattamenti">{activeSheet.trattamenti || '–'}</DetailField>
+                      <DetailField label="Tessuto principale">
+                        <span className="font-display italic">
+                          {materials.find((m) => m.id === activeSheet.tessutoPrincipaleId)?.nome ??
+                            (activeSheet.materiali ?? []).find((m) => m.materialId)?.descrizione ??
+                            '–'}
+                        </span>
+                      </DetailField>
+                      <DetailField label="Accessori">
+                        {activeSheet.accessoriIds.map((aid) => accessories.find((a) => a.id === aid)?.nome).filter(Boolean).join(', ') ||
+                          (activeSheet.materiali ?? []).filter((m) => m.accessoryId).map((m) => m.descrizione).join(', ') || '–'}
+                      </DetailField>
+                      <DetailField label="Fornitore / laboratorio">
+                        {activeSheet.fornitoreLaboratorioId ? suppliers.find((s) => s.id === activeSheet.fornitoreLaboratorioId)?.nome ?? '–' : '–'}
+                      </DetailField>
+                      <DetailField label="Note tecniche">{activeSheet.noteTecniche ?? '–'}</DetailField>
+                      <DetailField label="Creata il"><span className="font-mono-heemia">{formatDateIt(activeSheet.creataIl)}</span></DetailField>
+                      <DetailField label="Ultimo aggiornamento"><span className="font-mono-heemia">{activeSheet.aggiornataIl ? formatDateIt(activeSheet.aggiornataIl) : '–'}</span></DetailField>
+                    </div>
+
+                    {/* Versioni Finale e Piazzamento: note della versione ed esito della lettura AI. */}
+                    {activeSheet.noteVersione && (
+                      <div className="mt-6 border-t border-heemia-border pt-4">
+                        <p className="font-mono-heemia mb-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
+                          Note su questa versione
+                        </p>
+                        <p className="text-sm text-heemia-black">{activeSheet.noteVersione}</p>
+                      </div>
+                    )}
+
+                    {activeSheet.scanAI && (
+                      <div className="mt-4 rounded-[3px] border border-heemia-border p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
+                            Costi letti dal PDF il {formatDateIt(activeSheet.scanAI.analizzatoIl)}
+                          </span>
+                          <Badge
+                            variant={
+                              activeSheet.scanAI.affidabilita === 'alta' ? 'success'
+                                : activeSheet.scanAI.affidabilita === 'media' ? 'warning' : 'critical'
+                            }
+                          >
+                            Affidabilità {activeSheet.scanAI.affidabilita}
+                          </Badge>
+                          <span className="text-xs text-heemia-grey">{activeSheet.scanAI.vociEstratte} voci estratte</span>
+                        </div>
+                        <p className="mt-1.5 text-sm text-heemia-black">{activeSheet.scanAI.note}</p>
+                      </div>
+                    )}
+
+                    {(activeSheet.foto ?? []).length > 0 && (
+                      <div className="mt-6 border-t border-heemia-border pt-4">
+                        <p className="font-mono-heemia mb-2 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
+                          Fotografie del prototipo
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                          {(activeSheet.foto ?? []).map((f) => (
+                            <figure key={f.id} className="overflow-hidden rounded-[3px] border border-heemia-border bg-white">
+                              <img src={f.dataUrl} alt={f.nome} className="h-28 w-full object-cover" />
+                              <figcaption className="truncate px-2 py-1 text-[10px] text-heemia-grey" title={f.nome}>{f.nome}</figcaption>
+                            </figure>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
           </div>
         </Card>
+          )}
+
+          {/* Costo del capo e break-even calcolati da questa scheda (spec §4/§5/§6). */}
+          {activeSheet && canSeeEconomics && !sheetFormId && <SheetCostBreakdown sheet={activeSheet} />}
+
+          {/* Documento nascosto a schermo, stampato da "Esporta PDF". */}
+          {activeSheet && <SheetPdfDocument product={product} sheet={activeSheet} />}
+        </div>
       )}
 
       {activeTab === 'produzione' && (
@@ -476,7 +642,7 @@ export function ProductDetail() {
                 <StageProgress
                   currentStage={step.fase}
                   blocked={step.bloccata}
-                  blockReason={step.motivoBlocco ?? checkAdvance(step).reason}
+                  blockReason={step.motivoBlocco ?? checkAdvance(step, { materials, accessories, technicalSheets }).reason}
                 />
                 <div className="mt-5 grid grid-cols-2 gap-4 border-t border-heemia-border pt-4 sm:grid-cols-4">
                   <DetailField label="Responsabile">{step.responsabile}</DetailField>

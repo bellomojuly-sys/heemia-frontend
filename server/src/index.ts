@@ -1,3 +1,6 @@
+// Carica server/.env in sviluppo locale (dev/test). In produzione il file non esiste
+// e le variabili le inietta la piattaforma (Render, DEC-037): dotenv qui è un no-op.
+import 'dotenv/config'
 import { buildApp } from './app.js'
 import { config } from './core/config.js'
 import { prisma } from './core/prisma.js'

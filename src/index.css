@@ -75,3 +75,230 @@ body {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Export PDF della scheda tecnica (FR-14).
+   Nessuna libreria PDF: il documento #sheet-print è nascosto a schermo e reso
+   visibile solo in stampa, così "Salva come PDF" del browser produce un file
+   con l'identità visiva Heemia. Il resto dell'app viene escluso dalla stampa.
+   --------------------------------------------------------------------------- */
+
+#sheet-print {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  /* Nasconde l'applicazione (e qualunque altro portal: modali, toast) lasciando solo
+     il documento della scheda. Il documento è montato da SheetPdfDocument con un portal
+     direttamente su <body>: deve restare FRATELLO di #root, non figlio, altrimenti il
+     display:none dell'antenato lo nasconderebbe e l'export uscirebbe bianco. */
+  body > *:not(#sheet-print) {
+    display: none !important;
+  }
+
+  #sheet-print {
+    display: block;
+    font-family: var(--font-sans);
+    color: var(--color-heemia-black);
+    font-size: 10pt;
+    line-height: 1.45;
+  }
+
+  .pdf-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16mm;
+    border-bottom: 1.5pt solid var(--color-heemia-black);
+    padding-bottom: 4mm;
+    margin-bottom: 6mm;
+  }
+
+  .pdf-brand {
+    font-family: var(--font-mono);
+    font-size: 8pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-heemia-carmine);
+    margin: 0 0 1mm;
+  }
+
+  .pdf-title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 22pt;
+    line-height: 1.1;
+    margin: 0;
+  }
+
+  .pdf-subtitle {
+    font-family: var(--font-mono);
+    font-size: 8.5pt;
+    color: var(--color-heemia-grey);
+    margin: 1.5mm 0 0;
+  }
+
+  .pdf-meta {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 8pt;
+    color: var(--color-heemia-grey);
+  }
+
+  .pdf-meta p {
+    margin: 0 0 0.8mm;
+  }
+
+  .pdf-section {
+    margin-bottom: 6mm;
+  }
+
+  .pdf-avoid-break {
+    break-inside: avoid;
+  }
+
+  .pdf-h2 {
+    font-family: var(--font-mono);
+    font-size: 8pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-heemia-grey);
+    border-bottom: 0.5pt solid var(--color-heemia-border-strong);
+    padding-bottom: 1.5mm;
+    margin: 0 0 3mm;
+  }
+
+  .pdf-text {
+    margin: 0 0 2mm;
+  }
+
+  .pdf-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5mm 8mm;
+  }
+
+  .pdf-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 4mm;
+    border-bottom: 0.4pt dotted var(--color-heemia-border-strong);
+    padding-bottom: 1mm;
+  }
+
+  .pdf-row-label {
+    font-family: var(--font-mono);
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-heemia-grey);
+  }
+
+  .pdf-row-value {
+    font-family: var(--font-mono);
+    text-align: right;
+  }
+
+  .pdf-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .pdf-table th {
+    font-family: var(--font-mono);
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-heemia-grey);
+    text-align: left;
+    border-bottom: 0.8pt solid var(--color-heemia-black);
+    padding: 1.5mm 2mm 1.5mm 0;
+  }
+
+  .pdf-table td {
+    font-size: 9.5pt;
+    border-bottom: 0.4pt solid var(--color-heemia-border);
+    padding: 1.5mm 2mm 1.5mm 0;
+  }
+
+  .pdf-table .r {
+    text-align: right;
+    font-family: var(--font-mono);
+  }
+
+  .pdf-total {
+    display: flex;
+    gap: 10mm;
+    margin-top: 3mm;
+    padding-top: 2.5mm;
+    border-top: 1pt solid var(--color-heemia-black);
+  }
+
+  .pdf-total > div {
+    display: flex;
+    flex-direction: column;
+    gap: 1mm;
+  }
+
+  .pdf-total-value {
+    font-family: var(--font-mono);
+    font-size: 14pt;
+  }
+
+  .pdf-notice {
+    margin: 3mm 0 0;
+    border-left: 1.5pt solid var(--color-heemia-carmine);
+    background: var(--color-heemia-cream);
+    padding: 2mm 3mm;
+    font-size: 9pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .pdf-photos {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4mm;
+  }
+
+  .pdf-photo {
+    margin: 0;
+    break-inside: avoid;
+  }
+
+  .pdf-photo img {
+    width: 100%;
+    height: 45mm;
+    object-fit: cover;
+    border: 0.4pt solid var(--color-heemia-border-strong);
+  }
+
+  .pdf-photo figcaption {
+    font-family: var(--font-mono);
+    font-size: 7pt;
+    color: var(--color-heemia-grey);
+    margin-top: 1mm;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pdf-footer {
+    margin-top: 8mm;
+    padding-top: 2.5mm;
+    border-top: 0.5pt solid var(--color-heemia-border-strong);
+    font-family: var(--font-mono);
+    font-size: 7.5pt;
+    color: var(--color-heemia-grey);
+    text-align: center;
+  }
+}

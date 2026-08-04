@@ -1,31 +1,19 @@
-import { useMemo } from 'react'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { AlertList } from '../../components/alerts/AlertList'
-import { computeAlerts } from '../../lib/alerts'
-import { canSeeAlertModulo } from '../../lib/permissions'
-import { useRole } from '../../context/RoleContext'
-import { useMockStore } from '../../context/MockStore'
-import { useLiveMargins } from '../../hooks/useLiveMargins'
+import { useServerAlerts } from '../../hooks/useServerAlerts'
 import type { AlertItem } from '../../types'
 
 const LEVEL_LABEL: Record<AlertItem['livello'], string> = { critico: 'Critici', attenzione: 'Attenzione', info: 'Info' }
 
 export function AlertsPage() {
-  const { role } = useRole()
-  const liveMargins = useLiveMargins()
-  const { products, materials, accessories, invoices, inventoryRecords, productVariants, orders, cashClosures } = useMockStore()
+  // Gli alert arrivano dal server già filtrati per ruolo (canSeeAlertModulo lato API).
+  const alertsServer = useServerAlerts()
 
   // Il gating per-modulo va applicato qui (non da RoleGuard): la rotta /alert è aperta
   // a team/viewer, ma alcune categorie di alert (Margini, Fatture, Scadenze…) restano
   // riservate ad Admin/CEO anche dentro questa pagina.
-  const visible = useMemo(
-    () =>
-      computeAlerts({ products, materials, accessories, invoices, inventoryRecords, productVariants, orders, cashClosures, margins: liveMargins }).filter(
-        (a) => canSeeAlertModulo(role, a.modulo),
-      ),
-    [products, materials, accessories, invoices, inventoryRecords, productVariants, orders, cashClosures, liveMargins, role],
-  )
+  const visible = alertsServer
 
   const groups: AlertItem['livello'][] = ['critico', 'attenzione', 'info']
 

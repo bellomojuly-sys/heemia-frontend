@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type {
   Accessory,
   ActivityLogEntry,
@@ -19,23 +19,86 @@ import type {
   SupplierCategoria,
   SupplierRequest,
   SupplierRequestStato,
+  TechnicalSheet,
+  TechnicalSheetPhoto,
+  TechnicalSheetVersion,
   TipologiaCliente,
 } from '../types'
-import { supplierRequests as initialSupplierRequests } from '../mock/supplierRequests'
-import { productionSteps as initialProductionSteps } from '../mock/production'
-import { products as initialProducts, productVariants as initialVariants } from '../mock/products'
-import { inventoryRecords as initialInventoryRecords } from '../mock/inventory'
-import { materials as initialMaterials, accessories as initialAccessories } from '../mock/materials'
-import { invoices as initialInvoices } from '../mock/invoices'
-import { suppliers as initialSuppliers } from '../mock/suppliers'
-import { customers as initialCustomers, orders as initialOrders } from '../mock/customers'
-import { activityLogs as initialActivityLogs } from '../mock/activityLogs'
-import { cashClosures as initialCashClosures } from '../mock/cashClosures'
-import { fixedCostItems as initialFixedCostItems, DEFAULT_CAPI_PRODOTTI_ANNUI, initialQuotaHistory } from '../mock/margins'
-import { checkAdvance, stageLabel } from '../lib/production'
-import { computeQuotaPerCapo } from '../lib/margins'
+// Fase 13: tutti i dati arrivano dal backend, schede tecniche comprese (OQ-18 chiusa).
+import { DEFAULT_CAPI_PRODOTTI_ANNUI } from '../mock/margins'
+import { computeSheetCost } from '../lib/sheetCost'
 import { useRole } from './RoleContext'
 import { ROLE_LABELS } from '../lib/permissions'
+import { api, ApiError } from '../lib/api'
+import { useAuth } from './AuthContext'
+import {
+  toAccessory, toActivityLog, toCashClosure, toCustomer, toFixedCostItem, toInventoryRecord,
+  toInvoice, toMaterial, toOrder, toProduct, toProductionStep, toQuotaHistory, toSupplier,
+  toSupplierRequest, toTechnicalSheet, toVariant,
+} from '../lib/adapters'
+
+/** Riga JSON generica in arrivo dall'API, prima dell'adattamento ai tipi del client. */
+type Row = Record<string, unknown>
+
+/**
+ * Traduce una scheda tecnica dal formato del client a quello dell'API.
+ * Due differenze di nome storiche: nel client le righe materiali si chiamano `materiali`
+ * e le voci di costo `costiAggiuntivi`; sul server sono `righeMateriali` e `righeCosti`.
+ * Foto e storico costi hanno endpoint dedicati e vengono ignorati qui.
+ */
+function toSheetPayload(patch?: Partial<TechnicalSheet>): Record<string, unknown> {
+  if (!patch) return {}
+  const {
+    materiali, costiAggiuntivi, foto, storicoCosti, id, productId, versione,
+    creataIl, aggiornataIl, tessutiSecondariId, accessoriIds, pdfFile, scanAI,
+    ...campi
+  } = patch
+  const payload: Record<string, unknown> = { ...campi }
+  if (materiali) {
+    payload.righeMateriali = materiali.map((m) => ({
+      materialId: m.materialId || undefined,
+      accessoryId: m.accessoryId || undefined,
+      descrizione: m.descrizione,
+      unitaMisura: m.unitaMisura,
+      quantitaSuggerita: m.quantitaSuggerita,
+      quantitaConfermata: m.quantitaConfermata,
+      percentualeScarto: m.percentualeScarto,
+      supplierId: m.supplierId || undefined,
+      fattureCollegateIds: m.fattureCollegateIds,
+      costoUnitario: m.costoUnitario,
+      fonteCosto: m.fonteCosto,
+      fatturaCostoId: m.fatturaCostoId || undefined,
+    }))
+  }
+  if (costiAggiuntivi) {
+    payload.righeCosti = costiAggiuntivi.map((c) => ({
+      voce: c.voce,
+      label: c.label,
+      importo: c.importo,
+      kind: c.kind,
+      fonte: c.fonte,
+      fatturaId: c.fatturaId || undefined,
+      ammortizzabile: c.ammortizzabile,
+      quantitaPrevista: c.quantitaPrevista,
+    }))
+  }
+  // Il PDF caricato e l'esito della scansione AI sono colonne piatte sul server.
+  if (pdfFile) {
+    payload.pdfFileNome = pdfFile.nome
+    payload.pdfFileDataUrl = pdfFile.dataUrl
+    payload.pdfFileCaricatoIl = pdfFile.caricatoIl
+  }
+  if (scanAI) {
+    payload.scanAiAnalizzatoIl = scanAI.analizzatoIl
+    payload.scanAiNomeFile = scanAI.nomeFile
+    payload.scanAiNote = scanAI.note
+    payload.scanAiAffidabilita = scanAI.affidabilita
+    payload.scanAiVociEstratte = scanAI.vociEstratte
+  }
+  // Il tessuto principale è una relazione: stringa vuota significa "nessuno".
+  if ('tessutoPrincipaleId' in campi && !campi.tessutoPrincipaleId) delete payload.tessutoPrincipaleId
+  return payload
+}
 
 // Entità con stato mutabile a runtime nel prototipo (DEC-015: nessun backend/DB — la mutazione
 // vive solo in memoria per la sessione del browser, si resetta al reload). Tutte le anagrafiche
@@ -151,22 +214,8 @@ export function meseLabel(mese: string): string {
   return idx >= 0 && idx < 12 ? `${MESI_IT[idx]} ${anno}` : mese
 }
 
-function formatEuro(n: number): string {
-  return `€${n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function stockStato(disponibili: number, sogliaMinima: number): 'disponibile' | 'sotto_soglia' | 'esaurito' {
-  if (disponibili <= 0) return 'esaurito'
-  if (disponibili <= sogliaMinima) return 'sotto_soglia'
-  return 'disponibile'
-}
-
-// Stato per varianti e inventario prodotti finiti (usa 'low_stock', non 'sotto_soglia').
-function variantStato(qta: number, sogliaMinima: number): 'disponibile' | 'low_stock' | 'esaurito' {
-  if (qta <= 0) return 'esaurito'
-  if (qta <= sogliaMinima) return 'low_stock'
-  return 'disponibile'
-}
+// Nota Fase 13: formatEuro/stockStato/variantStato sono stati rimossi da qui perché il
+// calcolo di stato scorte, totali e riepiloghi ora avviene sul server (fonte unica di verità).
 
 export interface NewVariantInput {
   productId: string
@@ -185,8 +234,15 @@ export interface VariantQuantitiesPatch {
   qtaLaboratorio?: number
 }
 
+/** Campi compilabili di una scheda tecnica: tutto tranne id/productId/versione, gestiti dallo store. */
+export type TechnicalSheetInput = Partial<Omit<TechnicalSheet, 'id' | 'productId' | 'versione'>>
+
+// I valori di default di una scheda nuova sono ora quelli del database (colonne con
+// DEFAULT), non più costruiti nel client.
+
 interface MockStoreValue {
   supplierRequests: SupplierRequest[]
+  technicalSheets: TechnicalSheet[]
   productionSteps: ProductionStep[]
   products: Product[]
   productVariants: ProductVariant[]
@@ -203,60 +259,190 @@ interface MockStoreValue {
   quotaHistory: QuotaHistoryEntry[]
   cashClosures: CashClosure[]
 
+  /** true mentre i dati vengono caricati dal backend (Fase 13). */
+  caricamento: boolean
+  /** Messaggio se il caricamento dal backend è fallito (es. server spento). */
+  erroreCaricamento: string | null
+  /** Ricarica tutte le collezioni dal backend. */
+  ricarica: () => Promise<void>
+
   /** Registra un'azione critica nell'activity log (FR-18) con il ruolo attivo come utente. */
   logAction: (azione: string, entita: string, entitaId: string, valoreNuovo?: string, valorePrecedente?: string) => void
   /** FR-05: genera una bozza email fornitore precompilata da un materiale/accessorio sotto scorta. */
-  addSupplierRequest: (input: { materialId?: string; accessoryId?: string }) => SupplierRequest | null
+  addSupplierRequest: (input: { materialId?: string; accessoryId?: string }) => Promise<SupplierRequest | null>
   /** FR-19: associa una fattura a prodotti/materiali (aggiorna anche il flag `associata`). */
-  updateInvoiceAssociations: (id: string, prodottiIds: string[], materialiIds: string[]) => void
+  updateInvoiceAssociations: (id: string, prodottiIds: string[], materialiIds: string[]) => Promise<void>
   /** FR-40: registra la quota corrente nello storico per stagione/periodo. */
-  saveQuotaSnapshot: (periodo: string, nota?: string) => void
+  saveQuotaSnapshot: (periodo: string, nota?: string) => Promise<void>
   /** FR-41: registra la chiusura di cassa di un mese dall'export scontrini Billy. */
-  addCashClosure: (input: NewCashClosureInput) => CashClosure
+  addCashClosure: (input: NewCashClosureInput) => Promise<CashClosure>
 
-  setSupplierRequestStatus: (id: string, stato: SupplierRequestStato, extra?: Partial<SupplierRequest>) => void
-  updateSupplierRequestDraft: (id: string, patch: Partial<Pick<SupplierRequest, 'testo' | 'quantitaRichiesta' | 'deadlineIdeale'>>) => void
-  advanceProductionStep: (id: string) => { ok: boolean; reason?: string }
+  /** FR-14: crea una versione della scheda tecnica (preliminare/finale/piazzamento). */
+  addTechnicalSheet: (productId: string, versione: TechnicalSheetVersion, input?: TechnicalSheetInput) => Promise<TechnicalSheet>
+  /** Aggiorna una scheda tecnica esistente; aggiorna anche `aggiornataIl`. */
+  updateTechnicalSheet: (id: string, patch: TechnicalSheetInput) => Promise<void>
+  addSheetPhoto: (sheetId: string, photo: Omit<TechnicalSheetPhoto, 'id' | 'caricataIl'>) => Promise<void>
+  removeSheetPhoto: (sheetId: string, photoId: string) => Promise<void>
+  /** Spec §6: fotografa il costo corrente nello storico della scheda, senza sovrascrivere il passato. */
+  recordSheetCostSnapshot: (sheetId: string, motivo: string) => Promise<void>
+  /** Esito dell'ultimo salvataggio su localStorage: null se ok, messaggio se fallito (es. quota foto). */
+  persistenzaAvviso: string | null
 
-  addProduct: (input: NewProductInput) => Product
-  updateProduct: (id: string, patch: Partial<Product>) => void
-  addVariant: (input: NewVariantInput) => ProductVariant
-  updateVariantQuantities: (variantId: string, patch: VariantQuantitiesPatch) => void
-  addMaterial: (input: NewMaterialInput) => Material
-  addAccessory: (input: NewAccessoryInput) => Accessory
-  addInvoice: (input: NewInvoiceInput) => Invoice
-  addSupplier: (input: NewSupplierInput) => Supplier
-  addCustomer: (input: NewCustomerInput) => Customer
-  addOrder: (input: NewOrderInput) => Order
+  setSupplierRequestStatus: (id: string, stato: SupplierRequestStato, extra?: Partial<SupplierRequest>) => Promise<void>
+  updateSupplierRequestDraft: (id: string, patch: Partial<Pick<SupplierRequest, 'testo' | 'quantitaRichiesta' | 'deadlineIdeale'>>) => Promise<void>
+  advanceProductionStep: (id: string) => Promise<{ ok: boolean; reason?: string }>
 
-  updateFixedCostItem: (id: string, importoAnnuo: number) => void
-  addFixedCostItem: (nome: string, importoAnnuo: number) => void
-  removeFixedCostItem: (id: string) => void
-  setCapiProdottiAnnui: (n: number) => void
+  addProduct: (input: NewProductInput) => Promise<Product>
+  updateProduct: (id: string, patch: Partial<Product>) => Promise<void>
+  addVariant: (input: NewVariantInput) => Promise<ProductVariant>
+  updateVariantQuantities: (variantId: string, patch: VariantQuantitiesPatch) => Promise<void>
+  addMaterial: (input: NewMaterialInput) => Promise<Material>
+  addAccessory: (input: NewAccessoryInput) => Promise<Accessory>
+  addInvoice: (input: NewInvoiceInput) => Promise<Invoice>
+  addSupplier: (input: NewSupplierInput) => Promise<Supplier>
+  addCustomer: (input: NewCustomerInput) => Promise<Customer>
+  addOrder: (input: NewOrderInput) => Promise<Order>
+
+  updateFixedCostItem: (id: string, importoAnnuo: number) => Promise<void>
+  addFixedCostItem: (nome: string, importoAnnuo: number) => Promise<void>
+  removeFixedCostItem: (id: string) => Promise<void>
+  setCapiProdottiAnnui: (n: number) => Promise<void>
 }
 
 const MockStoreContext = createContext<MockStoreValue | undefined>(undefined)
 
 export function MockStoreProvider({ children }: { children: ReactNode }) {
   const { role } = useRole()
-  const [supplierRequests, setSupplierRequests] = useState<SupplierRequest[]>(initialSupplierRequests)
-  const [productionSteps, setProductionSteps] = useState<ProductionStep[]>(initialProductionSteps)
-  const [products, setProducts] = useState<Product[]>(initialProducts)
-  const [productVariants, setProductVariants] = useState<ProductVariant[]>(initialVariants)
-  const [inventoryRecords, setInventoryRecords] = useState<InventoryRecord[]>(initialInventoryRecords)
-  const [materials, setMaterials] = useState<Material[]>(initialMaterials)
-  const [accessories, setAccessories] = useState<Accessory[]>(initialAccessories)
-  const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices)
-  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers)
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
-  const [orders, setOrders] = useState<Order[]>(initialOrders)
-  const [fixedCostItems, setFixedCostItems] = useState<FixedCostItem[]>(initialFixedCostItems)
+  const { user } = useAuth()
+  const [supplierRequests, setSupplierRequests] = useState<SupplierRequest[]>([])
+  // Le schede tecniche sono l'unico dato persistito su localStorage: contengono data-entry reale
+  // e foto del prototipo, che devono sopravvivere al reload (deviazione concordata da DEC-015).
+  // Dal 2026-07-30 le schede arrivano dal database (chiude OQ-18), non più da localStorage.
+  const [technicalSheets, setTechnicalSheets] = useState<TechnicalSheet[]>([])
+  // Errore dell'ultimo salvataggio verso il server, mostrato in ProductDetail.
+  const [persistenzaAvviso, setPersistenzaAvviso] = useState<string | null>(null)
+  // Fase 13: le collezioni partono VUOTE e vengono riempite dal backend (loadAll, sotto).
+  // I mock restano importati solo come struttura di riferimento per le schede tecniche.
+  const [productionSteps, setProductionSteps] = useState<ProductionStep[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>([])
+  const [inventoryRecords, setInventoryRecords] = useState<InventoryRecord[]>([])
+  const [materials, setMaterials] = useState<Material[]>([])
+  const [accessories, setAccessories] = useState<Accessory[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [fixedCostItems, setFixedCostItems] = useState<FixedCostItem[]>([])
   const [capiProdottiAnnui, setCapiProdottiAnniState] = useState<number>(DEFAULT_CAPI_PRODOTTI_ANNUI)
-  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>(initialActivityLogs)
-  const [quotaHistory, setQuotaHistory] = useState<QuotaHistoryEntry[]>(initialQuotaHistory)
-  const [cashClosures, setCashClosures] = useState<CashClosure[]>(initialCashClosures)
+  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([])
+  const [quotaHistory, setQuotaHistory] = useState<QuotaHistoryEntry[]>([])
+  const [cashClosures, setCashClosures] = useState<CashClosure[]>([])
+  const [caricamento, setCaricamento] = useState(true)
+  const [erroreCaricamento, setErroreCaricamento] = useState<string | null>(null)
+
+  // Carica dai rispettivi endpoint tutto ciò che serve alle pagine. Le liste riservate
+  // (fatture, margini, clienti, log) danno 403 ai ruoli senza permesso: in quel caso la
+  // collezione resta vuota invece di far fallire l'intero caricamento.
+  const loadAll = useCallback(async () => {
+    if (!user) return
+    setCaricamento(true)
+    setErroreCaricamento(null)
+    const opzionale = async <T,>(p: Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await p
+      } catch (e) {
+        if (e instanceof ApiError && (e.isForbidden || e.isAuthError)) return fallback
+        throw e
+      }
+    }
+    try {
+      const [
+        prodottiRaw, materialiRaw, accessoriRaw, fornitoriRaw, produzioneRaw, richiesteRaw,
+        inventarioRaw, ordiniRaw, clientiRaw, fattureRaw, chiusureRaw, costiFissiRaw,
+        quotaRaw, logRaw,
+      ] = await Promise.all([
+        api.get<Row[]>('/products'),
+        api.get<Row[]>('/materials'),
+        api.get<Row[]>('/accessories'),
+        api.get<Row[]>('/suppliers'),
+        api.get<Row[]>('/production'),
+        api.get<Row[]>('/supplier-requests'),
+        opzionale(api.get<Row[]>('/inventory'), []),
+        opzionale(api.get<Row[]>('/orders'), []),
+        opzionale(api.get<Row[]>('/customers'), []),
+        opzionale(api.get<Row[]>('/invoices'), []),
+        opzionale(api.get<Row[]>('/cash-closures'), []),
+        opzionale(api.get<Row[]>('/fixed-costs'), []),
+        opzionale(api.get<Row[]>('/quota-history'), []),
+        opzionale(api.get<Row[]>('/activity-log'), []),
+      ])
+
+      const prodotti = prodottiRaw.map(toProduct)
+      setProducts(prodotti)
+      // Le schede tecniche stanno su un endpoint per prodotto: si caricano in parallelo.
+      const schede = await Promise.all(
+        prodotti.map((p) =>
+          api.get<Row[]>(`/products/${p.id}/technical-sheets`).catch(() => [] as Row[]),
+        ),
+      )
+      setTechnicalSheets(schede.flat().map(toTechnicalSheet))
+      // Le varianti arrivano dentro ogni prodotto (include Prisma), non da un endpoint a sé.
+      setProductVariants(prodottiRaw.flatMap((p) => ((p.variants as Row[]) ?? []).map(toVariant)))
+      setMaterials(materialiRaw.map(toMaterial))
+      setAccessories(accessoriRaw.map(toAccessory))
+      setSuppliers(fornitoriRaw.map(toSupplier))
+      // /production restituisce una riga per prodotto con l'ultimo step (`ultimoStep`).
+      // Se un prodotto non ha ancora uno step registrato ne costruiamo uno dalla sua fase
+      // corrente, così compare comunque nel kanban: l'avanzamento usa `productId`, non l'id.
+      setProductionSteps(
+        produzioneRaw.map((riga) => {
+          const ultimo = riga.ultimoStep as Row | null
+          if (ultimo) return toProductionStep(ultimo)
+          return {
+            id: `pipeline-${String(riga.productId)}`,
+            productId: String(riga.productId),
+            fase: riga.fase as ProductionStep['fase'],
+            responsabile: 'Da assegnare',
+            dataInizio: '',
+            bloccata: false,
+          } as ProductionStep
+        }),
+      )
+      setSupplierRequests(richiesteRaw.map(toSupplierRequest))
+      setInventoryRecords(inventarioRaw.map(toInventoryRecord))
+      setOrders(ordiniRaw.map(toOrder))
+      setCustomers(clientiRaw.map(toCustomer))
+      setInvoices(fattureRaw.map(toInvoice))
+      setCashClosures(chiusureRaw.map(toCashClosure))
+      setFixedCostItems(costiFissiRaw.map(toFixedCostItem))
+      setQuotaHistory(quotaRaw.map(toQuotaHistory))
+      setActivityLogs(logRaw.map(toActivityLog))
+
+      const quota = await opzionale(
+        api.get<{ capiProdottiAnnui: number }>('/margins/quota'),
+        { capiProdottiAnnui: DEFAULT_CAPI_PRODOTTI_ANNUI },
+      )
+      if (quota.capiProdottiAnnui > 0) setCapiProdottiAnniState(quota.capiProdottiAnnui)
+    } catch (e) {
+      setErroreCaricamento(e instanceof Error ? e.message : 'Errore di caricamento dei dati')
+    } finally {
+      setCaricamento(false)
+    }
+  }, [user])
+
+  useEffect(() => {
+    void loadAll()
+  }, [loadAll])
+
+  // Il salvataggio su localStorage è stato rimosso il 2026-07-30: le schede tecniche sono
+  // nel database, quindi non c'è più né il limite di spazio del browser né il rischio di
+  // perdere le foto. `persistenzaAvviso` resta nell'interfaccia per segnalare un eventuale
+  // errore di salvataggio verso il server.
 
   const utente = ROLE_LABELS[role]
+  // L'activity log vero lo scrive il server a ogni operazione (FR-18): qui teniamo solo
+  // una riga ottimistica, sostituita dai dati reali al successivo caricamento.
   const pushLog = (azione: string, entita: string, entitaId: string, valoreNuovo?: string, valorePrecedente?: string) => {
     setActivityLogs((prev) => [
       { id: genId('log'), utente, azione, entita, entitaId, valorePrecedente, valoreNuovo, data: new Date().toISOString() },
@@ -264,9 +450,29 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
     ])
   }
 
+  // Ogni scrittura passa da qui: chiama l'API e poi ricarica, così lo stato mostrato
+  // è quello del database (id reali, stati e totali calcolati dal server) e non una copia locale.
+  const persisti = async <T,>(chiamata: Promise<T>): Promise<T> => {
+    try {
+      const esito = await chiamata
+      setPersistenzaAvviso(null)
+      await loadAll()
+      return esito
+    } catch (e) {
+      // L'avviso resta visibile finché un salvataggio successivo non riesce.
+      setPersistenzaAvviso(e instanceof Error ? e.message : 'Salvataggio non riuscito')
+      throw e
+    }
+  }
+
   const value = useMemo<MockStoreValue>(
     () => ({
+      caricamento,
+      erroreCaricamento,
+      ricarica: loadAll,
       supplierRequests,
+      technicalSheets,
+      persistenzaAvviso,
       productionSteps,
       products,
       productVariants,
@@ -286,331 +492,194 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
       logAction: (azione, entita, entitaId, valoreNuovo, valorePrecedente) =>
         pushLog(azione, entita, entitaId, valoreNuovo, valorePrecedente),
 
-      addSupplierRequest: ({ materialId, accessoryId }) => {
-        const material = materialId ? materials.find((m) => m.id === materialId) : undefined
-        const accessory = accessoryId ? accessories.find((a) => a.id === accessoryId) : undefined
-        const item = material ?? accessory
-        if (!item) return null
-        const disponibile = material
-          ? material.metriAcquistati - material.metriUtilizzati
-          : accessory!.quantitaAcquistata - accessory!.quantitaUtilizzata
-        const richiesta = Math.max(item.sogliaMinima * 3, 10)
-        const mancante = Math.max(richiesta - Math.max(disponibile, 0), 0)
-        const esaurito = item.stato === 'esaurito'
-        const request: SupplierRequest = {
-          id: genId('sr'),
-          supplierId: item.supplierId,
-          materialId,
-          accessoryId,
-          oggetto: `${esaurito ? 'Riordino urgente' : 'Richiesta disponibilità'} ${item.nome}: ${esaurito ? 'scorta esaurita' : 'sotto soglia minima'}`,
-          testo: `Buongiorno, la scorta di ${item.nome} (${item.codice}) risulta ${esaurito ? 'esaurita' : `sotto la soglia minima di ${item.sogliaMinima}`}. Potete confermare disponibilità, tempi di consegna, costo aggiornato e quantità minima ordinabile per un riordino di almeno ${richiesta} ${material ? material.unitaMisura : accessory!.unitaMisura}?`,
-          quantitaRichiesta: richiesta,
-          quantitaDisponibile: Math.max(disponibile, 0),
-          quantitaMancante: mancante,
-          urgenza: esaurito ? 'alta' : 'media',
-          stato: 'bozza_generata',
-          creataIl: new Date().toISOString().slice(0, 10),
-        }
-        setSupplierRequests((prev) => [request, ...prev])
-        pushLog('Generazione bozza email fornitore', 'supplier_requests', request.id, `stato: bozza_generata (${item.nome})`)
-        return request
+      // Testo, quantità e urgenza della bozza li compone il server dalla stessa regola
+      // del prototipo (soglia × 3, minimo 10), così restano identici ovunque.
+      addSupplierRequest: async ({ materialId, accessoryId }) => {
+        const creata = await persisti(api.post<Row>('/supplier-requests', { materialId, accessoryId }))
+        return toSupplierRequest(creata)
       },
 
-      updateInvoiceAssociations: (id, prodottiIds, materialiIds) => {
-        setInvoices((prev) =>
-          prev.map((i) =>
-            i.id === id
-              ? { ...i, prodottiCollegatiIds: prodottiIds, materialiCollegatiIds: materialiIds, associata: prodottiIds.length > 0 || materialiIds.length > 0 }
-              : i,
-          ),
+      updateInvoiceAssociations: async (id, prodottiIds, materialiIds) => {
+        await persisti(api.put(`/invoices/${id}/associations`, { prodottiIds, materialiIds }))
+      },
+
+      saveQuotaSnapshot: async (periodo, nota) => {
+        await persisti(api.post('/quota-history', { periodo, nota }))
+      },
+
+      // Ricaricare l'export dello stesso mese sostituisce la chiusura precedente (upsert lato server),
+      // che calcola anche totale e riepilogo con la stessa formula del prototipo.
+      addCashClosure: async (input) => {
+        const creata = await persisti(api.post<Row>('/cash-closures', input))
+        return toCashClosure(creata)
+      },
+
+      // Dal 2026-07-30 le schede tecniche vivono nel database (chiude OQ-18): sono
+      // condivise fra utenti e incluse nei backup, non più solo nel browser.
+      addTechnicalSheet: async (productId, versione, input) => {
+        const creata = await persisti(
+          api.post<Row>(`/products/${productId}/technical-sheets`, { versione, ...toSheetPayload(input) }),
         )
-        pushLog('Associazione fattura', 'invoices', id, `${prodottiIds.length} prodotti, ${materialiIds.length} materiali`)
+        return toTechnicalSheet(creata)
       },
 
-      saveQuotaSnapshot: (periodo, nota) => {
-        const totale = fixedCostItems.reduce((sum, item) => sum + item.importoAnnuo, 0)
-        const quota = computeQuotaPerCapo(fixedCostItems, capiProdottiAnnui)
-        setQuotaHistory((prev) => [
-          {
-            id: genId('qh'), periodo, capiProdottiAnnui, totaleCostiFissi: Math.round(totale * 100) / 100,
-            quotaPerCapo: quota, registrataIl: new Date().toISOString().slice(0, 10), nota,
-          },
-          ...prev,
-        ])
-        pushLog('Registrazione quota costi fissi', 'margins', periodo, `€${quota.toFixed(2)}/capo su ${capiProdottiAnnui} capi`)
+      // Righe materiali e voci di costo vengono inviate per intero: il server sostituisce
+      // il set della scheda in un'unica transazione, senza stati intermedi incoerenti.
+      updateTechnicalSheet: async (id, patch) => {
+        await persisti(api.patch(`/technical-sheets/${id}`, toSheetPayload(patch)))
       },
 
-      addCashClosure: (input) => {
-        const media = input.numeroScontrini > 0 ? input.totaleIncassato / input.numeroScontrini : 0
-        // Riepilogo "AI" nel prototipo: testo derivato dai dati caricati (nessun backend AI).
-        // In produzione questo sarà l'endpoint POST /api/v1/ai/cash-closure che chiama Claude API.
-        const riepilogoAI = `A ${meseLabel(input.mese)} sono entrati ${formatEuro(input.totaleIncassato)} con ${input.numeroScontrini} scontrini (media ${formatEuro(media)} a scontrino). Dato da chiusura di cassa: è quanto effettivamente incassato dagli scontrini del mese.`
-        const closure: CashClosure = {
-          id: genId('cc'),
-          mese: input.mese,
-          totaleIncassato: Math.round(input.totaleIncassato * 100) / 100,
-          numeroScontrini: input.numeroScontrini,
-          fileNome: input.fileNome,
-          importatoIl: new Date().toISOString().slice(0, 10),
-          riepilogoAI,
-          note: input.note,
-        }
-        // Se esiste già una chiusura per quel mese, la sostituisce (ri-caricamento export).
-        setCashClosures((prev) => [closure, ...prev.filter((c) => c.mese !== input.mese)])
-        pushLog('Chiusura di cassa mensile', 'cash_closures', input.mese, `${formatEuro(input.totaleIncassato)} · ${input.numeroScontrini} scontrini`)
-        return closure
+      addSheetPhoto: async (sheetId, photo) => {
+        await persisti(api.post(`/technical-sheets/${sheetId}/photos`, { nome: photo.nome, dataUrl: photo.dataUrl }))
       },
 
-      setSupplierRequestStatus: (id, stato, extra) => {
-        setSupplierRequests((prev) => prev.map((r) => (r.id === id ? { ...r, stato, ...extra } : r)))
-        pushLog('Cambio stato bozza email', 'supplier_requests', id, `stato: ${stato}`)
+      removeSheetPhoto: async (sheetId, photoId) => {
+        await persisti(api.del(`/technical-sheets/${sheetId}/photos/${photoId}`))
       },
 
-      updateSupplierRequestDraft: (id, patch) => {
-        setSupplierRequests((prev) =>
-          prev.map((r) => (r.id === id ? { ...r, ...patch, stato: 'modificata' } : r)),
-        )
-        pushLog('Modifica bozza email', 'supplier_requests', id, 'stato: modificata')
-      },
-
-      advanceProductionStep: (id) => {
-        let result: { ok: boolean; reason?: string } = { ok: false, reason: 'Step non trovato.' }
-        setProductionSteps((prev) =>
-          prev.map((step) => {
-            if (step.id !== id) return step
-            const check = checkAdvance(step, { materials, accessories })
-            if (!check.ok || !check.next) {
-              result = { ok: false, reason: check.reason }
-              return { ...step, bloccata: true, motivoBlocco: check.reason }
-            }
-            result = { ok: true }
-            pushLog('Cambio fase produzione', 'production', step.id, stageLabel(check.next), stageLabel(step.fase))
-            return { ...step, fase: check.next, bloccata: false, motivoBlocco: undefined }
+      // Spec §6: lo storico non viene mai sovrascritto — ogni ricalcolo aggiunge una riga
+      // con data e motivo, così si può leggere la variazione rispetto al calcolo precedente.
+      recordSheetCostSnapshot: async (sheetId, motivo) => {
+        const scheda = technicalSheets.find((s) => s.id === sheetId)
+        if (!scheda) return
+        const costo = computeSheetCost(scheda, { materials, accessories, invoices })
+        await persisti(
+          api.post(`/technical-sheets/${sheetId}/cost-snapshots`, {
+            motivo,
+            costoMaterialiUnitario: costo.costoMateriali,
+            costoTotaleUnitario: costo.costoTotaleUnitario,
+            prezzoBreakEven: costo.prezzoBreakEven,
           }),
         )
-        return result
       },
 
-      addProduct: (input) => {
-        const product: Product = {
-          id: genId('prod'),
-          ...input,
-          stato: 'idea',
-          descrizioneBreveStato: 'bozza',
-          consigliCuraStato: 'bozza',
-          taglieDisponibili: [],
-          coloriDisponibili: [],
-          immaginiUrl: [],
-          prezzoVendita: 0,
-          prezzoNettoIva: 0,
-          prezzoShowroom: 0,
-          prezzoConsigliato: 0,
-          statoPubblicazioneShopify: 'non_pubblicato',
-          disponibilitaOnline: false,
-          disponibilitaShowroom: false,
-          visibileShowroom: false,
+      // Le transizioni consentite sono verificate dal server (macchina a stati FR-05):
+      // una transizione non valida torna 409 invece di essere applicata comunque.
+      setSupplierRequestStatus: async (id, stato, extra) => {
+        await persisti(api.patch(`/supplier-requests/${id}/status`, { stato, rispostaFornitore: extra?.rispostaFornitore }))
+      },
+
+      updateSupplierRequestDraft: async (id, patch) => {
+        await persisti(api.patch(`/supplier-requests/${id}`, patch))
+      },
+
+      // Il gate FR-05/FR-07 (scheda tecnica mancante, materiale esaurito) lo applica il
+      // server e risponde 409 con la ragione: qui diventa il messaggio mostrato all'utente.
+      advanceProductionStep: async (id) => {
+        const step = productionSteps.find((s) => s.id === id)
+        if (!step) return { ok: false, reason: 'Step non trovato.' }
+        try {
+          await persisti(api.post(`/production/${step.productId}/advance`, {}))
+          return { ok: true }
+        } catch (e) {
+          if (e instanceof ApiError) return { ok: false, reason: e.message }
+          throw e
         }
-        setProducts((prev) => [product, ...prev])
-        pushLog('Creazione prodotto', 'products', product.id, `${product.nome} (stato: idea)`)
-        // Ogni prodotto entra subito in pipeline dalla fase "Idea" (FR-07): senza questo step
-        // il capo non comparirebbe nel kanban Produzione né nella tabella sotto.
-        setProductionSteps((prev) => [
-          {
-            id: genId('step'),
-            productId: product.id,
-            fase: 'idea',
-            responsabile: 'Da assegnare',
-            dataInizio: new Date().toISOString().slice(0, 10),
-            bloccata: false,
-          },
-          ...prev,
-        ])
-        return product
       },
 
-      updateProduct: (id, patch) => {
-        setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
-        pushLog('Modifica prodotto', 'products', id, Object.keys(patch).join(', '))
+      // Il prodotto (e il suo primo step di pipeline) li crea il server: qui si aspetta
+      // la risposta per avere l'id reale, che serve alla pagina per aprire il dettaglio.
+      addProduct: async (input) => {
+        const creato = await persisti(api.post<Row>('/products', input))
+        return toProduct(creato)
+      },
+
+      updateProduct: async (id, patch) => {
+        await persisti(api.patch<Row>(`/products/${id}`, patch))
       },
 
       // Variante + record inventario nascono insieme e restano collegati: la quantità
       // si modifica con updateVariantQuantities, che aggiorna entrambi (FR-03/FR-INV-01).
-      addVariant: (input) => {
-        const variant: ProductVariant = {
-          id: genId('var'),
-          productId: input.productId,
-          sku: input.sku,
-          taglia: input.taglia,
-          colore: input.colore,
-          stockDisponibile: input.stockIniziale,
-          stockRiservato: 0,
-          immagineUrl: input.immagineUrl,
-          statoDisponibilita: variantStato(input.stockIniziale, input.sogliaMinima),
-        }
-        setProductVariants((prev) => [...prev, variant])
-        pushLog('Creazione variante', 'product_variants', variant.id, variant.sku)
-        setInventoryRecords((prev) => [
-          ...prev,
-          {
-            id: genId('inv-rec'),
-            variantId: variant.id,
-            qtaMagazzino: input.stockIniziale,
-            qtaLaboratorio: 0,
-            qtaRiservata: 0,
-            qtaVenduta: 0,
-            sogliaMinima: input.sogliaMinima,
-            stato: variantStato(input.stockIniziale, input.sogliaMinima),
-            stockShopify: input.stockIniziale,
-            divergenzaShopify: false,
-          },
-        ])
-        return variant
+      addVariant: async (input) => {
+        const { productId, ...resto } = input
+        const creata = await persisti(api.post<Row>(`/products/${productId}/variants`, resto))
+        return toVariant(creata)
       },
 
-      updateVariantQuantities: (variantId, patch) => {
-        const rec = inventoryRecords.find((r) => r.variantId === variantId)
-        const next: InventoryRecord = rec
-          ? { ...rec, ...patch }
-          : {
-              // Variante senza record inventario (non dovrebbe accadere: addVariant li crea in coppia).
-              id: genId('inv-rec'),
-              variantId,
-              qtaMagazzino: patch.qtaMagazzino ?? 0,
-              qtaLaboratorio: patch.qtaLaboratorio ?? 0,
-              qtaRiservata: patch.qtaRiservata ?? 0,
-              qtaVenduta: 0,
-              sogliaMinima: 0,
-              stato: 'disponibile',
-              stockShopify: patch.qtaMagazzino ?? 0,
-              divergenzaShopify: false,
-            }
-        next.stato = variantStato(next.qtaMagazzino, next.sogliaMinima)
-        next.divergenzaShopify = next.stockShopify !== next.qtaMagazzino
-        setInventoryRecords((prev) => (rec ? prev.map((r) => (r.variantId === variantId ? next : r)) : [...prev, next]))
-        setProductVariants((prev) =>
-          prev.map((v) =>
-            v.id === variantId
-              ? { ...v, stockDisponibile: next.qtaMagazzino, stockRiservato: next.qtaRiservata, statoDisponibilita: next.stato }
-              : v,
-          ),
+      // Il server ricalcola stato scorta e divergenza Shopify e tiene allineati
+      // variante e record di inventario: qui si invia solo la quantità.
+      updateVariantQuantities: async (variantId, patch) => {
+        await persisti(api.patch<Row>(`/variants/${variantId}/quantities`, patch))
+      },
+
+      addMaterial: async (input) => {
+        const creato = await persisti(api.post<Row>('/materials', input))
+        return toMaterial(creato)
+      },
+
+      addAccessory: async (input) => {
+        const creato = await persisti(api.post<Row>('/accessories', input))
+        return toAccessory(creato)
+      },
+
+      // Il totale (imponibile + iva) e il flag `associata` li calcola il server.
+      addInvoice: async (input) => {
+        const { prodottiCollegatiIds, materialiCollegatiIds, paese, ...resto } = input
+        const creata = await persisti(
+          api.post<Row>('/invoices', {
+            ...resto,
+            paese: paese === 'Extra-EU' ? 'Extra_EU' : paese,
+            prodottiIds: prodottiCollegatiIds ?? [],
+            materialiIds: materialiCollegatiIds ?? [],
+          }),
         )
+        return toInvoice(creata)
       },
 
-      addMaterial: (input) => {
-        const material: Material = {
-          id: genId('mat'),
-          tipo: 'tessuto',
-          ...input,
-          metriUtilizzati: 0,
-          prodottiCollegatiIds: [],
-          dataAcquisto: new Date().toISOString().slice(0, 10),
-          stato: stockStato(input.metriAcquistati, input.sogliaMinima),
-          unitaMisura: 'm',
-        }
-        setMaterials((prev) => [material, ...prev])
-        pushLog('Creazione tessuto', 'materials', material.id, material.nome)
-        return material
-      },
-
-      addAccessory: (input) => {
-        const accessory: Accessory = {
-          id: genId('acc'),
-          tipo: 'accessorio',
-          ...input,
-          quantitaUtilizzata: 0,
-          prodottiCollegatiIds: [],
-          stato: stockStato(input.quantitaAcquistata, input.sogliaMinima),
-          unitaMisura: 'cad',
-        }
-        setAccessories((prev) => [accessory, ...prev])
-        pushLog('Creazione accessorio', 'accessories', accessory.id, accessory.nome)
-        return accessory
-      },
-
-      addInvoice: (input) => {
-        const prodottiCollegatiIds = input.prodottiCollegatiIds ?? []
-        const materialiCollegatiIds = input.materialiCollegatiIds ?? []
-        const invoice: Invoice = {
-          id: genId('inv'),
-          ...input,
-          totale: Math.round((input.imponibile + input.iva) * 100) / 100,
-          prodottiCollegatiIds,
-          materialiCollegatiIds,
-          associata: prodottiCollegatiIds.length > 0 || materialiCollegatiIds.length > 0,
-        }
-        setInvoices((prev) => [invoice, ...prev])
-        pushLog('Caricamento fattura', 'invoices', invoice.id, `${invoice.numero} (${invoice.statoPagamento})`)
-        return invoice
-      },
-
-      addSupplier: (input) => {
-        const supplier: Supplier = {
-          id: genId('sup'),
-          ...input,
-          materialiIds: [],
-          accessoriIds: [],
-        }
-        setSuppliers((prev) => [supplier, ...prev])
-        pushLog('Creazione fornitore', 'suppliers', supplier.id, supplier.nome)
-        return supplier
-      },
-
-      addCustomer: (input) => {
-        const customer: Customer = {
-          id: genId('cust'),
-          ...input,
-          valoreTotaleAcquistato: 0,
-          numeroOrdini: 0,
-        }
-        setCustomers((prev) => [customer, ...prev])
-        pushLog('Creazione cliente', 'customers', customer.id, customer.nome)
-        return customer
-      },
-
-      addOrder: (input) => {
-        const order: Order = {
-          id: genId('ord'),
-          numero: input.numero,
-          customerId: input.customerId,
-          canale: input.canale,
-          stato: input.stato,
-          priorita: 'normale',
-          data: input.data,
-          totale: input.totale,
-          prodottiIds: input.prodottiIds ?? [],
-        }
-        setOrders((prev) => [order, ...prev])
-        setCustomers((prev) =>
-          prev.map((c) =>
-            c.id === input.customerId
-              ? { ...c, numeroOrdini: c.numeroOrdini + 1, valoreTotaleAcquistato: c.valoreTotaleAcquistato + input.totale }
-              : c,
-          ),
+      addSupplier: async (input) => {
+        const { tempiMediConsegnaGiorni, categoria, ...resto } = input
+        const creato = await persisti(
+          api.post<Row>('/suppliers', {
+            ...resto,
+            // L'API usa i nomi enum di Prisma ("Asole_Bottoni"), l'UI le etichette leggibili.
+            categoria: categoria.replace(/[ /]/g, '_'),
+            tempiMediConsegnaGg: tempiMediConsegnaGiorni,
+          }),
         )
-        pushLog('Creazione ordine', 'orders', order.id, order.numero)
-        return order
+        return toSupplier(creato)
       },
 
-      updateFixedCostItem: (id, importoAnnuo) => {
-        setFixedCostItems((prev) => prev.map((item) => (item.id === id ? { ...item, importoAnnuo } : item)))
-        pushLog('Modifica voce costi fissi', 'costs', id, `€${importoAnnuo}`)
+      // La deduplica per email è server-side: una email già presente restituisce
+      // il cliente esistente invece di crearne un altro.
+      addCustomer: async (input) => {
+        const creato = await persisti(api.post<Row>('/customers', input))
+        return toCustomer(creato)
       },
 
-      addFixedCostItem: (nome, importoAnnuo) => {
-        setFixedCostItems((prev) => [...prev, { id: genId('fc'), nome, importoAnnuo }])
-        pushLog('Nuova voce costi fissi', 'costs', nome, `€${importoAnnuo}`)
+      // Il server aggiorna anche numero ordini e valore acquistato del cliente.
+      addOrder: async (input) => {
+        const { prodottiIds, ...resto } = input
+        const creato = await persisti(
+          api.post<Row>('/orders', {
+            ...resto,
+            items: (prodottiIds ?? []).map((productId) => ({ productId })),
+          }),
+        )
+        return toOrder(creato)
       },
 
-      removeFixedCostItem: (id) => {
-        setFixedCostItems((prev) => prev.filter((item) => item.id !== id))
-        pushLog('Rimozione voce costi fissi', 'costs', id)
+      updateFixedCostItem: async (id, importoAnnuo) => {
+        await persisti(api.patch(`/fixed-costs/${id}`, { importoAnnuo }))
       },
 
-      setCapiProdottiAnnui: (n) => setCapiProdottiAnniState(n),
+      addFixedCostItem: async (nome, importoAnnuo) => {
+        await persisti(api.post('/fixed-costs', { nome, importoAnnuo }))
+      },
+
+      removeFixedCostItem: async (id) => {
+        await persisti(api.del(`/fixed-costs/${id}`))
+      },
+
+      setCapiProdottiAnnui: async (n) => {
+        setCapiProdottiAnniState(n)
+        await persisti(api.put('/settings/capi-annui', { capiProdottiAnnui: n }))
+      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       supplierRequests,
+      technicalSheets,
+      persistenzaAvviso,
       productionSteps,
       products,
       productVariants,
@@ -627,6 +696,9 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
       quotaHistory,
       cashClosures,
       role,
+      caricamento,
+      erroreCaricamento,
+      loadAll,
     ],
   )
 

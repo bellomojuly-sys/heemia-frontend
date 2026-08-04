@@ -69,6 +69,51 @@ enum TsVersion {
   finale
 }
 
+// --- Enum della scheda tecnica strutturata (estensione 2026-07-30, chiude OQ-18) ---
+enum StatoScheda {
+  bozza
+  in_revisione
+  approvata
+  archiviata
+}
+
+enum Affidabilita {
+  alta
+  media
+  bassa
+}
+
+// Le 12 categorie di costo della scheda (spec §4).
+enum SheetCostVoce {
+  accessori
+  lavorazioni
+  taglio
+  confezione
+  ricamo_stampa
+  sviluppo_modello
+  disegno
+  scheda_tecnica
+  prototipazione
+  logistica
+  altro
+}
+
+// Un costo o è diretto del capo, o è di sviluppo da ammortizzare sui capi previsti.
+enum CostKind {
+  diretto
+  sviluppo_ammortizzato
+}
+
+// Da dove arriva il costo: serve a distinguere un dato certo da una stima.
+enum CostSource {
+  fattura
+  materiale
+  fornitore
+  manuale
+  stimato
+  ai
+}
+
 enum Difficolta {
   bassa
   media
@@ -317,6 +362,8 @@ model Supplier {
   accessories Accessory[]
   requests    SupplierRequest[]
   invoices    Invoice[]
+  schedeLaboratorio TechnicalSheet[]     @relation("LaboratorioConfezione")
+  righeSchede       SheetMaterialUsage[]
 
   @@map("suppliers")
 }
@@ -361,6 +408,9 @@ model Product {
   invoiceLinks    InvoiceProduct[]
   supplierReqs    SupplierRequest[]
 
+  // Colonne filtrate in listProducts()/listProduction() (products/service.ts, production/service.ts).
+  @@index([stato])
+  @@index([linea])
   @@map("products")
 }
 
@@ -430,8 +480,11 @@ model Material {
   invoiceLinks    InvoiceMaterial[]
   supplierReqs    SupplierRequest[]
   orderItems      OrderItem[]
+  righeSchede     SheetMaterialUsage[]
 
   @@index([supplierId])
+  // Filtro stato in listMaterials()/listStockAlerts() (materials/service.ts).
+  @@index([stato])
   @@map("materials")
 }
 
@@ -456,8 +509,11 @@ model Accessory {
   products     ProductAccessory[]
   tsAccessori  TechnicalSheetAccessory[]
   supplierReqs SupplierRequest[]
+  righeSchede  SheetMaterialUsage[]
 
   @@index([supplierId])
+  // Filtro stato in listAccessories()/listStockAlerts() (materials/service.ts).
+  @@index([stato])
   @@map("accessories")
 }
 
@@ -508,12 +564,124 @@ model TechnicalSheet {
   createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  // --- Scheda tecnica strutturata (estensione 2026-07-30, chiude OQ-18) ---
+  // Prima questi campi vivevano solo nel browser (localStorage): non erano condivisi
+  // tra utenti né inclusi nei backup. Ora sono nel database.
+  statoScheda               StatoScheda @default(bozza) @map("stato_scheda")
+  // Anagrafica denormalizzata: precompilata dal prodotto ma editabile per versione.
+  nomeProdotto              String?   @map("nome_prodotto")
+  codiceProdotto            String?   @map("codice_prodotto")
+  collezione                String?
+  categoria                 String?
+  descrizioneTecnica        String?   @map("descrizione_tecnica")
+  taglieDisponibili         String[]  @default([]) @map("taglie_disponibili")
+  misureVestibilita         String?   @map("misure_vestibilita")
+  istruzioniConfezione      String?   @map("istruzioni_confezione")
+  noteTecniche              String?   @map("note_tecniche")
+  fornitoreLaboratorioId    String?   @map("fornitore_laboratorio_id") @db.Uuid
+  fornitoreLaboratorio      Supplier? @relation("LaboratorioConfezione", fields: [fornitoreLaboratorioId], references: [id], onDelete: SetNull)
+  // Divisore per l'ammortamento dei costi di sviluppo sui capi previsti.
+  quantitaPrevistaProduzione Int      @default(50) @map("quantita_prevista_produzione")
+  noteVersione              String?   @map("note_versione")
+  // PDF caricato dal dispositivo (data URL base64). Vedi nota dimensioni in Database_Schema.
+  pdfFileNome               String?   @map("pdf_file_nome")
+  pdfFileDataUrl            String?   @map("pdf_file_data_url")
+  pdfFileCaricatoIl         DateTime? @map("pdf_file_caricato_il") @db.Timestamptz(6)
+  // Esito dell'ultima scansione AI del PDF (FR-14).
+  scanAiAnalizzatoIl        DateTime? @map("scan_ai_analizzato_il") @db.Timestamptz(6)
+  scanAiNomeFile            String?   @map("scan_ai_nome_file")
+  scanAiNote                String?   @map("scan_ai_note")
+  scanAiAffidabilita        Affidabilita? @map("scan_ai_affidabilita")
+  scanAiVociEstratte        Int?      @map("scan_ai_voci_estratte")
+
   materiali   TechnicalSheetMaterial[]
   accessori   TechnicalSheetAccessory[]
+  righeMateriali SheetMaterialUsage[]
+  righeCosti     SheetCostLine[]
+  foto           TechnicalSheetPhoto[]
+  storicoCosti   SheetCostSnapshot[]
 
   @@unique([productId, versione])
   @@index([productId])
   @@map("technical_sheets")
+}
+
+// Riga "materiale utilizzato" della scheda (spec §2/§3): tiene separata la quantità
+// suggerita dal motore di stima da quella confermata a mano, conservando entrambe.
+model SheetMaterialUsage {
+  id                        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  technicalSheetId          String         @map("technical_sheet_id") @db.Uuid
+  technicalSheet            TechnicalSheet @relation(fields: [technicalSheetId], references: [id], onDelete: Cascade)
+  materialId                String?        @map("material_id") @db.Uuid
+  material                  Material?      @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  accessoryId               String?        @map("accessory_id") @db.Uuid
+  accessory                 Accessory?     @relation(fields: [accessoryId], references: [id], onDelete: SetNull)
+  descrizione               String
+  unitaMisura               String         @map("unita_misura")
+  quantitaSuggerita         Decimal        @default(0) @map("quantita_suggerita") @db.Decimal(12, 4)
+  quantitaConfermata        Decimal?       @map("quantita_confermata") @db.Decimal(12, 4)
+  percentualeScarto         Decimal        @default(0) @map("percentuale_scarto") @db.Decimal(6, 2)
+  supplierId                String?        @map("supplier_id") @db.Uuid
+  supplier                  Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  // Fatture da cui è stato ricavato il costo: array di id, come le altre relazioni deboli.
+  fattureCollegateIds       String[]       @default([]) @map("fatture_collegate_ids") @db.Uuid
+  costoUnitario             Decimal        @default(0) @map("costo_unitario") @db.Decimal(12, 4)
+  fonteCosto                CostSource     @default(manuale) @map("fonte_costo")
+  fatturaCostoId            String?        @map("fattura_costo_id") @db.Uuid
+  costoUnitarioAggiornatoIl DateTime       @default(now()) @map("costo_unitario_aggiornato_il") @db.Timestamptz(6)
+  ordine                    Int            @default(0)
+
+  @@index([technicalSheetId])
+  @@map("sheet_material_usages")
+}
+
+// Voce di costo aggiuntiva oltre ai materiali (spec §4).
+model SheetCostLine {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  technicalSheetId String         @map("technical_sheet_id") @db.Uuid
+  technicalSheet   TechnicalSheet @relation(fields: [technicalSheetId], references: [id], onDelete: Cascade)
+  voce             SheetCostVoce
+  label            String
+  importo          Decimal        @default(0) @db.Decimal(12, 2)
+  kind             CostKind       @default(diretto)
+  fonte            CostSource     @default(manuale)
+  fatturaId        String?        @map("fattura_id") @db.Uuid
+  // true per i costi di sviluppo da ripartire sui capi previsti.
+  ammortizzabile   Boolean        @default(false)
+  quantitaPrevista Int?           @map("quantita_prevista")
+  ordine           Int            @default(0)
+
+  @@index([technicalSheetId])
+  @@map("sheet_cost_lines")
+}
+
+// Foto del prototipo (spec §1). `dataUrl` è l'immagine in base64: sta nel database
+// perché deve finire nei backup (richiesta di Giulia, 2026-07-30).
+model TechnicalSheetPhoto {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  technicalSheetId String         @map("technical_sheet_id") @db.Uuid
+  technicalSheet   TechnicalSheet @relation(fields: [technicalSheetId], references: [id], onDelete: Cascade)
+  nome             String
+  dataUrl          String         @map("data_url")
+  caricataIl       DateTime       @default(now()) @map("caricata_il") @db.Timestamptz(6)
+
+  @@index([technicalSheetId])
+  @@map("technical_sheet_photos")
+}
+
+// Snapshot storico del calcolo costi (spec §6): si aggiunge in coda, mai sovrascritto.
+model SheetCostSnapshot {
+  id                     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  technicalSheetId       String         @map("technical_sheet_id") @db.Uuid
+  technicalSheet         TechnicalSheet @relation(fields: [technicalSheetId], references: [id], onDelete: Cascade)
+  registratoIl           DateTime       @default(now()) @map("registrato_il") @db.Timestamptz(6)
+  motivo                 String
+  costoMaterialiUnitario Decimal        @default(0) @map("costo_materiali_unitario") @db.Decimal(12, 2)
+  costoTotaleUnitario    Decimal        @default(0) @map("costo_totale_unitario") @db.Decimal(12, 2)
+  prezzoBreakEven        Decimal        @default(0) @map("prezzo_break_even") @db.Decimal(12, 2)
+
+  @@index([technicalSheetId])
+  @@map("sheet_cost_snapshots")
 }
 
 model TechnicalSheetMaterial {

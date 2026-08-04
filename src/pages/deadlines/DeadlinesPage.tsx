@@ -6,9 +6,9 @@ import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import { daysBetween } from '../../lib/alerts'
-import { deadlines } from '../../mock'
 import type { Deadline } from '../../types'
 import { useMockStore } from '../../context/MockStore'
+import { useServerDeadlines } from '../../hooks/useServerDeadlines'
 
 const TIPO_LABEL: Record<string, string> = {
   fattura_da_pagare: 'Fattura da pagare', fattura_da_incassare: 'Fattura da incassare', iva: 'IVA',
@@ -17,6 +17,8 @@ const TIPO_LABEL: Record<string, string> = {
 
 export function DeadlinesPage() {
   const { invoices } = useMockStore()
+  // Scadenze dal database: registrate + derivate dalle fatture da pagare.
+  const deadlines = useServerDeadlines()
   const stats = useMemo(() => {
     const in7 = deadlines.filter((d) => { const g = daysBetween(d.data); return g >= 0 && g <= 7 })
     const in30 = deadlines.filter((d) => { const g = daysBetween(d.data); return g > 7 && g <= 30 })
@@ -25,7 +27,7 @@ export function DeadlinesPage() {
     // FR-24: anche gli importi da incassare, non solo quelli da pagare.
     const daIncassare = deadlines.filter((d) => d.tipo === 'fattura_da_incassare').reduce((s, d) => s + (d.importo ?? 0), 0)
     return { in7: in7.length, in30: in30.length, ritardo: ritardo.length, daPagare, daIncassare }
-  }, [])
+  }, [deadlines])
 
   const columns: DataTableColumn<Deadline>[] = [
     { header: 'Descrizione', accessor: (d) => d.descrizione },

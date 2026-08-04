@@ -13,11 +13,11 @@ import { formatCurrency, formatDateIt } from '../lib/format'
 import { useMockLoading } from '../hooks/useMockLoading'
 import { useRole } from '../context/RoleContext'
 import { useMockStore } from '../context/MockStore'
-import { canAccessModule, canSeeAlertModulo } from '../lib/permissions'
-import { computeAlerts } from '../lib/alerts'
+import { canAccessModule } from '../lib/permissions'
+import { useServerAlerts } from '../hooks/useServerAlerts'
+import { useServerDashboard } from '../hooks/useServerDashboard'
 import { useLiveMargins } from '../hooks/useLiveMargins'
 import {
-  getDashboardKpis,
   getTopSellingProducts,
   getRecentOrders,
   getActiveProduction,
@@ -40,16 +40,14 @@ export function Dashboard() {
     [products, materials, accessories, invoices, orders, productVariants, inventoryRecords, liveMargins],
   )
 
-  const kpis = useMemo(() => getDashboardKpis(src), [src])
+  // KPI calcolati dal server (include scadenze e conteggi che prima venivano dai mock).
+  const kpis = useServerDashboard()
   const topProducts = useMemo(() => getTopSellingProducts(5, src), [src])
   const recentOrders = useMemo(() => getRecentOrders(5, orders), [orders])
   const activeProduction = useMemo(() => getActiveProduction(productionSteps), [productionSteps])
   const pendingDrafts = useMemo(() => getPendingEmailDrafts(supplierRequests), [supplierRequests])
   const stock = useMemo(() => getStockOverview(inventoryRecords), [inventoryRecords])
-  const alerts = useMemo(
-    () => computeAlerts(src).filter((a) => canSeeAlertModulo(role, a.modulo)),
-    [src, role],
-  )
+  const alerts = useServerAlerts()
   const materialAlerts = useMemo(() => getMaterialAlerts(src), [src])
   const byCategoria = useMemo(() => getProductsByCategoria(products), [products])
   const byStagione = useMemo(() => getProductsByStagione(products), [products])

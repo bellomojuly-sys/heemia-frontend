@@ -13,8 +13,27 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+// In produzione frontend e backend stanno su domini diversi (heemia-app / heemia-api su
+// Render): un cookie SameSite=Lax NON verrebbe inviato con le richieste dell'app e il
+// login fallirebbe. Serve SameSite=None, che i browser accettano solo insieme a Secure.
+// In sviluppo (http://localhost) resta Lax, perché None+Secure non funziona su http.
+const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: config.isProd,
+  sameSite: (config.isProd ? 'none' : 'lax') as 'none' | 'lax',
+  signed: true,
+  path: '/',
+  maxAge: config.sessionTtlHours * 3600,
+}
+
 export async function authRoutes(app: FastifyInstance) {
-  app.post('/auth/login', async (req, reply) => {
+  // Limite stretto e dedicato sul login (System_Architecture §4): difesa brute-force sulle
+  // credenziali, indipendente dal limite globale (300/min) di app.ts. Conteggio per IP.
+  const loginRateLimit = {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }
+
+  app.post('/auth/login', loginRateLimit, async (req, reply) => {
     const parsed = loginSchema.safeParse(req.body)
     if (!parsed.success) throw badRequest('Email o password non validi')
     const { email, password } = parsed.data
@@ -28,14 +47,7 @@ export async function authRoutes(app: FastifyInstance) {
     const session = await createSession(user.id, user.role)
     await logActivity(prisma, { userId: user.id, azione: 'login', entita: 'user', entitaId: user.id })
 
-    reply.setCookie(SESSION_COOKIE, session.id, {
-      httpOnly: true,
-      secure: config.isProd,
-      sameSite: 'lax',
-      signed: true,
-      path: '/',
-      maxAge: config.sessionTtlHours * 3600,
-    })
+    reply.setCookie(SESSION_COOKIE, session.id, SESSION_COOKIE_OPTIONS)
     return { id: user.id, nome: user.nome, email: user.email, role: user.role }
   })
 
@@ -44,7 +56,7 @@ export async function authRoutes(app: FastifyInstance) {
       await revokeSession(req.user.sessionId)
       await logActivity(prisma, { userId: req.user.id, azione: 'logout', entita: 'user', entitaId: req.user.id })
     }
-    reply.clearCookie(SESSION_COOKIE, { path: '/' })
+    reply.clearCookie(SESSION_COOKIE, { path: '/', secure: SESSION_COOKIE_OPTIONS.secure, sameSite: SESSION_COOKIE_OPTIONS.sameSite })
     return { ok: true }
   })
 

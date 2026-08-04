@@ -4,22 +4,16 @@ import { ExternalLink } from 'lucide-react'
 import { useRole } from '../../context/RoleContext'
 import { canAccessModule } from '../../lib/permissions'
 import { NAV_GROUPS } from './nav'
-import { computeAlerts } from '../../lib/alerts'
-import { canSeeAlertModulo } from '../../lib/permissions'
-import { useLiveMargins } from '../../hooks/useLiveMargins'
-import { useMockStore } from '../../context/MockStore'
+import { useServerAlerts } from '../../hooks/useServerAlerts'
 
 export function Sidebar() {
   const { role } = useRole()
-  const liveMargins = useLiveMargins()
-  const { products, materials, accessories, invoices, inventoryRecords, productVariants, orders, cashClosures } = useMockStore()
 
+  // Gli alert (già filtrati per ruolo dal server) alimentano il contatore dei critici.
+  const alertsServer = useServerAlerts()
   const criticalAlertCount = useMemo(
-    () =>
-      computeAlerts({ products, materials, accessories, invoices, inventoryRecords, productVariants, orders, cashClosures, margins: liveMargins }).filter(
-        (a) => a.livello === 'critico' && canSeeAlertModulo(role, a.modulo),
-      ).length,
-    [products, materials, accessories, invoices, inventoryRecords, productVariants, orders, cashClosures, liveMargins, role],
+    () => alertsServer.filter((a) => a.livello === 'critico').length,
+    [alertsServer],
   )
 
   // Solo voci di pagina, senza titoli di sezione: richiesta esplicita della founder

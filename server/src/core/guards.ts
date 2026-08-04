@@ -36,7 +36,10 @@ export function requireModule(moduleKey: ModuleKey) {
   }
 }
 
-export function requireEdit(req: FastifyRequest) {
+// Deve restare `async`: Fastify considera un hook concluso solo se restituisce una
+// promise o chiama done(). Una versione sincrona con arity 1 lascia la richiesta appesa
+// per sempre — è quello che bloccava tutte le scritture prima del 2026-07-30.
+export async function requireEdit(req: FastifyRequest) {
   if (!req.user) throw unauthorized()
   if (!canEdit(req.user.role)) throw forbidden('Il tuo ruolo è in sola lettura')
 }

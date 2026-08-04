@@ -1,6 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { RoleProvider } from './context/RoleContext'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { RoleProvider, useRole } from './context/RoleContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import { MockStoreProvider } from './context/MockStore'
+import { LoginPage } from './pages/auth/LoginPage'
 import { AppLayout } from './components/layout/AppLayout'
 import { RoleGuard } from './components/layout/RoleGuard'
 
@@ -26,14 +29,41 @@ import { ActivityLogPage } from './pages/logs/ActivityLogPage'
 import { SettingsPage } from './pages/settings/SettingsPage'
 import { ShowroomApp } from './pages/showroom/ShowroomApp'
 
+/**
+ * Gate di sessione (Fase 13): senza utente autenticato si vede solo il login.
+ * Lo showroom resta fuori — è la sub-app rivolta al cliente, con scope separato (A5).
+ */
+function AreaRiservata() {
+  const { user, loading } = useAuth()
+  const { setRole } = useRole()
+
+  // Il ruolo dell'interfaccia segue quello reale della sessione: il selettore demo non decide più nulla.
+  useEffect(() => {
+    if (user) setRole(user.role)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-heemia-bg">
+        <p className="font-mono-heemia text-[11px] uppercase tracking-[0.18em] text-heemia-grey">Caricamento…</p>
+      </div>
+    )
+  }
+  if (!user) return <LoginPage />
+  return <Outlet />
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter>
+      <AuthProvider>
       <RoleProvider>
         <MockStoreProvider>
         <Routes>
           <Route path="/showroom" element={<ShowroomApp />} />
 
+          <Route element={<AreaRiservata />}>
           <Route element={<AppLayout />}>
             <Route path="/" element={<RoleGuard moduleKey="dashboard"><Dashboard /></RoleGuard>} />
             <Route path="/prodotti" element={<RoleGuard moduleKey="prodotti"><ProductList /></RoleGuard>} />
@@ -59,9 +89,11 @@ export function AppRouter() {
             <Route path="/log" element={<RoleGuard moduleKey="activity-log"><ActivityLogPage /></RoleGuard>} />
             <Route path="/impostazioni" element={<RoleGuard moduleKey="impostazioni"><SettingsPage /></RoleGuard>} />
           </Route>
+          </Route>
         </Routes>
         </MockStoreProvider>
       </RoleProvider>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

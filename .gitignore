@@ -1,5 +1,9 @@
 # Logs
-logs
+# Attenzione: la regola era `logs` e escludeva QUALSIASI cartella con quel nome,
+# quindi anche `src/pages/logs/` (pagina Activity Log): il file non finiva su GitHub
+# e la build in cloud falliva con "Cannot find module ./pages/logs/ActivityLogPage",
+# mentre in locale funzionava. Ora la regola vale solo per la cartella di log alla radice.
+/logs
 *.log
 npm-debug.log*
 yarn-debug.log*

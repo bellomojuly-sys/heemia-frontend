@@ -1,15 +1,14 @@
 import { Link } from 'react-router-dom'
-import { Menu, Sparkles } from 'lucide-react'
+import { LogOut, Menu, Sparkles } from 'lucide-react'
 import { useRole } from '../../context/RoleContext'
+import { useAuth } from '../../context/AuthContext'
 import { canAccessModule, ROLE_LABELS } from '../../lib/permissions'
-import type { Role } from '../../types'
 import { formatDateIt } from '../../lib/format'
 import { TODAY } from '../../lib/alerts'
 
-const SELECTABLE_ROLES: Role[] = ['admin', 'ceo', 'team', 'viewer']
-
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
-  const { role, setRole } = useRole()
+  const { role } = useRole()
+  const { user, logout } = useAuth()
 
   return (
     <header className="flex items-center justify-between gap-3 border-b border-heemia-border bg-heemia-white px-4 py-3.5 sm:px-8">
@@ -38,20 +37,21 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             <Sparkles aria-hidden className="h-3.5 w-3.5" /> <span className="hidden sm:inline">AI Assistant</span>
           </Link>
         )}
-        <span className="font-mono-heemia hidden text-[10px] uppercase tracking-[0.1em] text-heemia-grey-light sm:inline">
-          Ruolo demo
-        </span>
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value as Role)}
-          className="rounded-[3px] border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black transition-colors focus:border-heemia-black focus:outline-none"
+        {/* Fase 13: il selettore di ruolo demo è stato rimosso. Il ruolo arriva dalla
+            sessione autenticata ed è applicato dal server su ogni endpoint. */}
+        <div className="hidden text-right sm:block">
+          <p className="text-xs text-heemia-black">{user?.nome}</p>
+          <p className="font-mono-heemia text-[10px] uppercase tracking-[0.1em] text-heemia-grey-light">
+            {ROLE_LABELS[role]}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void logout()}
+          className="inline-flex items-center gap-1.5 rounded-[3px] border border-heemia-border px-2.5 py-1.5 text-xs text-heemia-grey transition-colors hover:border-heemia-black hover:text-heemia-black"
         >
-          {SELECTABLE_ROLES.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABELS[r]}
-            </option>
-          ))}
-        </select>
+          <LogOut aria-hidden className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Esci</span>
+        </button>
       </div>
     </header>
   )

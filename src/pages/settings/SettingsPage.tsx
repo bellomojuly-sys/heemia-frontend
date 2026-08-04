@@ -3,7 +3,7 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { NAV_GROUPS } from '../../components/layout/nav'
 import { canAccessModule, canEdit, ROLE_LABELS } from '../../lib/permissions'
-import { MARGIN_THRESHOLD_PERCENT } from '../../mock/margins'
+import { useMarginThreshold } from '../../hooks/useMarginThreshold'
 import { useRole } from '../../context/RoleContext'
 import type { Role } from '../../types'
 
@@ -11,6 +11,7 @@ const ROLES: Role[] = ['admin', 'ceo', 'team', 'viewer']
 const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items)
 
 export function SettingsPage() {
+  const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
   const { role } = useRole()
 
   return (

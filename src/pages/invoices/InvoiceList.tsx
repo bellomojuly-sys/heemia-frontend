@@ -9,7 +9,7 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
-import { costAllocations } from '../../mock'
+import { useServerCostAllocations } from '../../hooks/useServerCostAllocations'
 import type { Invoice, CategoriaCosto } from '../../types'
 import { useMockStore, meseLabel, type NewInvoiceInput, type NewCashClosureInput } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
@@ -479,6 +479,8 @@ function CashClosureSection() {
 export function InvoiceList() {
   const { role } = useRole()
   const { invoices, suppliers, customers, addInvoice } = useMockStore()
+  // Ripartizione costi indiretti dal database (FR-23), non più da un elenco di esempio.
+  const costAllocations = useServerCostAllocations()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [categoria, setCategoria] = useState('')
