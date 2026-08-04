@@ -22,7 +22,9 @@ services:
     # fa sì che npm ometta le devDependencies, e lì stanno TypeScript e @types/node —
     # senza, la compilazione fallisce con "Cannot find type definition file for 'node'".
     buildCommand: npm ci --include=dev && npx prisma generate && npm run build
-    preDeployCommand: npx prisma migrate deploy
+    # Migrazioni + seed a ogni deploy. Il seed è idempotente (upsert) e in produzione
+    # crea SOLO le impostazioni di calcolo e il primo utente admin: nessun dato di esempio.
+    preDeployCommand: npx prisma migrate deploy && npm run db:seed
     startCommand: npm run start
     healthCheckPath: /health
     envVars:

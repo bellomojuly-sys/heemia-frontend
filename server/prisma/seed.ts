@@ -33,7 +33,17 @@ async function main() {
     console.log('SEED_ADMIN_PASSWORD non impostata: utente admin non creato.')
   }
 
-  // Voci di costo fisso di esempio (Business_Analysis §6.1) — per far calcolare la quota
+  // --- Da qui in giù: dati FINTI, solo per sviluppo ---
+  // Il seed gira a ogni deploy (è idempotente), quindi in produzione deve fermarsi qui:
+  // un prodotto "Maiorca Top" o voci di costo inventate falserebbero margini e report
+  // dell'azienda vera. I costi fissi reali si inseriscono dall'app (Costi e margini),
+  // i prodotti arrivano con la migrazione dati della Fase 21.
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Ambiente di produzione: nessun dato di esempio inserito.')
+    return
+  }
+
+  // Voci di costo fisso di esempio — servono a far calcolare una quota in sviluppo.
   const fixedCount = await prisma.fixedCostItem.count()
   if (fixedCount === 0) {
     await prisma.fixedCostItem.createMany({
@@ -73,7 +83,7 @@ async function main() {
     })
   }
 
-  console.log('Seed completato.')
+  console.log('Seed completato (con dati di esempio di sviluppo).')
 }
 
 main()
