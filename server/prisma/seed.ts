@@ -20,17 +20,24 @@ async function main() {
   })
 
   // Primo utente admin (sostituisce il selettore demo del prototipo)
+  // Utente admin di partenza. La password viene RIALLINEATA a ogni deploy al valore di
+  // SEED_ADMIN_PASSWORD: è la via di recupero se la si dimentica (si cambia la variabile
+  // su Render e si rilancia il deploy). Prima l'upsert non toccava l'utente esistente,
+  // quindi cambiare la variabile non aveva alcun effetto e restare fuori era definitivo.
+  // Nota: finché non esiste il cambio password dentro l'app, il valore della variabile
+  // resta la fonte di verità per questo utente.
   const email = (process.env.SEED_ADMIN_EMAIL ?? 'admin@heemia.local').toLowerCase()
   const password = process.env.SEED_ADMIN_PASSWORD
   if (password) {
+    const passwordHash = await bcrypt.hash(password, 12)
     await prisma.user.upsert({
       where: { email },
-      update: {},
-      create: { nome: 'Admin Heemia', email, role: 'admin', passwordHash: await bcrypt.hash(password, 12) },
+      update: { passwordHash, attivo: true, role: 'admin' },
+      create: { nome: 'Admin Heemia', email, role: 'admin', passwordHash },
     })
-    console.log(`Utente admin pronto: ${email}`)
+    console.log(`Utente admin pronto (password allineata a SEED_ADMIN_PASSWORD): ${email}`)
   } else {
-    console.log('SEED_ADMIN_PASSWORD non impostata: utente admin non creato.')
+    console.log('SEED_ADMIN_PASSWORD non impostata: utente admin non creato/aggiornato.')
   }
 
   // --- Da qui in giù: dati FINTI, solo per sviluppo ---
