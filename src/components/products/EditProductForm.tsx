@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '../ui/Button'
-import { Modal, Field, FormActions, fieldClass } from '../ui/Modal'
+import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../ui/Modal'
+import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Linea, Product } from '../../types'
 
 // Modifica dei dati prodotto (FR-01) nel prototipo: aggiorna il record nel MockStore in
@@ -13,7 +14,7 @@ export function EditProductForm({
 }: {
   product: Product
   onClose: () => void
-  onSave: (patch: Partial<Product>) => void
+  onSave: (patch: Partial<Product>) => void | Promise<unknown>
 }) {
   const [form, setForm] = useState({
     nome: product.nome,
@@ -40,38 +41,48 @@ export function EditProductForm({
   const splitList = (s: string) =>
     s.split(',').map((x) => x.trim()).filter(Boolean)
 
-  const submit = () => {
-    if (!form.nome.trim() || !form.codiceProdotto.trim()) return
-    const prezzoVendita = Number(form.prezzoVendita || 0)
-    const descrizioneBreve = form.descrizioneBreve.trim()
-    const consigliCura = form.consigliCura.trim()
-    onSave({
-      nome: form.nome.trim(),
-      codiceProdotto: form.codiceProdotto.trim(),
-      categoria: form.categoria.trim(),
-      collezione: form.collezione.trim(),
-      stagione: form.stagione.trim(),
-      linea: form.linea,
-      vestibilita: form.vestibilita.trim() || undefined,
-      taglieDisponibili: splitList(form.taglie),
-      coloriDisponibili: splitList(form.colori),
-      prezzoVendita,
-      prezzoNettoIva: prezzoVendita > 0 ? Math.round((prezzoVendita / 1.22) * 100) / 100 : 0,
-      prezzoShowroom: Number(form.prezzoShowroom || 0),
-      prezzoConsigliato: Number(form.prezzoConsigliato || 0),
-      descrizioneBreve: descrizioneBreve || undefined,
-      // Un testo modificato a mano torna in stato "bozza" finché non viene riapprovato (FR-12/FR-13).
-      descrizioneBreveStato: descrizioneBreve && descrizioneBreve !== (product.descrizioneBreve ?? '') ? 'bozza' : product.descrizioneBreveStato,
-      descrizioneEcommerce: form.descrizioneEcommerce.trim() || undefined,
-      descrizioneTecnica: form.descrizioneTecnica.trim() || undefined,
-      consigliCura: consigliCura || undefined,
-      consigliCuraStato: consigliCura && consigliCura !== (product.consigliCura ?? '') ? 'bozza' : product.consigliCuraStato,
-      disponibilitaOnline: form.disponibilitaOnline,
-      disponibilitaShowroom: form.disponibilitaShowroom,
-      visibileShowroom: form.visibileShowroom,
-    })
-    onClose()
-  }
+  type Campo = 'nome' | 'codiceProdotto' | 'prezzoVendita' | 'prezzoShowroom' | 'prezzoConsigliato'
+
+  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<Campo>(
+    () => ({
+      nome: regole.obbligatorio(form.nome, 'Il nome prodotto'),
+      codiceProdotto: regole.obbligatorio(form.codiceProdotto, 'Il codice prodotto'),
+      prezzoVendita: regole.numeroPositivo(form.prezzoVendita, 'Il prezzo di vendita'),
+      prezzoShowroom: regole.numeroPositivo(form.prezzoShowroom, 'Il prezzo showroom'),
+      prezzoConsigliato: regole.numeroPositivo(form.prezzoConsigliato, 'Il prezzo consigliato'),
+    }),
+    async () => {
+      const prezzoVendita = Number(form.prezzoVendita || 0)
+      const descrizioneBreve = form.descrizioneBreve.trim()
+      const consigliCura = form.consigliCura.trim()
+      await onSave({
+        nome: form.nome.trim(),
+        codiceProdotto: form.codiceProdotto.trim(),
+        categoria: form.categoria.trim(),
+        collezione: form.collezione.trim(),
+        stagione: form.stagione.trim(),
+        linea: form.linea,
+        vestibilita: form.vestibilita.trim() || undefined,
+        taglieDisponibili: splitList(form.taglie),
+        coloriDisponibili: splitList(form.colori),
+        prezzoVendita,
+        prezzoNettoIva: prezzoVendita > 0 ? Math.round((prezzoVendita / 1.22) * 100) / 100 : 0,
+        prezzoShowroom: Number(form.prezzoShowroom || 0),
+        prezzoConsigliato: Number(form.prezzoConsigliato || 0),
+        descrizioneBreve: descrizioneBreve || undefined,
+        // Un testo modificato a mano torna in stato "bozza" finché non viene riapprovato (FR-12/FR-13).
+        descrizioneBreveStato: descrizioneBreve && descrizioneBreve !== (product.descrizioneBreve ?? '') ? 'bozza' : product.descrizioneBreveStato,
+        descrizioneEcommerce: form.descrizioneEcommerce.trim() || undefined,
+        descrizioneTecnica: form.descrizioneTecnica.trim() || undefined,
+        consigliCura: consigliCura || undefined,
+        consigliCuraStato: consigliCura && consigliCura !== (product.consigliCura ?? '') ? 'bozza' : product.consigliCuraStato,
+        disponibilitaOnline: form.disponibilitaOnline,
+        disponibilitaShowroom: form.disponibilitaShowroom,
+        visibileShowroom: form.visibileShowroom,
+      })
+      onClose()
+    },
+  )
 
   const checkboxRow = (label: string, key: 'disponibilitaOnline' | 'disponibilitaShowroom' | 'visibileShowroom') => (
     <label className="flex items-center gap-2 text-sm text-heemia-black">
@@ -88,11 +99,19 @@ export function EditProductForm({
   return (
     <Modal title="Modifica dati prodotto" subtitle={product.codiceProdotto} onClose={onClose}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Nome prodotto">
-          <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+        <Field label="Nome prodotto" required error={errori.nome}>
+          <input
+            className={campoClass(errori.nome)}
+            value={form.nome}
+            onChange={(e) => { setForm({ ...form, nome: e.target.value }); pulisci('nome') }}
+          />
         </Field>
-        <Field label="Codice prodotto">
-          <input className={fieldClass} value={form.codiceProdotto} onChange={(e) => setForm({ ...form, codiceProdotto: e.target.value })} />
+        <Field label="Codice prodotto" required error={errori.codiceProdotto}>
+          <input
+            className={campoClass(errori.codiceProdotto)}
+            value={form.codiceProdotto}
+            onChange={(e) => { setForm({ ...form, codiceProdotto: e.target.value }); pulisci('codiceProdotto') }}
+          />
         </Field>
         <Field label="Categoria">
           <input className={fieldClass} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} />
@@ -118,14 +137,35 @@ export function EditProductForm({
         <Field label="Colori (separati da virgola)">
           <input className={fieldClass} value={form.colori} onChange={(e) => setForm({ ...form, colori: e.target.value })} placeholder="Nero, Crema" />
         </Field>
-        <Field label="Prezzo vendita IVA incl. (€)">
-          <input type="number" min="0" step="0.01" className={fieldClass} value={form.prezzoVendita} onChange={(e) => setForm({ ...form, prezzoVendita: e.target.value })} />
+        <Field label="Prezzo vendita IVA incl. (€)" error={errori.prezzoVendita} hint="Il prezzo netto IVA si calcola da qui.">
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className={campoClass(errori.prezzoVendita)}
+            value={form.prezzoVendita}
+            onChange={(e) => { setForm({ ...form, prezzoVendita: e.target.value }); pulisci('prezzoVendita') }}
+          />
         </Field>
-        <Field label="Prezzo showroom (€)">
-          <input type="number" min="0" step="0.01" className={fieldClass} value={form.prezzoShowroom} onChange={(e) => setForm({ ...form, prezzoShowroom: e.target.value })} />
+        <Field label="Prezzo showroom (€)" error={errori.prezzoShowroom}>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className={campoClass(errori.prezzoShowroom)}
+            value={form.prezzoShowroom}
+            onChange={(e) => { setForm({ ...form, prezzoShowroom: e.target.value }); pulisci('prezzoShowroom') }}
+          />
         </Field>
-        <Field label="Prezzo consigliato (€)">
-          <input type="number" min="0" step="0.01" className={fieldClass} value={form.prezzoConsigliato} onChange={(e) => setForm({ ...form, prezzoConsigliato: e.target.value })} />
+        <Field label="Prezzo consigliato (€)" error={errori.prezzoConsigliato}>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className={campoClass(errori.prezzoConsigliato)}
+            value={form.prezzoConsigliato}
+            onChange={(e) => { setForm({ ...form, prezzoConsigliato: e.target.value }); pulisci('prezzoConsigliato') }}
+          />
         </Field>
         <div className="col-span-2">
           <Field label="Descrizione breve">
@@ -153,9 +193,12 @@ export function EditProductForm({
           {checkboxRow('Visibile nella showroom app', 'visibileShowroom')}
         </div>
       </div>
+      <FormError message={erroreServer} />
       <FormActions>
-        <Button variant="ghost" onClick={onClose}>Annulla</Button>
-        <Button onClick={submit} disabled={!form.nome.trim() || !form.codiceProdotto.trim()}>Salva modifiche</Button>
+        <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>
+          {inCorso ? 'Salvataggio…' : 'Salva modifiche'}
+        </Button>
       </FormActions>
     </Modal>
   )

@@ -16,7 +16,7 @@ const TIPO_LABEL: Record<string, string> = {
 }
 
 export function DeadlinesPage() {
-  const { invoices } = useMockStore()
+  const { invoices, caricamento } = useMockStore()
   // Scadenze dal database: registrate + derivate dalle fatture da pagare.
   const deadlines = useServerDeadlines()
   const stats = useMemo(() => {
@@ -58,7 +58,8 @@ export function DeadlinesPage() {
         <KpiTile label="Totale da incassare" value={formatCurrency(stats.daIncassare)} tone="positive" />
       </div>
 
-      <DataTable columns={columns} rows={sorted} keyExtractor={(d) => d.id} />
+      <DataTable
+        loading={caricamento} columns={columns} rows={sorted} keyExtractor={(d) => d.id} />
     </div>
   )
 }

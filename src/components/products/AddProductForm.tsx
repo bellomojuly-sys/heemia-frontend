@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '../ui/Button'
-import { Modal, Field, FormActions, fieldClass } from '../ui/Modal'
+import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../ui/Modal'
+import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Linea } from '../../types'
 import type { NewProductInput } from '../../context/MockStore'
 
@@ -15,30 +16,59 @@ const emptyForm = {
 
 // Form condiviso tra Anagrafica prodotti e Pipeline produzione: il prodotto creato parte
 // dalla fase "Idea" ed entra subito in pipeline (vedi MockStore.addProduct).
-export function AddProductForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewProductInput) => void }) {
+export function AddProductForm({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void
+  onSubmit: (input: NewProductInput) => void | Promise<unknown>
+}) {
   const [form, setForm] = useState(emptyForm)
 
-  const submit = () => {
-    if (!form.nome.trim() || !form.codiceProdotto.trim()) return
-    onSubmit({
-      nome: form.nome.trim(),
-      codiceProdotto: form.codiceProdotto.trim(),
-      categoria: form.categoria.trim(),
-      collezione: form.collezione.trim(),
-      stagione: form.stagione.trim(),
-      linea: form.linea,
-    })
-    onClose()
-  }
+  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'codiceProdotto'>(
+    () => ({
+      nome: regole.obbligatorio(form.nome, 'Il nome prodotto'),
+      codiceProdotto: regole.obbligatorio(form.codiceProdotto, 'Il codice prodotto'),
+    }),
+    // Il modale si chiude solo dopo che il server ha confermato: se il codice
+    // prodotto è già in uso l'errore resta visibile e i dati digitati non si perdono.
+    async () => {
+      await onSubmit({
+        nome: form.nome.trim(),
+        codiceProdotto: form.codiceProdotto.trim(),
+        categoria: form.categoria.trim(),
+        collezione: form.collezione.trim(),
+        stagione: form.stagione.trim(),
+        linea: form.linea,
+      })
+      onClose()
+    },
+  )
 
   return (
     <Modal title="Nuovo prodotto" subtitle="Crea la scheda base. Entra nella scheda prodotto per completare prezzi, varianti e scheda tecnica." onClose={onClose}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Nome prodotto">
-          <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Es. Cortina" />
+        <Field label="Nome prodotto" required error={errori.nome}>
+          <input
+            className={campoClass(errori.nome)}
+            value={form.nome}
+            onChange={(e) => {
+              setForm({ ...form, nome: e.target.value })
+              pulisci('nome')
+            }}
+            placeholder="Es. Cortina"
+          />
         </Field>
-        <Field label="Codice prodotto">
-          <input className={fieldClass} value={form.codiceProdotto} onChange={(e) => setForm({ ...form, codiceProdotto: e.target.value })} placeholder="HE-TES-COR-01" />
+        <Field label="Codice prodotto" required error={errori.codiceProdotto} hint="Deve essere unico.">
+          <input
+            className={campoClass(errori.codiceProdotto)}
+            value={form.codiceProdotto}
+            onChange={(e) => {
+              setForm({ ...form, codiceProdotto: e.target.value })
+              pulisci('codiceProdotto')
+            }}
+            placeholder="HE-TES-COR-01"
+          />
         </Field>
         <Field label="Categoria">
           <input className={fieldClass} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} placeholder="Felpa, Pantalone…" />
@@ -56,9 +86,12 @@ export function AddProductForm({ onClose, onSubmit }: { onClose: () => void; onS
           </select>
         </Field>
       </div>
+      <FormError message={erroreServer} />
       <FormActions>
-        <Button variant="ghost" onClick={onClose}>Annulla</Button>
-        <Button onClick={submit} disabled={!form.nome.trim() || !form.codiceProdotto.trim()}>Crea prodotto</Button>
+        <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>
+          {inCorso ? 'Creazione…' : 'Crea prodotto'}
+        </Button>
       </FormActions>
     </Modal>
   )

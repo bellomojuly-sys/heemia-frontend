@@ -10,7 +10,7 @@ import { canEdit } from '../../lib/permissions'
 
 export function FinishedGoodsInventory() {
   const { role } = useRole()
-  const { inventoryRecords, productVariants, products, updateVariantQuantities } = useMockStore()
+  const { inventoryRecords, productVariants, products, updateVariantQuantities, caricamento } = useMockStore()
   const userCanEdit = canEdit(role)
   const stock = getStockOverview(inventoryRecords)
 
@@ -109,7 +109,8 @@ export function FinishedGoodsInventory() {
         <KpiTile label="Esaurito" value={stock.esaurito} critical={stock.esaurito > 0} />
       </div>
 
-      <DataTable columns={columns} rows={inventoryRecords} keyExtractor={(r) => r.id} />
+      <DataTable
+        loading={caricamento} columns={columns} rows={inventoryRecords} keyExtractor={(r) => r.id} />
     </div>
   )
 }

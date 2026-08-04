@@ -15,7 +15,7 @@ import { canEdit } from '../../lib/permissions'
 
 export function ProductionPipeline() {
   const { role } = useRole()
-  const { products, productionSteps, advanceProductionStep, addProduct } = useMockStore()
+  const { products, productionSteps, advanceProductionStep, addProduct, caricamento } = useMockStore()
   const canAct = canEdit(role)
   const [addOpen, setAddOpen] = useState(false)
 
@@ -54,6 +54,7 @@ export function ProductionPipeline() {
         <CardHeader title="Tutti i prodotti in produzione" subtitle={`${activeSteps.length} prodotti attivi in pipeline`} />
         <div className="p-4">
           <DataTable
+            loading={caricamento}
             columns={columns}
             rows={activeSteps}
             keyExtractor={(s) => s.id}

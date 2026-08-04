@@ -36,7 +36,7 @@ export function LoginPage() {
     'w-full rounded-heemia border border-heemia-border bg-white px-3 py-2 text-sm text-heemia-black outline-none focus:border-heemia-black'
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-heemia-bg px-4">
+    <div className="flex min-h-screen items-center justify-center bg-heemia-cream px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <p className="font-display text-3xl italic text-heemia-black">Heemia</p>
@@ -74,7 +74,7 @@ export function LoginPage() {
           </label>
 
           {errore && (
-            <p role="alert" className="mb-4 rounded-heemia bg-heemia-bg px-3 py-2 text-xs text-heemia-black">
+            <p role="alert" className="mb-4 animate-rise rounded-heemia border-l-2 border-heemia-carmine bg-heemia-carmine-light px-3 py-2 text-xs text-heemia-black">
               {errore}
             </p>
           )}

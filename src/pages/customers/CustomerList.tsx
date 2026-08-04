@@ -5,7 +5,8 @@ import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
-import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
+import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../../components/ui/Modal'
+import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import type { Customer, TipologiaCliente } from '../../types'
@@ -19,28 +20,33 @@ const TIPOLOGIA_LABEL: Record<string, string> = {
 
 const emptyCustomerForm = { nome: '', email: '', paese: 'IT', tipologia: 'ecommerce' as TipologiaCliente }
 
-function AddCustomerForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewCustomerInput) => void }) {
+function AddCustomerForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewCustomerInput) => void | Promise<unknown> }) {
   const [form, setForm] = useState(emptyCustomerForm)
 
-  const submit = () => {
-    if (!form.nome.trim()) return
-    onSubmit({
-      nome: form.nome.trim(),
-      email: form.email.trim() || undefined,
-      paese: form.paese,
-      tipologia: form.tipologia,
-    })
-    onClose()
-  }
+  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'email'>(
+    () => ({
+      nome: regole.obbligatorio(form.nome, 'Il nome del cliente'),
+      email: regole.email(form.email),
+    }),
+    async () => {
+      await onSubmit({
+        nome: form.nome.trim(),
+        email: form.email.trim() || undefined,
+        paese: form.paese,
+        tipologia: form.tipologia,
+      })
+      onClose()
+    },
+  )
 
   return (
     <Modal title="Aggiungi cliente" onClose={onClose}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Nome">
-          <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+        <Field label="Nome" required error={errori.nome}>
+          <input className={campoClass(errori.nome)} value={form.nome} onChange={(e) => { setForm({ ...form, nome: e.target.value }); pulisci('nome') }} />
         </Field>
-        <Field label="Email">
-          <input type="email" className={fieldClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <Field label="Email" error={errori.email} hint="Se già presente, il cliente viene riconosciuto.">
+          <input type="email" className={campoClass(errori.email)} value={form.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); pulisci('email') }} />
         </Field>
         <Field label="Paese">
           <input className={fieldClass} value={form.paese} onChange={(e) => setForm({ ...form, paese: e.target.value })} />
@@ -51,9 +57,10 @@ function AddCustomerForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
           </select>
         </Field>
       </div>
+      <FormError message={erroreServer} />
       <FormActions>
-        <Button variant="ghost" onClick={onClose}>Annulla</Button>
-        <Button onClick={submit} disabled={!form.nome.trim()}>Salva cliente</Button>
+        <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva cliente'}</Button>
       </FormActions>
     </Modal>
   )
@@ -61,23 +68,29 @@ function AddCustomerForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 
 const emptyOrderForm = { numero: '', canale: 'shopify' as 'shopify' | 'fisico', stato: 'in_lavorazione' as NewOrderInput['stato'], data: new Date().toISOString().slice(0, 10), totale: '' }
 
-function AddOrderForm({ customerName, onClose, onSubmit }: { customerName: string; onClose: () => void; onSubmit: (input: Omit<NewOrderInput, 'customerId'>) => void }) {
+function AddOrderForm({ customerName, onClose, onSubmit }: { customerName: string; onClose: () => void; onSubmit: (input: Omit<NewOrderInput, 'customerId'>) => void | Promise<unknown> }) {
   const [form, setForm] = useState(emptyOrderForm)
 
-  const submit = () => {
-    if (!form.numero.trim() || !form.totale) return
-    onSubmit({ numero: form.numero.trim(), canale: form.canale, stato: form.stato, data: form.data, totale: Number(form.totale) })
-    onClose()
-  }
+  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<'numero' | 'totale' | 'data'>(
+    () => ({
+      numero: regole.obbligatorio(form.numero, 'Il numero ordine'),
+      totale: regole.numeroRichiesto(form.totale, 'Il totale'),
+      data: form.data ? undefined : 'La data è obbligatoria.',
+    }),
+    async () => {
+      await onSubmit({ numero: form.numero.trim(), canale: form.canale, stato: form.stato, data: form.data, totale: Number(form.totale) })
+      onClose()
+    },
+  )
 
   return (
     <Modal title="Aggiungi ordine" subtitle={`Cliente: ${customerName}`} onClose={onClose}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Numero ordine">
-          <input className={fieldClass} value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} placeholder="SH-10099" />
+        <Field label="Numero ordine" required error={errori.numero}>
+          <input className={campoClass(errori.numero)} value={form.numero} onChange={(e) => { setForm({ ...form, numero: e.target.value }); pulisci('numero') }} placeholder="SH-10099" />
         </Field>
-        <Field label="Data">
-          <input type="date" className={fieldClass} value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} />
+        <Field label="Data" required error={errori.data}>
+          <input type="date" className={campoClass(errori.data)} value={form.data} onChange={(e) => { setForm({ ...form, data: e.target.value }); pulisci('data') }} />
         </Field>
         <Field label="Canale">
           <select className={fieldClass} value={form.canale} onChange={(e) => setForm({ ...form, canale: e.target.value as 'shopify' | 'fisico' })}>
@@ -93,13 +106,14 @@ function AddOrderForm({ customerName, onClose, onSubmit }: { customerName: strin
             <option value="annullato">Annullato</option>
           </select>
         </Field>
-        <Field label="Totale (€)">
-          <input type="number" min="0" step="0.01" className={fieldClass} value={form.totale} onChange={(e) => setForm({ ...form, totale: e.target.value })} />
+        <Field label="Totale (€)" required error={errori.totale}>
+          <input type="number" min="0" step="0.01" className={campoClass(errori.totale)} value={form.totale} onChange={(e) => { setForm({ ...form, totale: e.target.value }); pulisci('totale') }} />
         </Field>
       </div>
+      <FormError message={erroreServer} />
       <FormActions>
-        <Button variant="ghost" onClick={onClose}>Annulla</Button>
-        <Button onClick={submit} disabled={!form.numero.trim() || !form.totale}>Salva ordine</Button>
+        <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva ordine'}</Button>
       </FormActions>
     </Modal>
   )
@@ -107,7 +121,7 @@ function AddOrderForm({ customerName, onClose, onSubmit }: { customerName: strin
 
 export function CustomerList() {
   const { role } = useRole()
-  const { customers, orders, invoices, products, addCustomer, addOrder } = useMockStore()
+  const { customers, orders, invoices, products, addCustomer, addOrder, caricamento } = useMockStore()
   const [search, setSearch] = useState('')
   const [tipologia, setTipologia] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -156,6 +170,7 @@ export function CustomerList() {
         filters={[{ label: 'Tipologia', value: tipologia, onChange: setTipologia, options: Object.entries(TIPOLOGIA_LABEL).map(([value, label]) => ({ value, label })) }]}
       />
       <DataTable
+        loading={caricamento}
         columns={columns}
         rows={rows}
         keyExtractor={(c) => c.id}

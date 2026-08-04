@@ -11,7 +11,7 @@ import { useMockStore } from '../../context/MockStore'
 // Pagina dedicata agli ordini: la matrice permessi assegna "ordini" anche al Team interno,
 // che non ha accesso a Clienti (dati commerciali e sconti, riservati ad Admin/CEO).
 export function OrdersPage() {
-  const { orders, customers, products } = useMockStore()
+  const { orders, customers, products, caricamento } = useMockStore()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [canale, setCanale] = useState('')
@@ -61,6 +61,7 @@ export function OrdersPage() {
         ]}
       />
       <DataTable
+        loading={caricamento}
         columns={columns}
         rows={rows}
         keyExtractor={(o) => o.id}

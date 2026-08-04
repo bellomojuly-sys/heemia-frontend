@@ -7,7 +7,7 @@ import { useMockStore } from '../../context/MockStore'
 export function ActivityLogPage() {
   // FR-18: i log vivono nel MockStore, così anche le azioni fatte in sessione
   // (creazioni, avanzamenti fase, approvazioni bozze) compaiono qui.
-  const { activityLogs } = useMockStore()
+  const { activityLogs, caricamento } = useMockStore()
   const sorted = [...activityLogs].sort((a, b) => (a.data < b.data ? 1 : -1))
 
   const columns: DataTableColumn<ActivityLogEntry>[] = [
@@ -33,7 +33,8 @@ export function ActivityLogPage() {
   return (
     <div>
       <PageHeader title="Activity log" subtitle="Ogni azione critica tracciata con utente, data, valore precedente e nuovo. Visibile solo ad Admin e CEO." />
-      <DataTable columns={columns} rows={sorted} keyExtractor={(l) => l.id} />
+      <DataTable
+        loading={caricamento} columns={columns} rows={sorted} keyExtractor={(l) => l.id} />
     </div>
   )
 }

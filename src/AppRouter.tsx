@@ -45,7 +45,7 @@ function AreaRiservata() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-heemia-bg">
+      <div className="flex min-h-screen items-center justify-center bg-heemia-cream">
         <p className="font-mono-heemia text-[11px] uppercase tracking-[0.18em] text-heemia-grey">Caricamento…</p>
       </div>
     )

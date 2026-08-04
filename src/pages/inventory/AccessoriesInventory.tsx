@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Button } from '../../components/ui/Button'
-import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
+import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../../components/ui/Modal'
+import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency } from '../../lib/format'
 import type { Accessory } from '../../types'
@@ -21,55 +22,67 @@ const emptyForm = {
   sogliaMinima: '',
 }
 
-function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewAccessoryInput) => void }) {
+function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewAccessoryInput) => void | Promise<unknown> }) {
   const { suppliers } = useMockStore()
   const [form, setForm] = useState(emptyForm)
 
-  const submit = () => {
-    if (!form.nome.trim() || !form.codice.trim() || !form.supplierId) return
-    onSubmit({
-      nome: form.nome.trim(),
-      codice: form.codice.trim(),
-      categoria: form.categoria.trim(),
-      supplierId: form.supplierId,
-      costoUnitario: Number(form.costoUnitario || 0),
-      quantitaAcquistata: Number(form.quantitaAcquistata || 0),
-      sogliaMinima: Number(form.sogliaMinima || 0),
-    })
-    onClose()
-  }
+  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<
+    'nome' | 'codice' | 'supplierId' | 'costoUnitario' | 'quantitaAcquistata' | 'sogliaMinima'
+  >(
+    () => ({
+      nome: regole.obbligatorio(form.nome, "Il nome dell'accessorio"),
+      codice: regole.obbligatorio(form.codice, 'Il codice'),
+      supplierId: form.supplierId ? undefined : 'Scegli il fornitore.',
+      costoUnitario: regole.numeroPositivo(form.costoUnitario, 'Il costo unitario'),
+      quantitaAcquistata: regole.numeroPositivo(form.quantitaAcquistata, 'La quantità acquistata'),
+      sogliaMinima: regole.numeroPositivo(form.sogliaMinima, 'La soglia minima'),
+    }),
+    async () => {
+      await onSubmit({
+        nome: form.nome.trim(),
+        codice: form.codice.trim(),
+        categoria: form.categoria.trim(),
+        supplierId: form.supplierId,
+        costoUnitario: Number(form.costoUnitario || 0),
+        quantitaAcquistata: Number(form.quantitaAcquistata || 0),
+        sogliaMinima: Number(form.sogliaMinima || 0),
+      })
+      onClose()
+    },
+  )
 
   return (
     <Modal title="Aggiungi accessorio" onClose={onClose}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Nome">
-          <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+        <Field label="Nome" required error={errori.nome}>
+          <input className={campoClass(errori.nome)} value={form.nome} onChange={(e) => { setForm({ ...form, nome: e.target.value }); pulisci('nome') }} />
         </Field>
-        <Field label="Codice">
-          <input className={fieldClass} value={form.codice} onChange={(e) => setForm({ ...form, codice: e.target.value })} placeholder="ACC-XXX-01" />
+        <Field label="Codice" required error={errori.codice}>
+          <input className={campoClass(errori.codice)} value={form.codice} onChange={(e) => { setForm({ ...form, codice: e.target.value }); pulisci('codice') }} placeholder="ACC-XXX-01" />
         </Field>
         <Field label="Categoria">
           <input className={fieldClass} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} placeholder="Bottoni, zip, etichette…" />
         </Field>
-        <Field label="Fornitore">
-          <select className={fieldClass} value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
+        <Field label="Fornitore" required error={errori.supplierId}>
+          <select className={campoClass(errori.supplierId)} value={form.supplierId} onChange={(e) => { setForm({ ...form, supplierId: e.target.value }); pulisci('supplierId') }}>
             <option value="">Seleziona…</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
         </Field>
-        <Field label="Costo unitario (€)">
-          <input type="number" min="0" step="0.01" className={fieldClass} value={form.costoUnitario} onChange={(e) => setForm({ ...form, costoUnitario: e.target.value })} />
+        <Field label="Costo unitario (€)" error={errori.costoUnitario}>
+          <input type="number" min="0" step="0.01" className={campoClass(errori.costoUnitario)} value={form.costoUnitario} onChange={(e) => { setForm({ ...form, costoUnitario: e.target.value }); pulisci('costoUnitario') }} />
         </Field>
-        <Field label="Quantità acquistata">
-          <input type="number" min="0" className={fieldClass} value={form.quantitaAcquistata} onChange={(e) => setForm({ ...form, quantitaAcquistata: e.target.value })} />
+        <Field label="Quantità acquistata" error={errori.quantitaAcquistata}>
+          <input type="number" min="0" className={campoClass(errori.quantitaAcquistata)} value={form.quantitaAcquistata} onChange={(e) => { setForm({ ...form, quantitaAcquistata: e.target.value }); pulisci('quantitaAcquistata') }} />
         </Field>
-        <Field label="Soglia minima">
-          <input type="number" min="0" className={fieldClass} value={form.sogliaMinima} onChange={(e) => setForm({ ...form, sogliaMinima: e.target.value })} />
+        <Field label="Soglia minima" error={errori.sogliaMinima} hint="Sotto questa quantità scatta l'alert.">
+          <input type="number" min="0" className={campoClass(errori.sogliaMinima)} value={form.sogliaMinima} onChange={(e) => { setForm({ ...form, sogliaMinima: e.target.value }); pulisci('sogliaMinima') }} />
         </Field>
       </div>
+      <FormError message={erroreServer} />
       <FormActions>
-        <Button variant="ghost" onClick={onClose}>Annulla</Button>
-        <Button onClick={submit} disabled={!form.nome.trim() || !form.codice.trim() || !form.supplierId}>Salva accessorio</Button>
+        <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva accessorio'}</Button>
       </FormActions>
     </Modal>
   )
@@ -78,7 +91,7 @@ function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit
 export function AccessoriesInventory() {
   const { role } = useRole()
   const navigate = useNavigate()
-  const { accessories, suppliers, products, invoices, addAccessory, addSupplierRequest } = useMockStore()
+  const { accessories, suppliers, products, invoices, addAccessory, addSupplierRequest, caricamento } = useMockStore()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [addOpen, setAddOpen] = useState(false)
@@ -153,6 +166,7 @@ export function AccessoriesInventory() {
         ]}
       />
       <DataTable
+        loading={caricamento}
         columns={columns}
         rows={rows}
         keyExtractor={(a) => a.id}

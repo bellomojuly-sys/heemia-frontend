@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Button } from '../../components/ui/Button'
-import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
+import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../../components/ui/Modal'
+import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import type { Material } from '../../types'
@@ -24,38 +25,50 @@ const emptyForm = {
   stagione: '',
 }
 
-function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewMaterialInput) => void }) {
+function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewMaterialInput) => void | Promise<unknown> }) {
   const { suppliers } = useMockStore()
   const [form, setForm] = useState(emptyForm)
 
-  const submit = () => {
-    if (!form.nome.trim() || !form.codice.trim() || !form.supplierId) return
-    onSubmit({
-      nome: form.nome.trim(),
-      codice: form.codice.trim(),
-      supplierId: form.supplierId,
-      composizione: form.composizione.trim(),
-      colore: form.colore.trim(),
-      altezzaCm: form.altezzaCm ? Number(form.altezzaCm) : undefined,
-      prezzoAlMetro: Number(form.prezzoAlMetro || 0),
-      metriAcquistati: Number(form.metriAcquistati || 0),
-      sogliaMinima: Number(form.sogliaMinima || 0),
-      stagione: form.stagione.trim(),
-    })
-    onClose()
-  }
+  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<
+    'nome' | 'codice' | 'supplierId' | 'prezzoAlMetro' | 'metriAcquistati' | 'sogliaMinima' | 'altezzaCm'
+  >(
+    () => ({
+      nome: regole.obbligatorio(form.nome, 'Il nome del tessuto'),
+      codice: regole.obbligatorio(form.codice, 'Il codice'),
+      supplierId: form.supplierId ? undefined : 'Scegli il fornitore.',
+      prezzoAlMetro: regole.numeroPositivo(form.prezzoAlMetro, 'Il prezzo al metro'),
+      metriAcquistati: regole.numeroPositivo(form.metriAcquistati, 'I metri acquistati'),
+      sogliaMinima: regole.numeroPositivo(form.sogliaMinima, 'La soglia minima'),
+      altezzaCm: regole.numeroPositivo(form.altezzaCm, "L'altezza"),
+    }),
+    async () => {
+      await onSubmit({
+        nome: form.nome.trim(),
+        codice: form.codice.trim(),
+        supplierId: form.supplierId,
+        composizione: form.composizione.trim(),
+        colore: form.colore.trim(),
+        altezzaCm: form.altezzaCm ? Number(form.altezzaCm) : undefined,
+        prezzoAlMetro: Number(form.prezzoAlMetro || 0),
+        metriAcquistati: Number(form.metriAcquistati || 0),
+        sogliaMinima: Number(form.sogliaMinima || 0),
+        stagione: form.stagione.trim(),
+      })
+      onClose()
+    },
+  )
 
   return (
     <Modal title="Aggiungi tessuto" onClose={onClose}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Nome tessuto">
-          <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+        <Field label="Nome tessuto" required error={errori.nome}>
+          <input className={campoClass(errori.nome)} value={form.nome} onChange={(e) => { setForm({ ...form, nome: e.target.value }); pulisci('nome') }} />
         </Field>
-        <Field label="Codice">
-          <input className={fieldClass} value={form.codice} onChange={(e) => setForm({ ...form, codice: e.target.value })} placeholder="TES-XXX-01" />
+        <Field label="Codice" required error={errori.codice}>
+          <input className={campoClass(errori.codice)} value={form.codice} onChange={(e) => { setForm({ ...form, codice: e.target.value }); pulisci('codice') }} placeholder="TES-XXX-01" />
         </Field>
-        <Field label="Fornitore">
-          <select className={fieldClass} value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
+        <Field label="Fornitore" required error={errori.supplierId}>
+          <select className={campoClass(errori.supplierId)} value={form.supplierId} onChange={(e) => { setForm({ ...form, supplierId: e.target.value }); pulisci('supplierId') }}>
             <option value="">Seleziona…</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
@@ -69,22 +82,23 @@ function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
         <Field label="Stagione">
           <input className={fieldClass} value={form.stagione} onChange={(e) => setForm({ ...form, stagione: e.target.value })} placeholder="FW26" />
         </Field>
-        <Field label="Altezza (cm)">
-          <input type="number" min="0" className={fieldClass} value={form.altezzaCm} onChange={(e) => setForm({ ...form, altezzaCm: e.target.value })} />
+        <Field label="Altezza (cm)" error={errori.altezzaCm}>
+          <input type="number" min="0" className={campoClass(errori.altezzaCm)} value={form.altezzaCm} onChange={(e) => { setForm({ ...form, altezzaCm: e.target.value }); pulisci('altezzaCm') }} />
         </Field>
-        <Field label="Prezzo al metro (€)">
-          <input type="number" min="0" step="0.01" className={fieldClass} value={form.prezzoAlMetro} onChange={(e) => setForm({ ...form, prezzoAlMetro: e.target.value })} />
+        <Field label="Prezzo al metro (€)" error={errori.prezzoAlMetro} hint="Entra nel costo diretto del capo.">
+          <input type="number" min="0" step="0.01" className={campoClass(errori.prezzoAlMetro)} value={form.prezzoAlMetro} onChange={(e) => { setForm({ ...form, prezzoAlMetro: e.target.value }); pulisci('prezzoAlMetro') }} />
         </Field>
-        <Field label="Metri acquistati">
-          <input type="number" min="0" step="0.1" className={fieldClass} value={form.metriAcquistati} onChange={(e) => setForm({ ...form, metriAcquistati: e.target.value })} />
+        <Field label="Metri acquistati" error={errori.metriAcquistati}>
+          <input type="number" min="0" step="0.1" className={campoClass(errori.metriAcquistati)} value={form.metriAcquistati} onChange={(e) => { setForm({ ...form, metriAcquistati: e.target.value }); pulisci('metriAcquistati') }} />
         </Field>
-        <Field label="Soglia minima">
-          <input type="number" min="0" step="0.1" className={fieldClass} value={form.sogliaMinima} onChange={(e) => setForm({ ...form, sogliaMinima: e.target.value })} />
+        <Field label="Soglia minima" error={errori.sogliaMinima} hint="Sotto questa quantità scatta l'alert.">
+          <input type="number" min="0" step="0.1" className={campoClass(errori.sogliaMinima)} value={form.sogliaMinima} onChange={(e) => { setForm({ ...form, sogliaMinima: e.target.value }); pulisci('sogliaMinima') }} />
         </Field>
       </div>
+      <FormError message={erroreServer} />
       <FormActions>
-        <Button variant="ghost" onClick={onClose}>Annulla</Button>
-        <Button onClick={submit} disabled={!form.nome.trim() || !form.codice.trim() || !form.supplierId}>Salva tessuto</Button>
+        <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva tessuto'}</Button>
       </FormActions>
     </Modal>
   )
@@ -93,7 +107,7 @@ function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 export function FabricsInventory() {
   const { role } = useRole()
   const navigate = useNavigate()
-  const { materials, suppliers, products, invoices, addMaterial, addSupplierRequest } = useMockStore()
+  const { materials, suppliers, products, invoices, addMaterial, addSupplierRequest, caricamento } = useMockStore()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [addOpen, setAddOpen] = useState(false)
@@ -168,6 +182,7 @@ export function FabricsInventory() {
         ]}
       />
       <DataTable
+        loading={caricamento}
         columns={columns}
         rows={rows}
         keyExtractor={(m) => m.id}

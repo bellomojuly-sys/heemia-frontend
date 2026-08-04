@@ -10,7 +10,6 @@ import { Badge } from '../components/ui/Badge'
 import { LoadingState } from '../components/ui/States'
 import { StatusBadge } from '../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../lib/format'
-import { useMockLoading } from '../hooks/useMockLoading'
 import { useRole } from '../context/RoleContext'
 import { useMockStore } from '../context/MockStore'
 import { canAccessModule } from '../lib/permissions'
@@ -29,8 +28,7 @@ import {
 } from '../lib/dashboard'
 export function Dashboard() {
   const { role } = useRole()
-  const { products, materials, accessories, invoices, orders, productVariants, productionSteps, supplierRequests, inventoryRecords } = useMockStore()
-  const loading = useMockLoading(700)
+  const { products, materials, accessories, invoices, orders, productVariants, productionSteps, supplierRequests, inventoryRecords, caricamento } = useMockStore()
   const liveMargins = useLiveMargins()
 
   // Tutte le viste aggregate ricevono lo stato del MockStore: i record creati o modificati
@@ -67,7 +65,10 @@ export function Dashboard() {
   ].filter((item) => item.visible)
   const hasOpenAttention = attentionItems.some((item) => item.count > 0)
 
-  if (loading) {
+  // Fase 14: lo scheletro segue il caricamento vero dal server. Prima era una latenza
+  // finta di 700 ms ereditata dal prototipo a dati mock: mostrava l'attesa quando non
+  // c'era e spariva mentre i dati stavano ancora arrivando.
+  if (caricamento) {
     return (
       <div>
         <PageHeader title="Dashboard" subtitle="Stato operativo Heemia" />

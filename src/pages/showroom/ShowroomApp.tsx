@@ -135,7 +135,7 @@ function SuMisuraForm({
       </div>
 
       {invioErrore && (
-        <p role="alert" className="mt-4 rounded-heemia bg-heemia-cream px-3 py-2 text-xs text-heemia-black">
+        <p role="alert" className="mt-4 animate-rise rounded-heemia border-l-2 border-heemia-carmine bg-heemia-carmine-light px-3 py-2 text-xs text-heemia-black">
           {invioErrore}
         </p>
       )}

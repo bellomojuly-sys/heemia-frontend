@@ -54,12 +54,67 @@ export function Modal({
 export const fieldClass =
   'w-full rounded-heemia-sm border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black transition-all duration-200 ease-heemia placeholder:text-heemia-grey-light hover:border-heemia-border-strong focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10'
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+/** Variante del campo quando la validazione lo ha segnalato: bordo e alone carminio. */
+export const fieldErrorClass =
+  'w-full rounded-heemia-sm border border-heemia-carmine/60 bg-white px-3 py-1.5 text-sm text-heemia-black transition-all duration-200 ease-heemia placeholder:text-heemia-grey-light focus:border-heemia-carmine focus:outline-none focus:ring-2 focus:ring-heemia-carmine/15'
+
+/** Scorciatoia: `campoClass(errore)` al posto di scrivere il ternario a ogni input. */
+export function campoClass(errore?: string) {
+  return errore ? fieldErrorClass : fieldClass
+}
+
+// Fase 14 — un campo può portare: l'obbligatorietà (asterisco), un suggerimento e un
+// messaggio di errore. L'errore sostituisce il suggerimento invece di aggiungersi, così
+// sotto al campo resta sempre una riga sola e il form non "salta" quando compare.
+export function Field({
+  label,
+  children,
+  error,
+  hint,
+  required = false,
+}: {
+  label: string
+  children: ReactNode
+  error?: string
+  hint?: string
+  required?: boolean
+}) {
   return (
     <label className="block">
-      <span className="font-mono-heemia mb-1 block text-[10px] uppercase tracking-[0.06em] text-heemia-grey">{label}</span>
+      <span className="font-mono-heemia mb-1 block text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
+        {label}
+        {required && (
+          <span aria-hidden className="ml-0.5 text-heemia-carmine">
+            *
+          </span>
+        )}
+      </span>
       {children}
+      {error ? (
+        <span role="alert" className="mt-1 block animate-fade-in text-[11px] text-heemia-carmine">
+          {error}
+        </span>
+      ) : (
+        hint && <span className="mt-1 block text-[11px] text-heemia-grey-light">{hint}</span>
+      )}
     </label>
+  )
+}
+
+/**
+ * Errore restituito dal server (o dalla rete) sull'invio del form.
+ * Sta in cima alle azioni, non in cima al modale: chi sbaglia sta guardando il
+ * pulsante "Salva" nel momento in cui l'errore compare, non l'intestazione.
+ */
+export function FormError({ message }: { message?: string | null }) {
+  if (!message) return null
+  return (
+    <p
+      role="alert"
+      className="mt-4 animate-rise rounded-heemia border-l-2 border-heemia-carmine bg-heemia-carmine-light px-3 py-2 text-xs text-heemia-black"
+    >
+      {message}
+    </p>
   )
 }
 

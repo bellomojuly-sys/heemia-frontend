@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { useMockStore } from '../../context/MockStore'
 
 export function AppLayout() {
   // Sotto il breakpoint lg la sidebar diventa un drawer aperto dall'hamburger nell'header;
@@ -9,6 +11,12 @@ export function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
   useEffect(() => setMenuOpen(false), [location.pathname])
+
+  // Fase 14 — il caricamento fallito non deve più passare inosservato.
+  // Lo store intercettava già l'errore in `erroreCaricamento`, ma non lo leggeva
+  // nessuno: col backend spento ogni pagina mostrava il proprio empty state
+  // ("Nessun prodotto trovato"), indistinguibile da un archivio davvero vuoto.
+  const { erroreCaricamento } = useMockStore()
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-heemia-cream">
@@ -38,6 +46,25 @@ export function AppLayout() {
               che fa ripartire l'animazione d'ingresso, altrimenti React riuserebbe il nodo
               e la nuova pagina comparirebbe di colpo. */}
           <div key={location.pathname} className="mx-auto max-w-[1400px] animate-rise">
+            {erroreCaricamento && (
+              <div
+                role="alert"
+                className="mb-6 flex flex-wrap items-center gap-3 rounded-heemia-lg border border-heemia-carmine/30 bg-heemia-carmine-light px-4 py-3 shadow-heemia-sm"
+              >
+                <AlertTriangle aria-hidden className="h-4 w-4 shrink-0 text-heemia-carmine" />
+                <p className="min-w-0 flex-1 text-sm text-heemia-black">
+                  <span className="font-medium">Dati non caricati.</span> {erroreCaricamento} Quello che vedi
+                  potrebbe essere incompleto: non inserire nulla finché non si risolve.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="inline-flex items-center gap-1.5 rounded-heemia-sm border border-heemia-carmine/40 bg-white px-2.5 py-1.5 text-xs text-heemia-carmine transition-all duration-200 ease-heemia hover:bg-heemia-carmine hover:text-white active:scale-95"
+                >
+                  <RefreshCw aria-hidden className="h-3.5 w-3.5" /> Riprova
+                </button>
+              </div>
+            )}
             <Outlet />
           </div>
         </main>

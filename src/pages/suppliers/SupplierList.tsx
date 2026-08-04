@@ -4,7 +4,8 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
-import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
+import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../../components/ui/Modal'
+import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatDateIt } from '../../lib/format'
 import type { Accessory, Material, Supplier, SupplierCategoria, SupplierRequest } from '../../types'
@@ -36,49 +37,57 @@ const emptySupplierForm = {
   tempiMediConsegnaGiorni: '',
 }
 
-function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewSupplierInput) => void }) {
+function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewSupplierInput) => void | Promise<unknown> }) {
   const [form, setForm] = useState(emptySupplierForm)
 
-  const submit = () => {
-    if (!form.nome.trim() || !form.citta.trim()) return
-    onSubmit({
-      nome: form.nome.trim(),
-      categoria: form.categoria,
-      citta: form.citta.trim(),
-      email: form.email.trim() || undefined,
-      paese: form.paese,
-      tempiMediConsegnaGiorni: form.tempiMediConsegnaGiorni ? Number(form.tempiMediConsegnaGiorni) : undefined,
-    })
-    onClose()
-  }
+  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'citta' | 'email' | 'tempi'>(
+    () => ({
+      nome: regole.obbligatorio(form.nome, 'Il nome del fornitore'),
+      citta: regole.obbligatorio(form.citta, 'La città'),
+      email: regole.email(form.email),
+      tempi: regole.numeroPositivo(form.tempiMediConsegnaGiorni, 'I tempi di consegna'),
+    }),
+    async () => {
+      await onSubmit({
+        nome: form.nome.trim(),
+        categoria: form.categoria,
+        citta: form.citta.trim(),
+        email: form.email.trim() || undefined,
+        paese: form.paese,
+        tempiMediConsegnaGiorni: form.tempiMediConsegnaGiorni ? Number(form.tempiMediConsegnaGiorni) : undefined,
+      })
+      onClose()
+    },
+  )
 
   return (
     <Modal title="Aggiungi fornitore" onClose={onClose}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Nome">
-          <input className={fieldClass} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+        <Field label="Nome" required error={errori.nome}>
+          <input className={campoClass(errori.nome)} value={form.nome} onChange={(e) => { setForm({ ...form, nome: e.target.value }); pulisci('nome') }} />
         </Field>
         <Field label="Categoria">
           <select className={fieldClass} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value as SupplierCategoria })}>
             {SUPPLIER_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </Field>
-        <Field label="Città">
-          <input className={fieldClass} value={form.citta} onChange={(e) => setForm({ ...form, citta: e.target.value })} />
+        <Field label="Città" required error={errori.citta}>
+          <input className={campoClass(errori.citta)} value={form.citta} onChange={(e) => { setForm({ ...form, citta: e.target.value }); pulisci('citta') }} />
         </Field>
         <Field label="Paese">
           <input className={fieldClass} value={form.paese} onChange={(e) => setForm({ ...form, paese: e.target.value })} />
         </Field>
-        <Field label="Email">
-          <input type="email" className={fieldClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <Field label="Email" error={errori.email} hint="Serve per le bozze email materiali.">
+          <input type="email" className={campoClass(errori.email)} value={form.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); pulisci('email') }} />
         </Field>
-        <Field label="Tempi consegna (gg)">
-          <input type="number" min="0" className={fieldClass} value={form.tempiMediConsegnaGiorni} onChange={(e) => setForm({ ...form, tempiMediConsegnaGiorni: e.target.value })} />
+        <Field label="Tempi consegna (gg)" error={errori.tempi}>
+          <input type="number" min="0" className={campoClass(errori.tempi)} value={form.tempiMediConsegnaGiorni} onChange={(e) => { setForm({ ...form, tempiMediConsegnaGiorni: e.target.value }); pulisci('tempi') }} />
         </Field>
       </div>
+      <FormError message={erroreServer} />
       <FormActions>
-        <Button variant="ghost" onClick={onClose}>Annulla</Button>
-        <Button onClick={submit} disabled={!form.nome.trim() || !form.citta.trim()}>Salva fornitore</Button>
+        <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva fornitore'}</Button>
       </FormActions>
     </Modal>
   )
@@ -86,7 +95,7 @@ function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 
 export function SupplierList() {
   const { role } = useRole()
-  const { suppliers, materials, accessories, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft } = useMockStore()
+  const { suppliers, materials, accessories, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft, caricamento } = useMockStore()
   const [openId, setOpenId] = useState<string | null>(supplierRequests[0]?.id ?? null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftText, setDraftText] = useState('')
@@ -137,7 +146,8 @@ export function SupplierList() {
       <Card className="mb-6">
         <CardHeader title="Anagrafica fornitori" subtitle={`${suppliers.length} fornitori attivi`} />
         <div className="p-5">
-          <DataTable columns={supplierColumns} rows={suppliers} keyExtractor={(s) => s.id} />
+          <DataTable
+            loading={caricamento} columns={supplierColumns} rows={suppliers} keyExtractor={(s) => s.id} />
         </div>
       </Card>
 

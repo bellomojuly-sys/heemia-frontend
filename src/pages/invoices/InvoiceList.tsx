@@ -6,7 +6,8 @@ import { Toolbar } from '../../components/ui/Toolbar'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card, CardHeader } from '../../components/ui/Card'
-import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal'
+import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../../components/ui/Modal'
+import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import { useServerCostAllocations } from '../../hooks/useServerCostAllocations'
@@ -109,52 +110,66 @@ function CheckList({ label, options, selected, onToggle }: {
   )
 }
 
-function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewInvoiceInput) => void }) {
+function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewInvoiceInput) => void | Promise<unknown> }) {
   const { suppliers, customers, products, materials } = useMockStore()
   const [form, setForm] = useState(emptyForm)
 
   const isEstera = form.valuta.trim().toUpperCase() !== 'EUR' && form.valuta.trim() !== ''
 
-  const submit = () => {
-    if (!form.numero.trim() || !form.imponibile) return
-    const tasso = isEstera && form.tassoCambio ? Number(form.tassoCambio) : undefined
-    const imponibileInput = Number(form.imponibile)
-    const iva = Number(form.iva || 0)
-    // FR-22: per le fatture estere l'importo inserito è in valuta originale;
-    // la conversione in euro è calcolata automaticamente col tasso di cambio.
-    const imponibileEur = tasso ? Math.round(imponibileInput * tasso * 100) / 100 : imponibileInput
-    onSubmit({
-      numero: form.numero.trim(),
-      data: form.data,
-      fornitoreId: form.controparte === 'fornitore' && form.fornitoreId ? form.fornitoreId : undefined,
-      clienteId: form.controparte === 'cliente' && form.clienteId ? form.clienteId : undefined,
-      paese: form.paese,
-      valuta: form.valuta.trim().toUpperCase() || 'EUR',
-      tassoCambio: tasso,
-      dataCambio: isEstera && form.dataCambio ? form.dataCambio : undefined,
-      imponibileValutaOriginale: tasso ? imponibileInput : undefined,
-      totaleValutaOriginale: tasso ? Math.round((imponibileInput + iva / tasso) * 100) / 100 : undefined,
-      imponibile: imponibileEur,
-      iva,
-      categoriaCosto: form.categoriaCosto,
-      metodoPagamento: form.metodoPagamento,
-      statoPagamento: form.statoPagamento,
-      dataScadenza: form.dataScadenza || undefined,
-      documentoUrl: form.documentoUrl.trim() || undefined,
-      prodottiCollegatiIds: form.prodottiIds,
-      materialiCollegatiIds: form.materialiIds,
-    })
-    onClose()
-  }
+  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<
+    'numero' | 'data' | 'imponibile' | 'iva' | 'tassoCambio'
+  >(
+    () => ({
+      numero: regole.obbligatorio(form.numero, 'Il numero fattura'),
+      data: form.data ? undefined : 'La data è obbligatoria.',
+      imponibile: regole.numeroRichiesto(form.imponibile, "L'imponibile"),
+      iva: regole.numeroPositivo(form.iva, "L'IVA"),
+      // FR-22: senza tasso di cambio una fattura estera resterebbe registrata
+      // nella valuta sbagliata, e da lì sballerebbero margini e report.
+      tassoCambio: isEstera
+        ? regole.numeroRichiesto(form.tassoCambio, 'Il tasso di cambio')
+        : undefined,
+    }),
+    async () => {
+      const tasso = isEstera && form.tassoCambio ? Number(form.tassoCambio) : undefined
+      const imponibileInput = Number(form.imponibile)
+      const iva = Number(form.iva || 0)
+      // FR-22: per le fatture estere l'importo inserito è in valuta originale;
+      // la conversione in euro è calcolata automaticamente col tasso di cambio.
+      const imponibileEur = tasso ? Math.round(imponibileInput * tasso * 100) / 100 : imponibileInput
+      await onSubmit({
+        numero: form.numero.trim(),
+        data: form.data,
+        fornitoreId: form.controparte === 'fornitore' && form.fornitoreId ? form.fornitoreId : undefined,
+        clienteId: form.controparte === 'cliente' && form.clienteId ? form.clienteId : undefined,
+        paese: form.paese,
+        valuta: form.valuta.trim().toUpperCase() || 'EUR',
+        tassoCambio: tasso,
+        dataCambio: isEstera && form.dataCambio ? form.dataCambio : undefined,
+        imponibileValutaOriginale: tasso ? imponibileInput : undefined,
+        totaleValutaOriginale: tasso ? Math.round((imponibileInput + iva / tasso) * 100) / 100 : undefined,
+        imponibile: imponibileEur,
+        iva,
+        categoriaCosto: form.categoriaCosto,
+        metodoPagamento: form.metodoPagamento,
+        statoPagamento: form.statoPagamento,
+        dataScadenza: form.dataScadenza || undefined,
+        documentoUrl: form.documentoUrl.trim() || undefined,
+        prodottiCollegatiIds: form.prodottiIds,
+        materialiCollegatiIds: form.materialiIds,
+      })
+      onClose()
+    },
+  )
 
   return (
     <Modal title="Aggiungi fattura" subtitle="Numero, importi, allegato e collegamenti a prodotti o materiali." onClose={onClose}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Numero fattura">
-          <input className={fieldClass} value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} placeholder="FT-2026-0001" />
+        <Field label="Numero fattura" required error={errori.numero}>
+          <input className={campoClass(errori.numero)} value={form.numero} onChange={(e) => { setForm({ ...form, numero: e.target.value }); pulisci('numero') }} placeholder="FT-2026-0001" />
         </Field>
-        <Field label="Data">
-          <input type="date" className={fieldClass} value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} />
+        <Field label="Data" required error={errori.data}>
+          <input type="date" className={campoClass(errori.data)} value={form.data} onChange={(e) => { setForm({ ...form, data: e.target.value }); pulisci('data') }} />
         </Field>
         <Field label="Controparte">
           <select className={fieldClass} value={form.controparte} onChange={(e) => setForm({ ...form, controparte: e.target.value as typeof form.controparte })}>
@@ -191,19 +206,19 @@ function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
         </Field>
         {isEstera && (
           <>
-            <Field label="Tasso di cambio → EUR">
-              <input type="number" min="0" step="0.0001" className={fieldClass} value={form.tassoCambio} onChange={(e) => setForm({ ...form, tassoCambio: e.target.value })} placeholder="1.02" />
+            <Field label="Tasso di cambio → EUR" required error={errori.tassoCambio} hint="Serve a convertire l'imponibile in euro.">
+              <input type="number" min="0" step="0.0001" className={campoClass(errori.tassoCambio)} value={form.tassoCambio} onChange={(e) => { setForm({ ...form, tassoCambio: e.target.value }); pulisci('tassoCambio') }} placeholder="1.02" />
             </Field>
             <Field label="Data del cambio">
               <input type="date" className={fieldClass} value={form.dataCambio} onChange={(e) => setForm({ ...form, dataCambio: e.target.value })} />
             </Field>
           </>
         )}
-        <Field label={isEstera ? `Imponibile (${form.valuta.trim().toUpperCase()})` : 'Imponibile (€)'}>
-          <input type="number" min="0" step="0.01" className={fieldClass} value={form.imponibile} onChange={(e) => setForm({ ...form, imponibile: e.target.value })} />
+        <Field label={isEstera ? `Imponibile (${form.valuta.trim().toUpperCase()})` : 'Imponibile (€)'} required error={errori.imponibile}>
+          <input type="number" min="0" step="0.01" className={campoClass(errori.imponibile)} value={form.imponibile} onChange={(e) => { setForm({ ...form, imponibile: e.target.value }); pulisci('imponibile') }} />
         </Field>
-        <Field label="IVA (€)">
-          <input type="number" min="0" step="0.01" className={fieldClass} value={form.iva} onChange={(e) => setForm({ ...form, iva: e.target.value })} />
+        <Field label="IVA (€)" error={errori.iva}>
+          <input type="number" min="0" step="0.01" className={campoClass(errori.iva)} value={form.iva} onChange={(e) => { setForm({ ...form, iva: e.target.value }); pulisci('iva') }} />
         </Field>
         {isEstera && form.imponibile && form.tassoCambio && (
           <div className="col-span-2 rounded-heemia bg-heemia-cream px-3 py-2 text-xs text-heemia-grey">
@@ -246,9 +261,10 @@ function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
           onToggle={(id) => setForm({ ...form, materialiIds: toggleId(form.materialiIds, id) })}
         />
       </div>
+      <FormError message={erroreServer} />
       <FormActions>
-        <Button variant="ghost" onClick={onClose}>Annulla</Button>
-        <Button onClick={submit} disabled={!form.numero.trim() || !form.imponibile}>Salva fattura</Button>
+        <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva fattura'}</Button>
       </FormActions>
     </Modal>
   )
@@ -330,7 +346,7 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   )
 }
 
-function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewCashClosureInput) => void }) {
+function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewCashClosureInput) => void | Promise<unknown> }) {
   const [mese, setMese] = useState(mesePrecedente())
   const [totale, setTotale] = useState('')
   const [numero, setNumero] = useState('')
@@ -355,23 +371,29 @@ function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit
     reader.readAsText(file)
   }
 
-  const submit = () => {
-    if (!mese || !totale) return
-    onSubmit({
-      mese,
-      totaleIncassato: Number(totale),
-      numeroScontrini: Number(numero || 0),
-      fileNome: fileNome || undefined,
-      note: note.trim() || undefined,
-    })
-    onClose()
-  }
+  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<'mese' | 'totale' | 'numero'>(
+    () => ({
+      mese: mese ? undefined : 'Il mese di riferimento è obbligatorio.',
+      totale: regole.numeroRichiesto(totale, 'Il totale incassato'),
+      numero: regole.numeroPositivo(numero, 'Il numero di scontrini'),
+    }),
+    async () => {
+      await onSubmit({
+        mese,
+        totaleIncassato: Number(totale),
+        numeroScontrini: Number(numero || 0),
+        fileNome: fileNome || undefined,
+        note: note.trim() || undefined,
+      })
+      onClose()
+    },
+  )
 
   return (
     <Modal title="Chiusura di cassa mensile" subtitle="Carica l'export scontrini scaricato da Billy: il totale del mese viene calcolato in automatico." onClose={onClose}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Mese di riferimento">
-          <input type="month" className={fieldClass} value={mese} onChange={(e) => setMese(e.target.value)} />
+        <Field label="Mese di riferimento" required error={errori.mese}>
+          <input type="month" className={campoClass(errori.mese)} value={mese} onChange={(e) => { setMese(e.target.value); pulisci('mese') }} />
         </Field>
         <Field label="Export scontrini (Billy)">
           <input
@@ -389,11 +411,11 @@ function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit
       </div>
       {parseInfo && <p className="mt-2 rounded-heemia bg-heemia-cream px-3 py-2 text-xs text-heemia-black">{parseInfo}</p>}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Totale incassato (EUR)">
-          <input type="number" step="0.01" className={fieldClass} value={totale} onChange={(e) => setTotale(e.target.value)} placeholder="0,00" />
+        <Field label="Totale incassato (EUR)" required error={errori.totale} hint="Verificalo sempre contro l'export di Billy.">
+          <input type="number" step="0.01" className={campoClass(errori.totale)} value={totale} onChange={(e) => { setTotale(e.target.value); pulisci('totale') }} placeholder="0,00" />
         </Field>
-        <Field label="Numero scontrini">
-          <input type="number" className={fieldClass} value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="0" />
+        <Field label="Numero scontrini" error={errori.numero}>
+          <input type="number" className={campoClass(errori.numero)} value={numero} onChange={(e) => { setNumero(e.target.value); pulisci('numero') }} placeholder="0" />
         </Field>
       </div>
       <div className="mt-3">
@@ -401,9 +423,10 @@ function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit
           <input className={fieldClass} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Es. include il mercatino del 12" />
         </Field>
       </div>
+      <FormError message={erroreServer} />
       <FormActions>
-        <Button variant="secondary" onClick={onClose}>Annulla</Button>
-        <Button onClick={submit} disabled={!mese || !totale}>Registra chiusura</Button>
+        <Button variant="secondary" onClick={onClose} disabled={inCorso}>Annulla</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Registrazione…' : 'Registra chiusura'}</Button>
       </FormActions>
     </Modal>
   )
@@ -478,7 +501,7 @@ function CashClosureSection() {
 
 export function InvoiceList() {
   const { role } = useRole()
-  const { invoices, suppliers, customers, addInvoice } = useMockStore()
+  const { invoices, suppliers, customers, addInvoice, caricamento } = useMockStore()
   // Ripartizione costi indiretti dal database (FR-23), non più da un elenco di esempio.
   const costAllocations = useServerCostAllocations()
   const [search, setSearch] = useState('')
@@ -571,6 +594,7 @@ export function InvoiceList() {
         ]}
       />
       <DataTable
+        loading={caricamento}
         columns={columns}
         rows={rows}
         keyExtractor={(i) => i.id}

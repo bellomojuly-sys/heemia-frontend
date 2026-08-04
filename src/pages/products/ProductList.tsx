@@ -19,7 +19,7 @@ import { useLiveMargins } from '../../hooks/useLiveMargins'
 export function ProductList() {
   const navigate = useNavigate()
   const { role } = useRole()
-  const { products, productVariants, addProduct } = useMockStore()
+  const { products, productVariants, addProduct, caricamento } = useMockStore()
   const liveMargins = useLiveMargins()
   const canSeeMargins = canAccessModule(role, 'costi-margini')
   const [search, setSearch] = useState('')
@@ -119,6 +119,7 @@ export function ProductList() {
       />
 
       <DataTable
+        loading={caricamento}
         columns={columns}
         rows={rows}
         keyExtractor={(p) => p.id}
