@@ -33,7 +33,7 @@ export function SettingsPage() {
             value={MARGIN_THRESHOLD_PERCENT}
             disabled={!canEdit(role)}
             readOnly
-            className="font-mono-heemia w-24 rounded-heemia border border-heemia-border bg-heemia-cream px-3 py-1.5 text-sm text-heemia-black"
+            className="font-mono-heemia w-24 rounded-heemia border border-heemia-border bg-heemia-surface px-3 py-1.5 text-sm text-heemia-black"
           />
           <span className="ml-2 text-sm text-heemia-grey">%</span>
           <p className="mt-2 text-xs text-heemia-grey">Demo: modifica non persistita tra sessioni.</p>

@@ -11,7 +11,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     'bg-heemia-black text-white border border-heemia-black shadow-heemia-xs hover:bg-heemia-charcoal hover:shadow-heemia-md',
   secondary:
     'bg-white text-heemia-black border border-heemia-border-strong hover:border-heemia-black hover:shadow-heemia-sm',
-  ghost: 'bg-transparent text-heemia-grey border border-transparent hover:bg-heemia-cream-dark/60 hover:text-heemia-carmine',
+  ghost: 'bg-transparent text-heemia-grey border border-transparent hover:bg-heemia-surface-muted/60 hover:text-heemia-carmine',
 }
 
 export function Button({
@@ -22,7 +22,7 @@ export function Button({
   return (
     <button
       type="button"
-      className={`rounded-heemia-sm px-3.5 py-1.5 text-xs font-medium tracking-wide transition-all duration-200 ease-heemia active:scale-[0.97] disabled:cursor-not-allowed disabled:border-heemia-border disabled:text-heemia-grey-light disabled:shadow-none disabled:hover:scale-100 disabled:hover:bg-transparent disabled:hover:text-heemia-grey-light disabled:hover:shadow-none disabled:active:scale-100 ${VARIANT_CLASSES[variant]} ${className}`}
+      className={`rounded-heemia-sm px-3.5 py-1.5 text-xs font-medium tracking-wide transition-all duration-200 ease-heemia active:scale-[0.96] active:duration-75 disabled:cursor-not-allowed disabled:border-heemia-border disabled:text-heemia-grey-light disabled:shadow-none disabled:hover:scale-100 disabled:hover:bg-transparent disabled:hover:text-heemia-grey-light disabled:hover:shadow-none disabled:active:scale-100 ${VARIANT_CLASSES[variant]} ${className}`}
       {...rest}
     />
   )

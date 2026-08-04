@@ -92,7 +92,7 @@ export function ReportsPage() {
           {monthlyReports.map((r) => (
             <Card key={r.mese} className="p-5">
               <div className="mb-5 flex items-center justify-between">
-                <p className="font-display text-lg italic text-heemia-black">{r.meseLabel}</p>
+                <p className="font-display text-lg text-heemia-black">{r.meseLabel}</p>
                 <Badge variant="info">Report pronto: {formatDateIt(r.generatoIl)}</Badge>
               </div>
               <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
@@ -100,8 +100,8 @@ export function ReportsPage() {
                 <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Costo medio prodotto</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{formatCurrency(r.costoMedioProdotto)}</p></div>
                 <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Ricavi totali</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{formatCurrency(r.ricaviTotali)}</p></div>
                 <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Costi totali</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{formatCurrency(r.costiTotali)}</p></div>
-                <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Prodotto più costoso</p><p className="font-display mt-0.5 italic text-heemia-black">{r.prodottoPiuCostoso}</p></div>
-                <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Prodotto meno redditizio</p><p className="font-display mt-0.5 italic text-heemia-carmine">{r.prodottoMenoRedditizio}</p></div>
+                <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Prodotto più costoso</p><p className="font-display mt-0.5 text-heemia-black">{r.prodottoPiuCostoso}</p></div>
+                <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Prodotto meno redditizio</p><p className="font-display mt-0.5 text-heemia-carmine">{r.prodottoMenoRedditizio}</p></div>
               </div>
             </Card>
           ))}

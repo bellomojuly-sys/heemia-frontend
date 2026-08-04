@@ -31,14 +31,14 @@ export function Modal({
       >
         <div className="flex items-start justify-between gap-4 border-b border-heemia-border px-5 py-4">
           <div>
-            <h2 className="font-display text-lg italic text-heemia-black">{title}</h2>
+            <h2 className="font-display text-lg font-medium text-heemia-black">{title}</h2>
             {subtitle && <p className="mt-0.5 text-xs text-heemia-grey">{subtitle}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Chiudi"
-            className="rounded-full p-1 text-heemia-grey transition-all duration-200 ease-heemia hover:rotate-90 hover:bg-heemia-cream hover:text-heemia-black"
+            className="rounded-full p-1 text-heemia-grey transition-all duration-200 ease-heemia hover:rotate-90 hover:bg-heemia-surface hover:text-heemia-black"
           >
             <X className="h-4 w-4" />
           </button>

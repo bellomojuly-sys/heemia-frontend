@@ -19,7 +19,7 @@ export function AppLayout() {
   const { erroreCaricamento } = useMockStore()
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-heemia-cream">
+    <div className="flex h-screen w-screen overflow-hidden bg-heemia-surface">
       <div className="hidden lg:block">
         <Sidebar />
       </div>

@@ -51,7 +51,7 @@ export function MarginSummaryCard({ margin, productName }: { margin: Margin; pro
     >
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <p className="font-display text-lg italic text-heemia-black">{productName}</p>
+          <p className="font-display text-lg text-heemia-black">{productName}</p>
           <Badge variant={margin.tipoDato === 'reale' ? 'success' : 'neutral'}>
             {margin.tipoDato === 'reale' ? 'Dato reale' : 'Dato stimato'}
           </Badge>
@@ -87,7 +87,7 @@ export function MarginSummaryCard({ margin, productName }: { margin: Margin; pro
             <div
               key={band.label}
               className={`rounded-heemia border px-3 py-1.5 ${
-                band.sottoBreakEven ? 'border-heemia-carmine/40 bg-heemia-carmine-light' : 'border-heemia-border bg-heemia-cream'
+                band.sottoBreakEven ? 'border-heemia-carmine/40 bg-heemia-carmine-light' : 'border-heemia-border bg-heemia-surface'
               }`}
             >
               <p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">{band.label}</p>

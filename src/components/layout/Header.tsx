@@ -20,7 +20,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             type="button"
             onClick={onMenuClick}
             aria-label="Apri menu"
-            className="rounded-heemia-sm border border-heemia-border p-1.5 text-heemia-black transition-all duration-200 ease-heemia hover:border-heemia-black hover:bg-heemia-cream active:scale-95 lg:hidden"
+            className="rounded-heemia-sm border border-heemia-border p-1.5 text-heemia-black transition-all duration-200 ease-heemia hover:border-heemia-black hover:bg-heemia-surface active:scale-95 lg:hidden"
           >
             <Menu className="h-4 w-4" />
           </button>
@@ -34,7 +34,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         {canAccessModule(role, 'ai-assistant') && (
           <Link
             to="/assistente"
-            className="inline-flex items-center gap-1.5 rounded-heemia-sm border border-heemia-border px-2.5 py-1.5 text-xs text-heemia-grey transition-all duration-200 ease-heemia hover:border-heemia-black hover:bg-heemia-cream hover:text-heemia-black active:scale-95"
+            className="inline-flex items-center gap-1.5 rounded-heemia-sm border border-heemia-border px-2.5 py-1.5 text-xs text-heemia-grey transition-all duration-200 ease-heemia hover:border-heemia-black hover:bg-heemia-surface hover:text-heemia-black active:scale-95"
           >
             <Sparkles aria-hidden className="h-3.5 w-3.5" /> <span className="hidden sm:inline">AI Assistant</span>
           </Link>
@@ -50,7 +50,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         <button
           type="button"
           onClick={() => void logout()}
-          className="inline-flex items-center gap-1.5 rounded-heemia-sm border border-heemia-border px-2.5 py-1.5 text-xs text-heemia-grey transition-all duration-200 ease-heemia hover:border-heemia-black hover:bg-heemia-cream hover:text-heemia-black active:scale-95"
+          className="inline-flex items-center gap-1.5 rounded-heemia-sm border border-heemia-border px-2.5 py-1.5 text-xs text-heemia-grey transition-all duration-200 ease-heemia hover:border-heemia-black hover:bg-heemia-surface hover:text-heemia-black active:scale-95"
         >
           <LogOut aria-hidden className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Esci</span>
         </button>

@@ -24,7 +24,7 @@ export function ShopifyPage() {
         <ul className="divide-y divide-heemia-border">
           {products.map((p) => (
             <li key={p.id} className="flex items-center justify-between px-5 py-2.5 text-sm">
-              <Link to={`/prodotti/${p.id}`} className="font-display italic text-heemia-black hover:underline">{p.nome}</Link>
+              <Link to={`/prodotti/${p.id}`} className="font-display text-heemia-black hover:underline">{p.nome}</Link>
               <StatusBadge status={p.statoPubblicazioneShopify} />
             </li>
           ))}

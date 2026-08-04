@@ -111,7 +111,7 @@ export function AccessoriesInventory() {
       header: 'Accessorio',
       accessor: (a) => (
         <div>
-          <p className="font-display italic text-heemia-black">{a.nome}</p>
+          <p className="font-display text-heemia-black">{a.nome}</p>
           <p className="font-mono-heemia text-[11px] text-heemia-grey">{a.codice}</p>
         </div>
       ),

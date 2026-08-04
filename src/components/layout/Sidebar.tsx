@@ -23,7 +23,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col bg-heemia-black text-white">
       <div className="px-6 py-7">
-        <p className="font-display text-2xl italic tracking-tight text-white">Heemia</p>
+        <p className="wordmark text-xl text-white">Heemia</p>
         <p className="font-mono-heemia mt-1 text-[10px] uppercase tracking-[0.14em] text-white/40">
           Gestionale interno
         </p>

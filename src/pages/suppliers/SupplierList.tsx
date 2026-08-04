@@ -107,7 +107,7 @@ export function SupplierList() {
   const canModify = canEdit(role)
 
   const supplierColumns: DataTableColumn<Supplier>[] = [
-    { header: 'Fornitore', accessor: (s) => <span className="font-display italic text-heemia-black">{s.nome}</span> },
+    { header: 'Fornitore', accessor: (s) => <span className="font-display font-medium text-heemia-black">{s.nome}</span> },
     { header: 'Categoria', accessor: (s) => s.categoria },
     { header: 'Città', accessor: (s) => s.citta },
     { header: 'Contatto', accessor: (s) => <span className="font-mono-heemia text-xs">{s.email ?? '–'}</span> },
@@ -166,7 +166,7 @@ export function SupplierList() {
               <li key={r.id} className="p-5">
                 <button type="button" onClick={() => setOpenId(isOpen ? null : r.id)} className="flex w-full items-start justify-between gap-4 text-left">
                   <div>
-                    <p className="font-display text-base italic text-heemia-black">{r.oggetto}</p>
+                    <p className="font-display text-base text-heemia-black">{r.oggetto}</p>
                     <p className="mt-0.5 text-xs text-heemia-grey">{supplier?.nome} · richiesto {formatDateIt(r.creataIl)}</p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -190,7 +190,7 @@ export function SupplierList() {
                     </dl>
 
                     {r.rispostaFornitore && (
-                      <div className="rounded-heemia border-l-2 border-heemia-border-strong bg-heemia-cream p-3 text-xs text-heemia-black">
+                      <div className="rounded-heemia border-l-2 border-heemia-border-strong bg-heemia-surface p-3 text-xs text-heemia-black">
                         <p className="font-mono-heemia mb-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Risposta fornitore</p>
                         {r.rispostaFornitore}
                       </div>

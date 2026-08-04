@@ -32,7 +32,7 @@ export function OrdersPage() {
   const columns: DataTableColumn<Order>[] = [
     { header: 'Numero', accessor: (o) => <span className="font-mono-heemia text-[12px] text-heemia-black">{o.numero}</span> },
     { header: 'Data', accessor: (o) => formatDateIt(o.data) },
-    { header: 'Cliente', accessor: (o) => <span className="font-display italic">{customers.find((c) => c.id === o.customerId)?.nome ?? '–'}</span> },
+    { header: 'Cliente', accessor: (o) => <span className="font-display">{customers.find((c) => c.id === o.customerId)?.nome ?? '–'}</span> },
     { header: 'Canale', accessor: (o) => <Badge variant="neutral">{o.canale === 'shopify' ? 'Shopify' : 'Punto vendita'}</Badge> },
     {
       header: 'Prodotti',

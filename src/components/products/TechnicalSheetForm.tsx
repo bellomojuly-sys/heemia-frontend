@@ -389,7 +389,7 @@ export function TechnicalSheetForm({
               onChange={(e) => e.target.files?.[0] && onPdf(e.target.files[0])}
             />
 
-            <div className="flex flex-wrap items-center gap-3 rounded-heemia border border-heemia-border bg-heemia-cream px-4 py-3">
+            <div className="flex flex-wrap items-center gap-3 rounded-heemia border border-heemia-border bg-heemia-surface px-4 py-3">
               <FileText aria-hidden className="h-4 w-4 shrink-0 text-heemia-grey" />
               {form.pdfFile ? (
                 <div className="min-w-0 flex-1">
@@ -561,7 +561,7 @@ export function TechnicalSheetForm({
                 const usata = confermata ?? suggerita
                 const totale = usata * m.costoUnitario * (1 + Math.max(0, m.percentualeScarto) / 100)
                 return (
-                  <div key={m.id} className="rounded-heemia border border-heemia-border bg-heemia-cream p-3">
+                  <div key={m.id} className="rounded-heemia border border-heemia-border bg-heemia-surface p-3">
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                       <div className="col-span-2">
                         <Field label="Materiale">
@@ -595,7 +595,7 @@ export function TechnicalSheetForm({
                         <input className={fieldClass} value={m.unitaMisura} onChange={(e) => patchMateriale(m.id, { unitaMisura: e.target.value })} />
                       </Field>
                       <Field label="Qtà suggerita">
-                        <input readOnly className={`${fieldClass} bg-heemia-cream text-heemia-grey`} value={suggerita || 0} title="Stima automatica dell'app" />
+                        <input readOnly className={`${fieldClass} bg-heemia-surface text-heemia-grey`} value={suggerita || 0} title="Stima automatica dell'app" />
                       </Field>
                       <Field label="Qtà confermata">
                         <input
@@ -669,7 +669,7 @@ export function TechnicalSheetForm({
           {costi.length > 0 && (
             <div className="mb-3 space-y-2">
               {costi.map((c) => (
-                <div key={c.id} className="grid grid-cols-2 items-end gap-3 rounded-heemia border border-heemia-border bg-heemia-cream p-3 sm:grid-cols-5">
+                <div key={c.id} className="grid grid-cols-2 items-end gap-3 rounded-heemia border border-heemia-border bg-heemia-surface p-3 sm:grid-cols-5">
                   <Field label="Voce">
                     <select className={fieldClass} value={c.voce} onChange={(e) => {
                       const voce = e.target.value as SheetCostVoce
@@ -744,7 +744,7 @@ export function TechnicalSheetForm({
               </div>
             </div>
 
-            <div className="rounded-heemia border border-heemia-border bg-heemia-cream p-3">
+            <div className="rounded-heemia border border-heemia-border bg-heemia-surface p-3">
               <p className="font-mono-heemia mb-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
                 Costi di sviluppo una-tantum
               </p>
@@ -839,7 +839,7 @@ export function TechnicalSheetForm({
             </Button>
             <span className="text-xs text-heemia-grey">{foto.length > 0 ? `${foto.length} foto caricate` : 'Nessuna foto caricata'}</span>
           </div>
-          {fotoErrore && <p className="mb-3 rounded-heemia border-l-2 border-heemia-carmine bg-heemia-cream px-3 py-2 text-xs text-heemia-black">{fotoErrore}</p>}
+          {fotoErrore && <p className="mb-3 rounded-heemia border-l-2 border-heemia-carmine bg-heemia-surface px-3 py-2 text-xs text-heemia-black">{fotoErrore}</p>}
 
           {foto.length > 0 && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">

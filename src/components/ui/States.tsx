@@ -4,8 +4,8 @@ import type { ReactNode } from 'react'
 
 export function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
   return (
-    <div className="flex animate-rise flex-col items-center justify-center gap-2 rounded-heemia-lg border border-dashed border-heemia-border-strong bg-heemia-cream px-6 py-14 text-center">
-      <p className="font-display text-lg italic text-heemia-black">{title}</p>
+    <div className="flex animate-rise flex-col items-center justify-center gap-2 rounded-heemia-lg border border-dashed border-heemia-border-strong bg-heemia-surface px-6 py-14 text-center">
+      <p className="font-display text-lg font-medium text-heemia-black">{title}</p>
       <p className="max-w-sm text-xs text-heemia-grey">{description}</p>
       {action}
     </div>
@@ -21,7 +21,7 @@ export function LoadingState({ rows = 4 }: { rows?: number }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="h-10 animate-shimmer rounded-heemia bg-heemia-cream-dark"
+          className="h-10 animate-shimmer rounded-heemia bg-heemia-surface-muted"
           style={{ animationDelay: `${i * 120}ms` }}
         />
       ))}

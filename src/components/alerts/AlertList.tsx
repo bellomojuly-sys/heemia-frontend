@@ -31,7 +31,7 @@ export function AlertList({ alerts }: { alerts: AlertItem[] }) {
         return (
           <li key={a.id}>
             {a.link ? (
-              <Link to={a.link} className="block transition-colors duration-200 ease-heemia hover:bg-heemia-cream">
+              <Link to={a.link} className="block transition-colors duration-200 ease-heemia hover:bg-heemia-surface active:bg-heemia-surface-muted active:duration-75">
                 {content}
               </Link>
             ) : (

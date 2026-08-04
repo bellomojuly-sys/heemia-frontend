@@ -106,7 +106,7 @@ export function AiAssistantPage() {
         <div className="max-h-[50vh] space-y-3 overflow-y-auto p-5">
           {messages.map((m) => (
             <div key={m.id} className={`flex ${m.autore === 'utente' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-md rounded-heemia px-3.5 py-2.5 text-sm ${m.autore === 'utente' ? 'bg-heemia-black text-white' : 'bg-heemia-cream text-heemia-black'}`}>
+              <div className={`max-w-md rounded-heemia px-3.5 py-2.5 text-sm ${m.autore === 'utente' ? 'bg-heemia-black text-white' : 'bg-heemia-surface text-heemia-black'}`}>
                 {m.testo}
               </div>
             </div>

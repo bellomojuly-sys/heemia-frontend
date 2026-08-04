@@ -76,8 +76,8 @@ export function DataTable<T>({
                       if (renderDetail) setExpanded(isOpen ? null : key)
                     }}
                     className={`border-b border-heemia-border transition-colors duration-150 ease-heemia last:border-0 ${
-                      clickable ? 'cursor-pointer hover:bg-heemia-cream' : ''
-                    } ${isOpen ? 'bg-heemia-cream' : ''}`}
+                      clickable ? 'cursor-pointer hover:bg-heemia-surface active:bg-heemia-surface-muted active:duration-75' : ''
+                    } ${isOpen ? 'bg-heemia-surface' : ''}`}
                   >
                     {columns.map((col) => (
                       <td
@@ -91,7 +91,7 @@ export function DataTable<T>({
                     ))}
                   </tr>
                   {renderDetail && isOpen && (
-                    <tr className="border-b border-heemia-border bg-heemia-cream last:border-0">
+                    <tr className="border-b border-heemia-border bg-heemia-surface last:border-0">
                       <td colSpan={columns.length} className="px-4 py-4">
                         <div className="animate-rise">{renderDetail(row)}</div>
                       </td>

@@ -53,7 +53,7 @@ function FabricRow({ material, ruolo }: { material: Material; ruolo: string }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-3">
       <div>
-        <p className="font-display italic text-heemia-black">{material.nome}</p>
+        <p className="font-display text-heemia-black">{material.nome}</p>
         <p className="font-mono-heemia text-[11px] text-heemia-grey">{material.codice} · {ruolo}</p>
       </div>
       <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -255,7 +255,7 @@ export function ProductDetail() {
             className={`-mb-px rounded-t-heemia-sm border-b-2 px-2 pb-2.5 pt-1 text-sm transition-all duration-200 ease-heemia ${
               activeTab === tab.id
                 ? 'border-heemia-carmine font-medium text-heemia-black'
-                : 'border-transparent text-heemia-grey hover:border-heemia-border-strong hover:bg-heemia-cream-dark/40 hover:text-heemia-black'
+                : 'border-transparent text-heemia-grey hover:border-heemia-border-strong hover:bg-heemia-surface-muted/40 hover:text-heemia-black'
             }`}
           >
             {tab.label}
@@ -454,7 +454,7 @@ export function ProductDetail() {
                       className={`font-mono-heemia -mb-px rounded-t-heemia-sm border-b-2 px-2 pb-2 pt-1 text-[11px] uppercase tracking-[0.06em] transition-all duration-200 ease-heemia ${
                         activeVersion === s.versione
                           ? 'border-heemia-carmine text-heemia-black'
-                          : 'border-transparent text-heemia-grey hover:border-heemia-border-strong hover:bg-heemia-cream-dark/40 hover:text-heemia-black'
+                          : 'border-transparent text-heemia-grey hover:border-heemia-border-strong hover:bg-heemia-surface-muted/40 hover:text-heemia-black'
                       }`}
                     >
                       {VERSION_LABEL[s.versione]}
@@ -462,7 +462,7 @@ export function ProductDetail() {
                   ))}
                 </div>
                 {activeSheet && (
-                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-heemia border border-heemia-border bg-heemia-cream px-4 py-3">
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-heemia border border-heemia-border bg-heemia-surface px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <FileText aria-hidden className="h-4 w-4 shrink-0 text-heemia-grey" />
                       {/* Due origini possibili: il PDF caricato dal dispositivo (versioni Finale e
@@ -554,7 +554,7 @@ export function ProductDetail() {
                       <DetailField label="Lavaggio consigliato">{activeSheet.lavaggioConsigliato || '–'}</DetailField>
                       <DetailField label="Trattamenti">{activeSheet.trattamenti || '–'}</DetailField>
                       <DetailField label="Tessuto principale">
-                        <span className="font-display italic">
+                        <span className="font-display">
                           {materials.find((m) => m.id === activeSheet.tessutoPrincipaleId)?.nome ??
                             (activeSheet.materiali ?? []).find((m) => m.materialId)?.descrizione ??
                             '–'}

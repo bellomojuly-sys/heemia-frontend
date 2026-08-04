@@ -26,7 +26,7 @@ export function FinishedGoodsInventory() {
         return (
           <div>
             <p className="font-mono-heemia text-[12px] text-heemia-black">{v?.sku ?? r.variantId}</p>
-            <p className="font-display text-sm italic text-heemia-grey">{p?.nome} · {v?.taglia}/{v?.colore}</p>
+            <p className="font-display text-sm text-heemia-grey">{p?.nome} · {v?.taglia}/{v?.colore}</p>
           </div>
         )
       },

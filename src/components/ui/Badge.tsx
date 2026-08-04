@@ -8,11 +8,11 @@ type BadgeVariant = 'neutral' | 'critical' | 'warning' | 'success' | 'info' | 'c
 // d'occhio esaurito (rosso pieno) da sotto soglia (arancione tenue) nella Dashboard (FR-30 §4),
 // senza toccare il significato delle varianti esistenti già usate altrove (Fatture, Inventario).
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
-  neutral: 'bg-heemia-cream-dark text-heemia-black border-heemia-border-strong',
+  neutral: 'bg-heemia-surface-muted text-heemia-black border-heemia-border-strong',
   critical: 'bg-heemia-carmine-light text-heemia-carmine border-heemia-carmine/25',
   warning: 'bg-white text-heemia-carmine border-heemia-carmine/30',
   success: 'bg-white text-heemia-black border-heemia-border-strong',
-  info: 'bg-heemia-cream text-heemia-grey border-heemia-border',
+  info: 'bg-heemia-surface text-heemia-grey border-heemia-border',
   'critical-solid': 'bg-heemia-carmine text-white border-heemia-carmine',
   'warning-outline': 'bg-heemia-orange-light text-heemia-orange border-heemia-orange/40',
 }

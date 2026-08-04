@@ -30,7 +30,7 @@ export function StageProgress({
                     : 'bg-heemia-black'
                   : isDone
                     ? 'bg-heemia-grey-light'
-                    : 'bg-heemia-cream-dark'
+                    : 'bg-heemia-surface-muted'
               }`}
             />
           )
@@ -40,7 +40,7 @@ export function StageProgress({
         <span className="font-mono-heemia text-[10px] text-heemia-grey-light">
           {String(currentIndex + 1).padStart(2, '0')}/{String(PRODUCT_STAGES.length).padStart(2, '0')}
         </span>
-        <span className="font-display text-sm italic text-heemia-black">
+        <span className="font-display text-sm text-heemia-black">
           {PRODUCT_STAGES[currentIndex]?.label ?? currentStage}
         </span>
       </p>

@@ -4,7 +4,7 @@ export function ImagePlaceholder({ label, className = '' }: { label: string; cla
   const initial = label.trim().charAt(0).toUpperCase() || '?'
   return (
     <div
-      className={`font-display flex items-center justify-center rounded-heemia border border-heemia-border bg-heemia-cream italic text-heemia-grey ${className}`}
+      className={`font-display flex items-center justify-center rounded-heemia border border-heemia-border bg-heemia-surface text-heemia-grey ${className}`}
       aria-hidden="true"
     >
       {initial}

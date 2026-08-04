@@ -1,15 +1,25 @@
 @import "tailwindcss";
 
 @theme {
-  --color-heemia-black: #171512;
-  --color-heemia-charcoal: #2b2822;
-  --color-heemia-grey: #6f6a60;
-  --color-heemia-grey-light: #a9a398;
-  --color-heemia-border: #e3ddd0;
-  --color-heemia-border-strong: #d3cab8;
-  --color-heemia-white: #ffffff;
-  --color-heemia-cream: #f6f1e7;
-  --color-heemia-cream-dark: #ede5d3;
+  /* ---------------------------------------------------------------------
+     Fase 14 (2026-08-04) — via il panna, dentro una scala neutra.
+     Il fondo non è più crema (#f6f1e7) ma un bianco sporco appena tiepido, e
+     tutti i grigi hanno perso la componente beige: prima ogni bordo e ogni
+     testo secondario tiravano al marrone. A separare i piani ora è la
+     luminosità — bianco puro per ciò che sta sopra, bianco sporco per il
+     piano, grigi per i bordi, nero per la struttura.
+     I due token si chiamano `surface`/`surface-muted` e non più `cream`:
+     descrivono il ruolo, non il colore, e sopravvivono al prossimo cambio.
+     --------------------------------------------------------------------- */
+  --color-heemia-black: #131313;         /* barra laterale, testo primario, azioni */
+  --color-heemia-charcoal: #242424;      /* nero al passaggio del mouse */
+  --color-heemia-grey: #6e6e6e;          /* testo secondario */
+  --color-heemia-grey-light: #a5a5a5;    /* testo terziario, segnaposto */
+  --color-heemia-border: #e6e6e6;        /* bordi normali */
+  --color-heemia-border-strong: #d2d2d2; /* bordi marcati, barre di scorrimento */
+  --color-heemia-white: #ffffff;         /* card e superfici sopra il piano */
+  --color-heemia-surface: #f4f4f3;       /* il piano: bianco sporco, non panna */
+  --color-heemia-surface-muted: #eaeae8; /* riempimenti tenui, scheletri, righe attive */
   --color-heemia-carmine: #960018;
   --color-heemia-carmine-light: #fbe8e9;
 
@@ -24,10 +34,26 @@
 
   /* Sistema tipografico a tre ruoli: display per nomi propri e titoli (il "lookbook"),
      sans per l'interfaccia, mono per numeri/codici (il "registro"). Vedi UI_Design_System.md
-     — back-office fashion, non gestionale generico. */
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+     — back-office fashion, non gestionale generico.
+
+     Fase 14 (2026-08-04): il ruolo display non è più un serif corsivo (Fraunces) ma
+     Inter Tight, la variante stretta della stessa famiglia dell'interfaccia. Fraunces
+     era su TUTTO — titoli, intestazioni di card, nomi in tabella, stati vuoti — e non
+     somigliava per niente al marchio, che è una Didone dritta e ad alto contrasto.
+     Dentro l'interfaccia di lavoro la gerarchia la fanno ora corpo, peso e spaziatura;
+     il salto di carattere è riservato al titolo di pagina, che usa il serif del logo
+     (vedi `--font-wordmark` e la classe `.font-title` più sotto). */
+  --font-display: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Il carattere del marchio: Antic Didone, lo stesso del logo Heemia.
+     Serve a due cose e basta — la parola-marchio (`.wordmark`) e i titoli di
+     pagina (`.font-title`), che è il punto in cui la founder voleva rivedere
+     il serif. Nel resto dell'interfaccia non deve comparire: intestazioni di
+     card, nomi in tabella e modali restano sans. Ha un solo peso (400): la
+     gerarchia la fa il corpo, mai il grassetto. */
+  --font-wordmark: "Antic Didone", "Didot", "Bodoni 72", "Times New Roman", serif;
 
   /* ---------------------------------------------------------------------
      Fase 14 — scala dei raggi.
@@ -41,13 +67,16 @@
   --radius-heemia-lg: 14px;  /* superfici: card, tabelle, liste, pannelli */
   --radius-heemia-xl: 18px;  /* modali e sovrapposizioni */
 
-  /* Ombre calde: nere pure no (stonano sul crema), si usa il nero Heemia
-     #171512 a bassa opacità. Due strati — uno stretto per il "contatto" con
-     lo sfondo, uno largo e sfumato per la profondità. */
-  --shadow-heemia-xs: 0 1px 2px rgba(23, 21, 18, 0.04);
-  --shadow-heemia-sm: 0 1px 2px rgba(23, 21, 18, 0.04), 0 2px 8px -2px rgba(23, 21, 18, 0.06);
-  --shadow-heemia-md: 0 2px 4px rgba(23, 21, 18, 0.04), 0 10px 22px -8px rgba(23, 21, 18, 0.12);
-  --shadow-heemia-lg: 0 4px 8px rgba(23, 21, 18, 0.05), 0 22px 45px -14px rgba(23, 21, 18, 0.2);
+  /* Ombre sul nero Heemia (#131313), a due strati — uno stretto per il "contatto"
+     con lo sfondo, uno largo e sfumato per la profondità.
+     Alzate il 2026-08-04 su richiesta della founder: i valori precedenti (0,04-0,22
+     di opacità) erano così tenui che sul piano quasi bianco le card sembravano
+     disegnate col solo bordo. Ora lo stacco si vede, ma la scala resta a quattro
+     gradini distinti: se si alza ancora, il gradino successivo non si distingue più. */
+  --shadow-heemia-xs: 0 1px 2px rgba(19, 19, 19, 0.07), 0 1px 3px rgba(19, 19, 19, 0.05);
+  --shadow-heemia-sm: 0 1px 2px rgba(19, 19, 19, 0.07), 0 4px 10px -2px rgba(19, 19, 19, 0.1);
+  --shadow-heemia-md: 0 2px 5px rgba(19, 19, 19, 0.08), 0 14px 28px -8px rgba(19, 19, 19, 0.18);
+  --shadow-heemia-lg: 0 6px 12px rgba(19, 19, 19, 0.1), 0 28px 56px -16px rgba(19, 19, 19, 0.3);
 
   /* Curve di movimento: partono veloci e si posano piano (nessun "ease-in",
      che fa sembrare l'interfaccia lenta). */
@@ -79,7 +108,7 @@ html {
 
 body {
   margin: 0;
-  background-color: var(--color-heemia-cream);
+  background-color: var(--color-heemia-surface);
   color: var(--color-heemia-black);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -204,24 +233,77 @@ body {
    la transizione è già accelerata dalla GPU quando serve. */
 .surface-interactive {
   transition:
-    transform 0.22s var(--ease-heemia),
-    box-shadow 0.22s var(--ease-heemia),
-    border-color 0.22s var(--ease-heemia);
+    transform 0.26s var(--ease-heemia-out),
+    box-shadow 0.26s var(--ease-heemia-out),
+    border-color 0.26s var(--ease-heemia);
 }
 
+/* Al passaggio del mouse la card si stacca dal piano: si alza e l'ombra si allarga. */
 .surface-interactive:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-heemia-lg);
+  border-color: var(--color-heemia-border-strong);
+}
+
+/* Alla pressione fa il contrario: torna giù, rimpicciolisce appena e l'ombra
+   collassa, come un tasto premuto.
+   Il `transition-duration` più corto vive SOLO dentro `:active`: premendo la
+   risposta arriva in 90 ms (immediata), al rilascio la regola smette di valere
+   e il ritorno riprende i 260 ms della base. Un'unica durata darebbe o una
+   pressione molle o un rimbalzo brusco. */
+.surface-interactive:active {
+  transition-duration: 0.09s;
+  transform: translateY(0) scale(0.985);
+  box-shadow: var(--shadow-heemia-xs);
+  border-color: var(--color-heemia-black);
+}
+
+/* Variante per le superfici che si sollevano ma NON si cliccano (i KPI della
+   dashboard): stesso stacco al passaggio del mouse, nessun effetto di pressione.
+   Far "affondare" un riquadro che poi non fa niente è una promessa non mantenuta. */
+.surface-raised {
+  transition:
+    transform 0.26s var(--ease-heemia-out),
+    box-shadow 0.26s var(--ease-heemia-out),
+    border-color 0.26s var(--ease-heemia);
+}
+
+.surface-raised:hover {
+  transform: translateY(-3px);
   box-shadow: var(--shadow-heemia-md);
   border-color: var(--color-heemia-border-strong);
 }
 
-.surface-interactive:active {
-  transform: translateY(0);
-  box-shadow: var(--shadow-heemia-xs);
-}
-
+/* I titoli restano composti nella famiglia stretta con un filo di crenatura negativa:
+   a corpo grande Inter di serie risulta larga e slegata. */
 .font-display {
   font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+/* Titolo di pagina: il serif del logo torna qui, e solo qui. È l'unico testo
+   dell'interfaccia composto nel carattere del marchio, quindi non serve altro per
+   distinguerlo — niente grassetto (Antic Didone ha un peso solo) e una crenatura
+   appena aperta, che a corpo grande le fa respirare le aste sottili. */
+.font-title {
+  font-family: var(--font-wordmark);
+  font-weight: 400;
+  letter-spacing: 0.005em;
+}
+
+/* Parola-marchio: riproduce il logo — Didone ad alto contrasto, maiuscolo, spaziatura
+   ampia, peso normale. Non è un titolo, è la firma: per questo ha una regola sua.
+   Se un giorno arriva il file vero del logo (SVG), questa regola va sostituita
+   dall'immagine: qui si sta ricostruendo il marchio con un carattere molto vicino,
+   non riproducendolo alla lettera. */
+.wordmark {
+  font-family: var(--font-wordmark);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-weight: 400;
+  /* La spaziatura si applica anche dopo l'ultima lettera: su un testo centrato lo fa
+     sembrare spostato a sinistra. Si recupera togliendo lo stesso spazio a destra. */
+  margin-right: -0.22em;
 }
 
 .font-mono-heemia {
@@ -231,7 +313,7 @@ body {
 
 ::selection {
   background: var(--color-heemia-black);
-  color: var(--color-heemia-cream);
+  color: var(--color-heemia-surface);
 }
 
 :focus-visible {
@@ -254,7 +336,8 @@ body {
   /* Chi ha attivato "riduci movimento" non deve vedere nulla muoversi: resta
      solo l'ombra a segnalare l'elemento attivo. */
   .surface-interactive:hover,
-  .surface-interactive:active {
+  .surface-interactive:active,
+  .surface-raised:hover {
     transform: none !important;
   }
 }
@@ -316,9 +399,9 @@ body {
   }
 
   .pdf-brand {
-    font-family: var(--font-mono);
+    font-family: var(--font-wordmark);
     font-size: 8pt;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
     color: var(--color-heemia-carmine);
     margin: 0 0 1mm;
@@ -326,8 +409,8 @@ body {
 
   .pdf-title {
     font-family: var(--font-display);
-    font-style: italic;
     font-size: 22pt;
+    letter-spacing: -0.015em;
     line-height: 1.1;
     margin: 0;
   }
@@ -449,7 +532,7 @@ body {
   .pdf-notice {
     margin: 3mm 0 0;
     border-left: 1.5pt solid var(--color-heemia-carmine);
-    background: var(--color-heemia-cream);
+    background: var(--color-heemia-surface);
     padding: 2mm 3mm;
     font-size: 9pt;
     -webkit-print-color-adjust: exact;

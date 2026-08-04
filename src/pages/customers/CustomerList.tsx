@@ -139,7 +139,7 @@ export function CustomerList() {
   )
 
   const columns: DataTableColumn<Customer>[] = [
-    { header: 'Cliente', accessor: (c) => <span className="font-display italic text-heemia-black">{c.nome}</span> },
+    { header: 'Cliente', accessor: (c) => <span className="font-display font-medium text-heemia-black">{c.nome}</span> },
     { header: 'Email', accessor: (c) => <span className="font-mono-heemia text-xs">{c.email ?? '–'}</span> },
     { header: 'Paese', accessor: (c) => c.paese },
     { header: 'Tipologia', accessor: (c) => <Badge variant="neutral">{TIPOLOGIA_LABEL[c.tipologia]}</Badge> },
@@ -182,7 +182,7 @@ export function CustomerList() {
       {expandedId && expandedCustomer && (
         <div className="mt-4 animate-rise rounded-heemia-lg border border-heemia-border bg-white p-5 shadow-heemia-sm">
           <div className="mb-3 flex items-center justify-between gap-4">
-            <p className="font-display italic text-heemia-black">Ordini di {expandedCustomer.nome}</p>
+            <p className="font-display text-heemia-black">Ordini di {expandedCustomer.nome}</p>
             {canEdit(role) && <Button variant="secondary" onClick={() => setAddOrderOpen(true)}>Aggiungi ordine</Button>}
           </div>
           {expandedOrders.length === 0 ? (

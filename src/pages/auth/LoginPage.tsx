@@ -36,10 +36,10 @@ export function LoginPage() {
     'w-full rounded-heemia border border-heemia-border bg-white px-3 py-2 text-sm text-heemia-black outline-none focus:border-heemia-black'
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-heemia-cream px-4">
+    <div className="flex min-h-screen items-center justify-center bg-heemia-surface px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <p className="font-display text-3xl italic text-heemia-black">Heemia</p>
+          <p className="wordmark text-2xl text-heemia-black">Heemia</p>
           <p className="font-mono-heemia mt-1 text-[10px] uppercase tracking-[0.18em] text-heemia-grey">
             Gestionale interno
           </p>

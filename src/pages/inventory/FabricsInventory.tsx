@@ -127,7 +127,7 @@ export function FabricsInventory() {
       header: 'Tessuto',
       accessor: (m) => (
         <div>
-          <p className="font-display italic text-heemia-black">{m.nome}</p>
+          <p className="font-display text-heemia-black">{m.nome}</p>
           <p className="font-mono-heemia text-[11px] text-heemia-grey">{m.codice}</p>
         </div>
       ),

@@ -97,7 +97,7 @@ function FixedCostsCard() {
           <Button variant="secondary" onClick={submitNew} disabled={!newNome.trim() || !newImporto}>Aggiungi voce</Button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 rounded-heemia-lg border border-heemia-border-strong bg-heemia-cream p-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 rounded-heemia-lg border border-heemia-border-strong bg-heemia-surface p-4 sm:grid-cols-3">
           <div>
             <p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Totale costi fissi annui</p>
             <p className="font-mono-heemia mt-0.5 text-lg text-heemia-black">{formatCurrency(totaleAnnuo)}</p>
@@ -179,7 +179,7 @@ export function MarginsPage() {
   const productsWithoutMargin = products.filter((p) => p.stato !== 'idea' && p.stato !== 'archivio' && !liveMargins.some((m) => m.productId === p.id))
 
   const columns: DataTableColumn<Margin>[] = [
-    { header: 'Prodotto', accessor: (m) => <Link to={`/prodotti/${m.productId}`} className="font-display italic text-heemia-black hover:underline">{products.find((p) => p.id === m.productId)?.nome ?? m.productId}</Link> },
+    { header: 'Prodotto', accessor: (m) => <Link to={`/prodotti/${m.productId}`} className="font-display text-heemia-black hover:underline">{products.find((p) => p.id === m.productId)?.nome ?? m.productId}</Link> },
     { header: 'Prezzo netto', accessor: (m) => formatCurrency(m.prezzoNettoIva), align: 'right' },
     { header: 'Costo totale', accessor: (m) => formatCurrency(m.costoTotale), align: 'right' },
     { header: 'Margine netto', accessor: (m) => formatCurrency(m.margineNettoStimato), align: 'right' },
@@ -218,7 +218,7 @@ export function MarginsPage() {
           <ul className="divide-y divide-heemia-border">
             {productsWithoutMargin.map((p) => (
               <li key={p.id} className="flex items-center justify-between px-5 py-3 text-sm">
-                <Link to={`/prodotti/${p.id}`} className="font-display italic text-heemia-black hover:underline">{p.nome}</Link>
+                <Link to={`/prodotti/${p.id}`} className="font-display text-heemia-black hover:underline">{p.nome}</Link>
                 <Badge variant="warning">{p.prezzoVendita <= 0 ? 'Nessun prezzo' : 'Costo incompleto'}</Badge>
               </li>
             ))}

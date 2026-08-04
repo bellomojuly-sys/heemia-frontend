@@ -25,7 +25,7 @@ export function ProductionPipeline() {
     {
       header: 'Prodotto',
       accessor: (s) => (
-        <Link to={`/prodotti/${s.productId}`} className="font-display italic text-heemia-black hover:underline">
+        <Link to={`/prodotti/${s.productId}`} className="font-display text-heemia-black hover:underline">
           {products.find((p) => p.id === s.productId)?.nome ?? s.productId}
         </Link>
       ),

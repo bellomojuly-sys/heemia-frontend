@@ -84,7 +84,7 @@ function SuMisuraForm({
     <div className="animate-rise rounded-heemia-lg border border-heemia-border bg-white p-6 shadow-heemia-sm">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <p className="font-display text-lg italic text-heemia-black">{product.nome} su misura</p>
+          <p className="font-display text-lg text-heemia-black">{product.nome} su misura</p>
           <p className="text-xs text-heemia-grey">{product.categoria} · prezzo base {formatCurrency(product.prezzoShowroom)}. Il prezzo finale viene confermato dall'atelier in base alle personalizzazioni.</p>
         </div>
         <button type="button" onClick={onClose} className="text-xs text-heemia-grey hover:text-heemia-black">Chiudi</button>
@@ -172,9 +172,9 @@ export function ShowroomApp() {
 
   if (!entered) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-heemia-cream px-4">
+      <div className="flex min-h-screen items-center justify-center bg-heemia-surface px-4">
         <div className="w-full max-w-sm animate-pop rounded-heemia-xl border border-heemia-border bg-white p-9 text-center shadow-heemia-md">
-          <p className="font-display text-2xl italic text-heemia-black">Heemia Showroom</p>
+          <p className="wordmark text-xl text-heemia-black">Heemia Showroom</p>
           <p className="mt-2 mb-7 text-xs text-heemia-grey">Accesso riservato ai clienti in visita: nessun dato interno visibile.</p>
           <form
             className="space-y-3 text-left"
@@ -211,9 +211,9 @@ export function ShowroomApp() {
   }
 
   return (
-    <div className="min-h-screen bg-heemia-cream">
+    <div className="min-h-screen bg-heemia-surface">
       <header className="border-b border-heemia-border bg-heemia-black px-4 py-5 text-white sm:px-8 sm:py-6">
-        <p className="font-display text-xl italic">Heemia Showroom</p>
+        <p className="wordmark text-base">Heemia Showroom</p>
         <p className="font-mono-heemia mt-1 text-[10px] uppercase tracking-[0.1em] text-white/50">
           {`Benvenuto, ${name || 'ospite'}`}
         </p>
@@ -237,7 +237,7 @@ export function ShowroomApp() {
 
         {sezione === 'pronti' && (
           <>
-            <h1 className="font-display mb-1 text-2xl italic text-heemia-black">Catalogo capi pronti</h1>
+            <h1 className="font-display mb-1 text-2xl text-heemia-black">Catalogo capi pronti</h1>
             <p className="mb-7 text-sm text-heemia-grey">Prezzi showroom.</p>
             {catalog.length === 0 ? (
               <p className="text-sm text-heemia-grey">Nessun capo disponibile per la visualizzazione showroom al momento.</p>
@@ -246,7 +246,7 @@ export function ShowroomApp() {
                 {catalog.map((p) => (
                   <div key={p.id} className="surface-interactive rounded-heemia-lg border border-heemia-border bg-white p-4 shadow-heemia-sm">
                     <ImagePlaceholder label={p.nome} className="mb-3 h-40 w-full text-3xl" />
-                    <p className="font-display italic text-heemia-black">{p.nome}</p>
+                    <p className="font-display text-heemia-black">{p.nome}</p>
                     <p className="mb-2 text-xs text-heemia-grey">{p.categoria} · {p.taglieDisponibili.join(', ')}</p>
                     <p className="font-mono-heemia text-heemia-black">{formatCurrency(p.prezzoShowroom)}</p>
                   </div>
@@ -258,7 +258,7 @@ export function ShowroomApp() {
 
         {sezione === 'su_misura' && (
           <>
-            <h1 className="font-display mb-1 text-2xl italic text-heemia-black">Catalogo su misura</h1>
+            <h1 className="font-display mb-1 text-2xl text-heemia-black">Catalogo su misura</h1>
             <p className="mb-7 text-sm text-heemia-grey">Scegli un capo base, il materiale e le personalizzazioni: l'atelier ti ricontatta per conferma e prova.</p>
 
             {confirmedOrder && (
@@ -282,7 +282,7 @@ export function ShowroomApp() {
                 {suMisura.map((p) => (
                   <div key={p.id} className="surface-interactive flex flex-col rounded-heemia-lg border border-heemia-border bg-white p-4 shadow-heemia-sm">
                     <ImagePlaceholder label={p.nome} className="mb-3 h-40 w-full text-3xl" />
-                    <p className="font-display italic text-heemia-black">{p.nome}</p>
+                    <p className="font-display text-heemia-black">{p.nome}</p>
                     <p className="mb-2 text-xs text-heemia-grey">{p.categoria} · personalizzabile</p>
                     <p className="font-mono-heemia mb-3 text-heemia-black">da {formatCurrency(p.prezzoShowroom)}</p>
                     <Button variant="secondary" onClick={() => { setSelectedId(p.id); setConfirmedOrder(null) }}>

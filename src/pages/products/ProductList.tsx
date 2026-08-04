@@ -43,7 +43,7 @@ export function ProductList() {
         <div className="flex items-center gap-3">
           <ImagePlaceholder label={p.nome} className="h-9 w-9 text-sm" />
           <div>
-            <p className="font-display italic text-heemia-black">{p.nome}</p>
+            <p className="font-display font-medium text-heemia-black">{p.nome}</p>
             <p className="font-mono-heemia text-[11px] text-heemia-grey">{p.codiceProdotto}</p>
           </div>
         </div>

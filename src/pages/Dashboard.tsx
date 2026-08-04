@@ -153,7 +153,7 @@ export function Dashboard() {
             <ul className="divide-y divide-heemia-border">
               {materialAlerts.map((m) => (
                 <li key={m.id}>
-                  <Link to={m.link} className="flex items-center justify-between px-4 py-2.5 text-sm transition-colors duration-200 ease-heemia hover:bg-heemia-cream">
+                  <Link to={m.link} className="flex items-center justify-between px-4 py-2.5 text-sm transition-colors duration-200 ease-heemia hover:bg-heemia-surface">
                     <span className="min-w-0 truncate text-heemia-black">{m.nome}</span>
                     <Badge variant={m.stato === 'esaurito' ? 'critical-solid' : 'warning-outline'}>
                       {m.stato === 'esaurito' ? 'Esaurito' : 'Sotto soglia'}
@@ -253,7 +253,7 @@ export function Dashboard() {
             {activeProduction.length === 0 && <li className="p-4 text-sm text-heemia-grey">Nessuna produzione attiva.</li>}
             {activeProduction.map((s) => (
               <li key={s.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <Link to={`/prodotti/${s.productId}`} className="font-display italic text-heemia-black hover:underline">
+                <Link to={`/prodotti/${s.productId}`} className="font-display text-heemia-black hover:underline">
                   {products.find((p) => p.id === s.productId)?.nome ?? s.productId}
                 </Link>
                 <span className="text-xs text-heemia-grey">{s.responsabile}</span>

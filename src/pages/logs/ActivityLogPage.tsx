@@ -12,7 +12,7 @@ export function ActivityLogPage() {
 
   const columns: DataTableColumn<ActivityLogEntry>[] = [
     { header: 'Data', accessor: (l) => <span className="font-mono-heemia text-xs">{formatDateTimeIt(l.data)}</span> },
-    { header: 'Utente', accessor: (l) => <span className="font-display italic">{l.utente}</span> },
+    { header: 'Utente', accessor: (l) => <span className="font-display">{l.utente}</span> },
     { header: 'Azione', accessor: (l) => l.azione },
     { header: 'Entità', accessor: (l) => <span className="font-mono-heemia text-xs text-heemia-grey">{l.entita} · {l.entitaId}</span> },
     {

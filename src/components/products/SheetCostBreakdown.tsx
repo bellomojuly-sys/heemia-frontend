@@ -76,7 +76,7 @@ export function SheetCostBreakdown({ sheet }: { sheet: TechnicalSheet }) {
             <Riga label="Costo totale unitario" value={formatCurrency(costo.costoTotaleUnitario)} strong />
           </div>
 
-          <div className="rounded-heemia border border-heemia-border bg-heemia-cream p-4">
+          <div className="rounded-heemia border border-heemia-border bg-heemia-surface p-4">
             <div className="flex items-center gap-1.5">
               <p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Prezzo di break-even</p>
               <InfoTooltip text="È il prezzo minimo che copre esattamente i costi attribuiti al capo. Non è il prezzo di vendita consigliato: a questo prezzo il guadagno è zero." />
@@ -109,7 +109,7 @@ export function SheetCostBreakdown({ sheet }: { sheet: TechnicalSheet }) {
         </div>
 
         {apriRegistra && canEdit(role) && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-heemia-border bg-heemia-cream px-5 py-3">
+          <div className="flex flex-wrap items-center gap-2 border-t border-heemia-border bg-heemia-surface px-5 py-3">
             <input
               className={`${fieldClass} max-w-sm`}
               value={motivo}

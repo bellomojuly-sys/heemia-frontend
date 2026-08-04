@@ -221,7 +221,7 @@ function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
           <input type="number" min="0" step="0.01" className={campoClass(errori.iva)} value={form.iva} onChange={(e) => { setForm({ ...form, iva: e.target.value }); pulisci('iva') }} />
         </Field>
         {isEstera && form.imponibile && form.tassoCambio && (
-          <div className="col-span-2 rounded-heemia bg-heemia-cream px-3 py-2 text-xs text-heemia-grey">
+          <div className="col-span-2 rounded-heemia bg-heemia-surface px-3 py-2 text-xs text-heemia-grey">
             Conversione automatica: {formatCurrency(Number(form.imponibile) * Number(form.tassoCambio))} imponibile in EUR (cambio {form.tassoCambio}).
           </div>
         )}
@@ -409,7 +409,7 @@ function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit
           </Button>
         </Field>
       </div>
-      {parseInfo && <p className="mt-2 rounded-heemia bg-heemia-cream px-3 py-2 text-xs text-heemia-black">{parseInfo}</p>}
+      {parseInfo && <p className="mt-2 rounded-heemia bg-heemia-surface px-3 py-2 text-xs text-heemia-black">{parseInfo}</p>}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Totale incassato (EUR)" required error={errori.totale} hint="Verificalo sempre contro l'export di Billy.">
           <input type="number" step="0.01" className={campoClass(errori.totale)} value={totale} onChange={(e) => { setTotale(e.target.value); pulisci('totale') }} placeholder="0,00" />
@@ -451,7 +451,7 @@ function CashClosureSection() {
       />
       <div className="space-y-4 p-4">
         {mancaPrec && (
-          <div className="rounded-heemia border-l-2 border-heemia-carmine bg-heemia-cream px-3 py-2 text-sm text-heemia-black">
+          <div className="rounded-heemia border-l-2 border-heemia-carmine bg-heemia-surface px-3 py-2 text-sm text-heemia-black">
             Promemoria: la chiusura di <strong>{meseLabel(mesePrec)}</strong> non è ancora stata registrata. Vai su Billy, scarica l'export scontrini del mese e caricalo qui.
           </div>
         )}
@@ -536,7 +536,7 @@ export function InvoiceList() {
     {
       header: 'Fornitore/Cliente',
       accessor: (i) => (
-        <span className="font-display italic">
+        <span className="font-display">
           {(i.fornitoreId && suppliers.find((s) => s.id === i.fornitoreId)?.nome) ||
             (i.clienteId && customers.find((c) => c.id === i.clienteId)?.nome) ||
             '–'}
