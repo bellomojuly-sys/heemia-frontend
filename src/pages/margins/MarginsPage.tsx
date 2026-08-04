@@ -56,7 +56,7 @@ function FixedCostsCard() {
                     step="0.01"
                     value={item.importoAnnuo}
                     onChange={(e) => updateFixedCostItem(item.id, Number(e.target.value))}
-                    className="font-mono-heemia w-28 rounded-[3px] border border-heemia-border bg-white px-2 py-1 text-right text-sm text-heemia-black focus:border-heemia-black focus:outline-none"
+                    className="font-mono-heemia w-28 rounded-heemia border border-heemia-border bg-white px-2 py-1 text-right text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10"
                   />
                 </div>
                 <button
@@ -80,7 +80,7 @@ function FixedCostsCard() {
               value={newNome}
               onChange={(e) => setNewNome(e.target.value)}
               placeholder="Es. Magazzino esterno"
-              className="w-full rounded-[3px] border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black focus:border-heemia-black focus:outline-none"
+              className="w-full rounded-heemia border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10"
             />
           </div>
           <div>
@@ -91,13 +91,13 @@ function FixedCostsCard() {
               step="0.01"
               value={newImporto}
               onChange={(e) => setNewImporto(e.target.value)}
-              className="w-32 rounded-[3px] border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black focus:border-heemia-black focus:outline-none"
+              className="w-32 rounded-heemia border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10"
             />
           </div>
           <Button variant="secondary" onClick={submitNew} disabled={!newNome.trim() || !newImporto}>Aggiungi voce</Button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 rounded-[3px] border border-heemia-border-strong bg-heemia-cream p-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 rounded-heemia-lg border border-heemia-border-strong bg-heemia-cream p-4 sm:grid-cols-3">
           <div>
             <p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Totale costi fissi annui</p>
             <p className="font-mono-heemia mt-0.5 text-lg text-heemia-black">{formatCurrency(totaleAnnuo)}</p>
@@ -112,7 +112,7 @@ function FixedCostsCard() {
               min="1"
               value={capiProdottiAnnui}
               onChange={(e) => setCapiProdottiAnnui(Number(e.target.value) || 1)}
-              className="font-mono-heemia w-full rounded-[3px] border border-heemia-border bg-white px-3 py-1.5 text-lg text-heemia-black focus:border-heemia-black focus:outline-none"
+              className="font-mono-heemia w-full rounded-heemia border border-heemia-border bg-white px-3 py-1.5 text-lg text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10"
             />
           </div>
           <div>
@@ -134,7 +134,7 @@ function FixedCostsCard() {
                 value={periodo}
                 onChange={(e) => setPeriodo(e.target.value)}
                 placeholder="Es. FW26"
-                className="w-full rounded-[3px] border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black focus:border-heemia-black focus:outline-none"
+                className="w-full rounded-heemia border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10"
               />
             </div>
             <Button

@@ -29,7 +29,7 @@ export function Sidebar() {
         </p>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-4 pb-6">
+      <nav className="scroll-smooth-y flex-1 px-4 pb-6">
         <ul className="space-y-0.5">
           {items.map((item) => (
             <li key={item.path}>
@@ -37,16 +37,19 @@ export function Sidebar() {
                 to={item.path}
                 end={item.path === '/'}
                 className={({ isActive }) =>
-                  `flex items-center justify-between border-l-2 px-2.5 py-1.5 text-sm transition-colors ${
+                  // Fase 14: la voce attiva è una pillola piena, non solo un bordino;
+                  // le altre scivolano di 2px verso destra al passaggio del mouse —
+                  // basta quello per far sentire il menu "vivo" senza distrarre.
+                  `flex items-center justify-between rounded-heemia-sm border-l-2 px-2.5 py-1.5 text-sm transition-all duration-200 ease-heemia ${
                     isActive
-                      ? 'border-heemia-carmine text-white'
-                      : 'border-transparent text-white/60 hover:border-white/25 hover:text-white'
+                      ? 'border-heemia-carmine bg-white/10 text-white'
+                      : 'border-transparent text-white/60 hover:translate-x-0.5 hover:border-white/25 hover:bg-white/5 hover:text-white'
                   }`
                 }
               >
                 <span>{item.label}</span>
                 {item.moduleKey === 'alert' && criticalAlertCount > 0 && (
-                  <span className="font-mono-heemia rounded-[2px] bg-heemia-carmine px-1.5 py-0.5 text-[10px] font-medium leading-none text-white">
+                  <span className="font-mono-heemia rounded-full bg-heemia-carmine px-1.5 py-0.5 text-[10px] font-medium leading-none text-white shadow-heemia-xs">
                     {criticalAlertCount}
                   </span>
                 )}
@@ -63,7 +66,7 @@ export function Sidebar() {
           href="/showroom"
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-2 border-l-2 border-transparent px-2.5 py-1.5 text-sm text-white/60 transition-colors hover:border-white/25 hover:text-white"
+          className="flex items-center gap-2 rounded-heemia-sm border-l-2 border-transparent px-2.5 py-1.5 text-sm text-white/60 transition-all duration-200 ease-heemia hover:translate-x-0.5 hover:border-white/25 hover:bg-white/5 hover:text-white"
         >
           <ExternalLink aria-hidden className="h-3.5 w-3.5" />
           Apri vista showroom

@@ -165,7 +165,7 @@ export function CustomerList() {
       />
 
       {expandedId && expandedCustomer && (
-        <div className="mt-4 rounded-[3px] border border-heemia-border bg-white p-5">
+        <div className="mt-4 animate-rise rounded-heemia-lg border border-heemia-border bg-white p-5 shadow-heemia-sm">
           <div className="mb-3 flex items-center justify-between gap-4">
             <p className="font-display italic text-heemia-black">Ordini di {expandedCustomer.nome}</p>
             {canEdit(role) && <Button variant="secondary" onClick={() => setAddOrderOpen(true)}>Aggiungi ordine</Button>}

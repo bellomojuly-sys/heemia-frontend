@@ -14,7 +14,7 @@ import type { Product } from '../../types'
 // Nessun dato interno esposto: solo nomi materiali (previsti da FR-29) e prezzi showroom.
 
 const inputClass =
-  'w-full rounded-[3px] border border-heemia-border px-3 py-2 text-sm focus:border-heemia-black focus:outline-none'
+  'w-full rounded-heemia border border-heemia-border px-3 py-2 text-sm transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10'
 
 function SuMisuraForm({
   product,
@@ -81,7 +81,7 @@ function SuMisuraForm({
   }
 
   return (
-    <div className="rounded-[3px] border border-heemia-border bg-white p-6">
+    <div className="animate-rise rounded-heemia-lg border border-heemia-border bg-white p-6 shadow-heemia-sm">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <p className="font-display text-lg italic text-heemia-black">{product.nome} su misura</p>
@@ -135,7 +135,7 @@ function SuMisuraForm({
       </div>
 
       {invioErrore && (
-        <p role="alert" className="mt-4 rounded-[3px] bg-heemia-cream px-3 py-2 text-xs text-heemia-black">
+        <p role="alert" className="mt-4 rounded-heemia bg-heemia-cream px-3 py-2 text-xs text-heemia-black">
           {invioErrore}
         </p>
       )}
@@ -173,7 +173,7 @@ export function ShowroomApp() {
   if (!entered) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-heemia-cream px-4">
-        <div className="w-full max-w-sm rounded-[3px] border border-heemia-border bg-white p-9 text-center">
+        <div className="w-full max-w-sm animate-pop rounded-heemia-xl border border-heemia-border bg-white p-9 text-center shadow-heemia-md">
           <p className="font-display text-2xl italic text-heemia-black">Heemia Showroom</p>
           <p className="mt-2 mb-7 text-xs text-heemia-grey">Accesso riservato ai clienti in visita: nessun dato interno visibile.</p>
           <form
@@ -244,7 +244,7 @@ export function ShowroomApp() {
             ) : (
               <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
                 {catalog.map((p) => (
-                  <div key={p.id} className="rounded-[3px] border border-heemia-border bg-white p-4">
+                  <div key={p.id} className="surface-interactive rounded-heemia-lg border border-heemia-border bg-white p-4 shadow-heemia-sm">
                     <ImagePlaceholder label={p.nome} className="mb-3 h-40 w-full text-3xl" />
                     <p className="font-display italic text-heemia-black">{p.nome}</p>
                     <p className="mb-2 text-xs text-heemia-grey">{p.categoria} · {p.taglieDisponibili.join(', ')}</p>
@@ -262,7 +262,7 @@ export function ShowroomApp() {
             <p className="mb-7 text-sm text-heemia-grey">Scegli un capo base, il materiale e le personalizzazioni: l'atelier ti ricontatta per conferma e prova.</p>
 
             {confirmedOrder && (
-              <div className="mb-6 rounded-[3px] border border-heemia-border-strong bg-white p-4 text-sm text-heemia-black">
+              <div className="mb-6 animate-rise rounded-heemia-lg border border-heemia-border-strong bg-white p-4 text-sm text-heemia-black shadow-heemia-sm">
                 Ordine <span className="font-mono-heemia">{confirmedOrder}</span> inviato all'atelier. Ti ricontatteremo a breve all'indirizzo {email}.
               </div>
             )}
@@ -280,7 +280,7 @@ export function ShowroomApp() {
             ) : (
               <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
                 {suMisura.map((p) => (
-                  <div key={p.id} className="flex flex-col rounded-[3px] border border-heemia-border bg-white p-4">
+                  <div key={p.id} className="surface-interactive flex flex-col rounded-heemia-lg border border-heemia-border bg-white p-4 shadow-heemia-sm">
                     <ImagePlaceholder label={p.nome} className="mb-3 h-40 w-full text-3xl" />
                     <p className="font-display italic text-heemia-black">{p.nome}</p>
                     <p className="mb-2 text-xs text-heemia-grey">{p.categoria} · personalizzabile</p>

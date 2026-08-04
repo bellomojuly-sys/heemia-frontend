@@ -46,9 +46,12 @@ export function KpiTile({
   const valueSize = isPrimary ? 'text-[1.75rem]' : 'text-[1.25rem]'
 
   return (
-    <div className="relative min-w-[9.5rem] flex-1 rounded-[3px] border border-heemia-border bg-white px-4 py-2.5">
+    <div className="surface-interactive group relative min-w-[9.5rem] flex-1 rounded-heemia-lg border border-heemia-border bg-white px-4 py-2.5 shadow-heemia-sm">
       {icon && (
-        <span aria-hidden className="absolute right-4 top-2.5 text-heemia-grey-light [&>svg]:h-4 [&>svg]:w-4">
+        <span
+          aria-hidden
+          className="absolute right-4 top-2.5 text-heemia-grey-light transition-colors duration-200 ease-heemia group-hover:text-heemia-grey [&>svg]:h-4 [&>svg]:w-4"
+        >
           {icon}
         </span>
       )}

@@ -1,8 +1,23 @@
 import type { HTMLAttributes, ReactNode } from 'react'
 
-export function Card({ children, className = '', ...rest }: { children: ReactNode; className?: string } & HTMLAttributes<HTMLDivElement>) {
+// Fase 14: la card è la superficie base dell'app. Raggio ampio (`rounded-heemia-lg`)
+// e ombra tenue costante, così il contenuto "galleggia" sul crema invece di essere
+// un rettangolo incollato. `interactive` va messo solo dove la card è cliccabile:
+// aggiunge il sollevamento al passaggio del mouse (regola `.surface-interactive`
+// in index.css, unica per tutta l'app).
+export function Card({
+  children,
+  className = '',
+  interactive = false,
+  ...rest
+}: { children: ReactNode; className?: string; interactive?: boolean } & HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`rounded-[3px] border border-heemia-border bg-white ${className}`} {...rest}>
+    <div
+      className={`heemia-card rounded-heemia-lg border border-heemia-border bg-white shadow-heemia-sm ${
+        interactive ? 'surface-interactive cursor-pointer' : ''
+      } ${className}`}
+      {...rest}
+    >
       {children}
     </div>
   )

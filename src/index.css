@@ -29,7 +29,43 @@
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  --radius-heemia: 3px;
+  /* ---------------------------------------------------------------------
+     Fase 14 — scala dei raggi.
+     Prima esisteva un solo valore (3px) scritto a mano in 73 punti come classe
+     arbitraria. Ora è una scala semantica: più il blocco è grande, più il
+     raggio è morbido. Cambiare questi valori cambia tutta l'app in un colpo.
+     --------------------------------------------------------------------- */
+  --radius-heemia-xs: 6px;   /* micro-elementi: contatori, chip inline */
+  --radius-heemia-sm: 8px;   /* bottoni, input, select, badge squadrati */
+  --radius-heemia: 10px;     /* default: riquadri interni, tab, tooltip */
+  --radius-heemia-lg: 14px;  /* superfici: card, tabelle, liste, pannelli */
+  --radius-heemia-xl: 18px;  /* modali e sovrapposizioni */
+
+  /* Ombre calde: nere pure no (stonano sul crema), si usa il nero Heemia
+     #171512 a bassa opacità. Due strati — uno stretto per il "contatto" con
+     lo sfondo, uno largo e sfumato per la profondità. */
+  --shadow-heemia-xs: 0 1px 2px rgba(23, 21, 18, 0.04);
+  --shadow-heemia-sm: 0 1px 2px rgba(23, 21, 18, 0.04), 0 2px 8px -2px rgba(23, 21, 18, 0.06);
+  --shadow-heemia-md: 0 2px 4px rgba(23, 21, 18, 0.04), 0 10px 22px -8px rgba(23, 21, 18, 0.12);
+  --shadow-heemia-lg: 0 4px 8px rgba(23, 21, 18, 0.05), 0 22px 45px -14px rgba(23, 21, 18, 0.2);
+
+  /* Curve di movimento: partono veloci e si posano piano (nessun "ease-in",
+     che fa sembrare l'interfaccia lenta). */
+  --ease-heemia: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-heemia-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Animazioni riusabili come utility Tailwind: animate-fade-in, animate-rise, … */
+  /* Fill-mode `backwards` e non `both`: vedi la nota sulle keyframe più sotto —
+     `both` lascia applicato per sempre il fotogramma finale, trasformazione
+     compresa, e questo rompe il posizionamento dei modali. Con `backwards` a
+     fine corsa l'elemento torna al suo stato naturale, che è identico
+     all'ultimo fotogramma: nessuno scatto visibile, nessuna trasformazione
+     residua. */
+  --animate-fade-in: heemia-fade-in 0.28s var(--ease-heemia) backwards;
+  --animate-rise: heemia-rise 0.42s var(--ease-heemia-out) backwards;
+  --animate-pop: heemia-pop 0.22s var(--ease-heemia-out) backwards;
+  --animate-slide-in-left: heemia-slide-in-left 0.3s var(--ease-heemia-out) backwards;
+  --animate-shimmer: heemia-shimmer 1.6s ease-in-out infinite;
 }
 
 * {
@@ -38,6 +74,7 @@
 
 html {
   color-scheme: light;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -47,6 +84,140 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* ---------------------------------------------------------------------------
+   Fase 14 — scorrimento.
+   Barre sottili e in tinta (quelle di sistema su Windows/Linux sono grigie e
+   spezzano la palette), inerzia su touch e niente scroll-chaining: quando una
+   lista interna finisce, la pagina sotto non parte per conto suo.
+   --------------------------------------------------------------------------- */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-heemia-border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-heemia-border-strong);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-heemia-grey-light);
+}
+
+.scroll-smooth-y {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+@keyframes heemia-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ATTENZIONE — perché il fill-mode di queste animazioni è `backwards`.
+   Un elemento con una `transform` attiva diventa il blocco di contenimento dei
+   suoi discendenti `position: fixed`. Con fill-mode `both` il fotogramma finale
+   resta applicato per sempre: il contenitore di pagina (che ha `animate-rise`)
+   conservava `matrix(1,0,0,1,0,0)` — identità, ma pur sempre una trasformazione —
+   e ogni modale si ancorava al riquadro della pagina invece che alla finestra
+   (sfondo scurito solo su una fetta di schermo, modale fuori posto).
+   Non basta omettere `transform` nel fotogramma finale: il browser lo ricava
+   comunque come matrice identità. Serve `backwards`, che a fine corsa non lascia
+   applicato nulla. Bug visto nel browser e corretto in Fase 14. */
+
+@keyframes heemia-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes heemia-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes heemia-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes heemia-shimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Superficie interattiva: si solleva appena al passaggio del mouse e "si preme"
+   al click. Un solo posto per la regola, così tutte le card si comportano uguale. */
+/* Tabella dentro una card: niente cornice nella cornice.
+   Diverse pagine (Fornitori, Clienti, Scadenze…) mettono una DataTable dentro
+   una Card. Con bordo e ombra su entrambe si vedevano due riquadri concentrici.
+   Quando la tabella è annidata perde bordo, ombra e raggio: resta la card. */
+.heemia-card .heemia-table-surface {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Niente `will-change: transform` qui: creerebbe un blocco di contenimento
+   permanente per gli eventuali discendenti `position: fixed` (stessa trappola
+   delle keyframe qui sopra) su decine di elementi, in cambio di nulla —
+   la transizione è già accelerata dalla GPU quando serve. */
+.surface-interactive {
+  transition:
+    transform 0.22s var(--ease-heemia),
+    box-shadow 0.22s var(--ease-heemia),
+    border-color 0.22s var(--ease-heemia);
+}
+
+.surface-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-heemia-md);
+  border-color: var(--color-heemia-border-strong);
+}
+
+.surface-interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-heemia-xs);
 }
 
 .font-display {
@@ -69,10 +240,22 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Chi ha attivato "riduci movimento" non deve vedere nulla muoversi: resta
+     solo l'ombra a segnalare l'elemento attivo. */
+  .surface-interactive:hover,
+  .surface-interactive:active {
+    transform: none !important;
   }
 }
 
@@ -111,6 +294,15 @@ body {
     color: var(--color-heemia-black);
     font-size: 10pt;
     line-height: 1.45;
+  }
+
+  /* Le rifiniture di Fase 14 (ombre, animazioni) non devono finire sulla carta:
+     su stampa sporcano i bordi e possono bloccare il rendering della pagina. */
+  #sheet-print,
+  #sheet-print * {
+    box-shadow: none !important;
+    animation: none !important;
+    transition: none !important;
   }
 
   .pdf-header {

@@ -26,7 +26,7 @@ export function ProductionKanban({
         {KANBAN_STAGES.map((stage) => {
           const stepsInStage = steps.filter((s) => s.fase === stage.id)
           return (
-            <div key={stage.id} className="flex w-[240px] shrink-0 flex-col rounded-[3px] border border-heemia-border bg-heemia-cream">
+            <div key={stage.id} className="flex w-[240px] shrink-0 flex-col rounded-heemia-lg border border-heemia-border bg-heemia-cream">
               <div className="flex items-baseline justify-between border-b border-heemia-border px-3 py-2.5">
                 <p className="font-mono-heemia text-[10px] uppercase tracking-[0.08em] text-heemia-grey">{stage.label}</p>
                 <span className="font-mono-heemia text-xs text-heemia-grey-light">{stepsInStage.length}</span>
@@ -41,7 +41,7 @@ export function ProductionKanban({
                     return (
                       <div
                         key={step.id}
-                        className={`rounded-[3px] border bg-white p-2.5 ${step.bloccata ? 'border-heemia-carmine/40' : 'border-heemia-border-strong'}`}
+                        className={`surface-interactive rounded-heemia border bg-white p-2.5 shadow-heemia-xs ${step.bloccata ? 'border-heemia-carmine/40' : 'border-heemia-border-strong'}`}
                       >
                         <Link to={`/prodotti/${step.productId}`} className="font-display block text-sm italic text-heemia-black hover:underline">
                           {product?.nome ?? step.productId}

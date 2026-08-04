@@ -92,7 +92,7 @@ function CheckList({ label, options, selected, onToggle }: {
   return (
     <div>
       <span className="font-mono-heemia mb-1 block text-[10px] uppercase tracking-[0.06em] text-heemia-grey">{label}</span>
-      <div className="max-h-28 overflow-y-auto rounded-[3px] border border-heemia-border p-2">
+      <div className="max-h-28 overflow-y-auto rounded-heemia border border-heemia-border p-2">
         {options.map((o) => (
           <label key={o.id} className="flex items-center gap-2 py-0.5 text-sm text-heemia-black">
             <input
@@ -206,7 +206,7 @@ function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
           <input type="number" min="0" step="0.01" className={fieldClass} value={form.iva} onChange={(e) => setForm({ ...form, iva: e.target.value })} />
         </Field>
         {isEstera && form.imponibile && form.tassoCambio && (
-          <div className="col-span-2 rounded-[3px] bg-heemia-cream px-3 py-2 text-xs text-heemia-grey">
+          <div className="col-span-2 rounded-heemia bg-heemia-cream px-3 py-2 text-xs text-heemia-grey">
             Conversione automatica: {formatCurrency(Number(form.imponibile) * Number(form.tassoCambio))} imponibile in EUR (cambio {form.tassoCambio}).
           </div>
         )}
@@ -387,7 +387,7 @@ function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit
           </Button>
         </Field>
       </div>
-      {parseInfo && <p className="mt-2 rounded-[3px] bg-heemia-cream px-3 py-2 text-xs text-heemia-black">{parseInfo}</p>}
+      {parseInfo && <p className="mt-2 rounded-heemia bg-heemia-cream px-3 py-2 text-xs text-heemia-black">{parseInfo}</p>}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Totale incassato (EUR)">
           <input type="number" step="0.01" className={fieldClass} value={totale} onChange={(e) => setTotale(e.target.value)} placeholder="0,00" />
@@ -428,13 +428,13 @@ function CashClosureSection() {
       />
       <div className="space-y-4 p-4">
         {mancaPrec && (
-          <div className="rounded-[3px] border-l-2 border-heemia-carmine bg-heemia-cream px-3 py-2 text-sm text-heemia-black">
+          <div className="rounded-heemia border-l-2 border-heemia-carmine bg-heemia-cream px-3 py-2 text-sm text-heemia-black">
             Promemoria: la chiusura di <strong>{meseLabel(mesePrec)}</strong> non è ancora stata registrata. Vai su Billy, scarica l'export scontrini del mese e caricalo qui.
           </div>
         )}
 
         {ultima && (
-          <div className="rounded-[3px] border border-heemia-border p-3">
+          <div className="rounded-heemia border border-heemia-border p-3">
             <div className="flex items-center gap-1.5">
               <Sparkles aria-hidden className="h-3.5 w-3.5 text-heemia-grey" />
               <span className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Riepilogo assistant · {meseLabel(ultima.mese)}</span>

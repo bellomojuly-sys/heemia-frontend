@@ -76,7 +76,7 @@ export function SheetCostBreakdown({ sheet }: { sheet: TechnicalSheet }) {
             <Riga label="Costo totale unitario" value={formatCurrency(costo.costoTotaleUnitario)} strong />
           </div>
 
-          <div className="rounded-[3px] border border-heemia-border bg-heemia-cream p-4">
+          <div className="rounded-heemia border border-heemia-border bg-heemia-cream p-4">
             <div className="flex items-center gap-1.5">
               <p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Prezzo di break-even</p>
               <InfoTooltip text="È il prezzo minimo che copre esattamente i costi attribuiti al capo. Non è il prezzo di vendita consigliato: a questo prezzo il guadagno è zero." />
@@ -86,7 +86,7 @@ export function SheetCostBreakdown({ sheet }: { sheet: TechnicalSheet }) {
               <Badge variant="warning">Margine €0</Badge>
             </div>
             {/* Spec §5: l'avviso deve essere esplicito — non è un prezzo di vendita consigliato. */}
-            <p className="mt-2 rounded-[3px] border-l-2 border-heemia-carmine bg-white px-3 py-2 text-xs text-heemia-black">
+            <p className="mt-2 rounded-heemia border-l-2 border-heemia-carmine bg-white px-3 py-2 text-xs text-heemia-black">
               Break-even: questo prezzo copre esclusivamente i costi e non genera margine.
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3 border-t border-heemia-border pt-3">

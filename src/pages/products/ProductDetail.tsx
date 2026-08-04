@@ -154,7 +154,7 @@ export function ProductDetail() {
   ]
 
   const qtyInputClass =
-    'font-mono-heemia w-20 rounded-[3px] border border-heemia-border bg-white px-2 py-1 text-right text-sm text-heemia-black focus:border-heemia-black focus:outline-none'
+    'font-mono-heemia w-20 rounded-heemia border border-heemia-border bg-white px-2 py-1 text-right text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10'
 
   // Stock e riservato modificabili in linea: la modifica aggiorna anche il record di
   // inventario prodotti finiti collegato (updateVariantQuantities nel MockStore).
@@ -252,10 +252,10 @@ export function ProductDetail() {
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`-mb-px border-b-2 pb-2.5 text-sm transition-colors ${
+            className={`-mb-px rounded-t-heemia-sm border-b-2 px-2 pb-2.5 pt-1 text-sm transition-all duration-200 ease-heemia ${
               activeTab === tab.id
                 ? 'border-heemia-carmine font-medium text-heemia-black'
-                : 'border-transparent text-heemia-grey hover:text-heemia-black'
+                : 'border-transparent text-heemia-grey hover:border-heemia-border-strong hover:bg-heemia-cream-dark/40 hover:text-heemia-black'
             }`}
           >
             {tab.label}
@@ -382,7 +382,7 @@ export function ProductDetail() {
       {activeTab === 'tecnico' && (
         <div className="space-y-4">
           {persistenzaAvviso && (
-            <p className="rounded-[3px] border-l-2 border-heemia-carmine bg-white px-3 py-2 text-xs text-heemia-black">
+            <p className="rounded-heemia border-l-2 border-heemia-carmine bg-white px-3 py-2 text-xs text-heemia-black">
               {persistenzaAvviso}
             </p>
           )}
@@ -451,10 +451,10 @@ export function ProductDetail() {
                       key={s.id}
                       type="button"
                       onClick={() => setActiveVersion(s.versione)}
-                      className={`font-mono-heemia -mb-px border-b-2 pb-2 text-[11px] uppercase tracking-[0.06em] transition-colors ${
+                      className={`font-mono-heemia -mb-px rounded-t-heemia-sm border-b-2 px-2 pb-2 pt-1 text-[11px] uppercase tracking-[0.06em] transition-all duration-200 ease-heemia ${
                         activeVersion === s.versione
                           ? 'border-heemia-carmine text-heemia-black'
-                          : 'border-transparent text-heemia-grey hover:text-heemia-black'
+                          : 'border-transparent text-heemia-grey hover:border-heemia-border-strong hover:bg-heemia-cream-dark/40 hover:text-heemia-black'
                       }`}
                     >
                       {VERSION_LABEL[s.versione]}
@@ -462,7 +462,7 @@ export function ProductDetail() {
                   ))}
                 </div>
                 {activeSheet && (
-                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-heemia-border bg-heemia-cream px-4 py-3">
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-heemia border border-heemia-border bg-heemia-cream px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <FileText aria-hidden className="h-4 w-4 shrink-0 text-heemia-grey" />
                       {/* Due origini possibili: il PDF caricato dal dispositivo (versioni Finale e
@@ -514,13 +514,13 @@ export function ProductDetail() {
                 )}
 
                 {activeSheet && uploadingSheetId === activeSheet.id && (
-                  <div className="mb-5 flex flex-wrap items-center gap-2 rounded-[3px] border border-heemia-border-strong bg-white p-3">
+                  <div className="mb-5 flex flex-wrap items-center gap-2 rounded-heemia border border-heemia-border-strong bg-white p-3">
                     <input
                       type="text"
                       value={uploadValue}
                       onChange={(e) => setUploadValue(e.target.value)}
                       placeholder="Link Drive al PDF…"
-                      className="min-w-[16rem] flex-1 rounded-[3px] border border-heemia-border px-3 py-1.5 text-sm text-heemia-black focus:border-heemia-black focus:outline-none"
+                      className="min-w-[16rem] flex-1 rounded-heemia border border-heemia-border px-3 py-1.5 text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10"
                     />
                     <Button
                       onClick={() => {
@@ -583,7 +583,7 @@ export function ProductDetail() {
                     )}
 
                     {activeSheet.scanAI && (
-                      <div className="mt-4 rounded-[3px] border border-heemia-border p-3">
+                      <div className="mt-4 rounded-heemia border border-heemia-border p-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
                             Costi letti dal PDF il {formatDateIt(activeSheet.scanAI.analizzatoIl)}
@@ -609,7 +609,7 @@ export function ProductDetail() {
                         </p>
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
                           {(activeSheet.foto ?? []).map((f) => (
-                            <figure key={f.id} className="overflow-hidden rounded-[3px] border border-heemia-border bg-white">
+                            <figure key={f.id} className="overflow-hidden rounded-heemia border border-heemia-border bg-white">
                               <img src={f.dataUrl} alt={f.nome} className="h-28 w-full object-cover" />
                               <figcaption className="truncate px-2 py-1 text-[10px] text-heemia-grey" title={f.nome}>{f.nome}</figcaption>
                             </figure>
@@ -702,7 +702,7 @@ export function ProductDetail() {
             ) : (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {product.immaginiUrl.map((url) => (
-                  <img key={url} src={url} alt={product.nome} className="aspect-square w-full rounded-[3px] border border-heemia-border object-cover" />
+                  <img key={url} src={url} alt={product.nome} className="aspect-square w-full rounded-heemia border border-heemia-border object-cover" />
                 ))}
               </div>
             )}
@@ -730,7 +730,7 @@ export function ProductDetail() {
                     onChange={(e) => setSessionNote(e.target.value)}
                     rows={3}
                     placeholder="Scrivi una nota su questo prodotto…"
-                    className="w-full rounded-[3px] border border-heemia-border p-3 text-sm text-heemia-black focus:border-heemia-black focus:outline-none"
+                    className="w-full rounded-heemia border border-heemia-border p-3 text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10"
                   />
                   <div>
                     <Button onClick={saveNote} disabled={!sessionNote.trim()}>Aggiungi nota</Button>

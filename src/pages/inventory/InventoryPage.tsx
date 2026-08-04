@@ -44,8 +44,8 @@ export function InventoryPage() {
             key={to}
             to={to}
             className={({ isActive }) =>
-              `flex items-center gap-3 rounded-[3px] border bg-white px-4 py-3.5 transition-colors ${
-                isActive ? 'border-heemia-black' : 'border-heemia-border hover:border-heemia-border-strong'
+              `surface-interactive flex items-center gap-3 rounded-heemia-lg border bg-white px-4 py-3.5 shadow-heemia-sm ${
+                isActive ? 'border-heemia-black shadow-heemia-md' : 'border-heemia-border'
               }`
             }
           >

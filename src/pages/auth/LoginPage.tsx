@@ -33,7 +33,7 @@ export function LoginPage() {
   }
 
   const inputClass =
-    'w-full rounded-[3px] border border-heemia-border bg-white px-3 py-2 text-sm text-heemia-black outline-none focus:border-heemia-black'
+    'w-full rounded-heemia border border-heemia-border bg-white px-3 py-2 text-sm text-heemia-black outline-none focus:border-heemia-black'
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-heemia-bg px-4">
@@ -45,7 +45,7 @@ export function LoginPage() {
           </p>
         </div>
 
-        <form onSubmit={submit} className="rounded-[3px] border border-heemia-border bg-white p-6">
+        <form onSubmit={submit} className="animate-pop rounded-heemia-xl border border-heemia-border bg-white p-6 shadow-heemia-md">
           <label className="mb-4 block">
             <span className="font-mono-heemia mb-1 block text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
               Email
@@ -74,7 +74,7 @@ export function LoginPage() {
           </label>
 
           {errore && (
-            <p role="alert" className="mb-4 rounded-[3px] bg-heemia-bg px-3 py-2 text-xs text-heemia-black">
+            <p role="alert" className="mb-4 rounded-heemia bg-heemia-bg px-3 py-2 text-xs text-heemia-black">
               {errore}
             </p>
           )}
@@ -82,7 +82,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={inCorso || !email.trim() || !password}
-            className="w-full rounded-[3px] bg-heemia-black px-4 py-2 text-sm text-white transition disabled:opacity-40"
+            className="w-full rounded-heemia-sm bg-heemia-black px-4 py-2 text-sm text-white shadow-heemia-xs transition-all duration-200 ease-heemia hover:bg-heemia-charcoal hover:shadow-heemia-md active:scale-[0.98] disabled:opacity-40 disabled:hover:shadow-heemia-xs disabled:active:scale-100"
           >
             {inCorso ? 'Accesso in corso…' : 'Entra'}
           </button>

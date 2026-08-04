@@ -22,9 +22,10 @@ export function AppLayout() {
             type="button"
             aria-label="Chiudi menu"
             onClick={() => setMenuOpen(false)}
-            className="absolute inset-0 w-full bg-heemia-black/50"
+            className="absolute inset-0 w-full animate-fade-in bg-heemia-black/50 backdrop-blur-[2px]"
           />
-          <div className="absolute inset-y-0 left-0 shadow-xl">
+          {/* Fase 14: il drawer entra scorrendo da sinistra invece di apparire di scatto. */}
+          <div className="absolute inset-y-0 left-0 animate-slide-in-left shadow-heemia-lg">
             <Sidebar />
           </div>
         </div>
@@ -32,8 +33,11 @@ export function AppLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Header onMenuClick={() => setMenuOpen(true)} />
-        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-          <div className="mx-auto max-w-[1400px]">
+        <main className="scroll-smooth-y flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+          {/* La `key` sul pathname rimonta il contenitore a ogni cambio pagina: è quello
+              che fa ripartire l'animazione d'ingresso, altrimenti React riuserebbe il nodo
+              e la nuova pagina comparirebbe di colpo. */}
+          <div key={location.pathname} className="mx-auto max-w-[1400px] animate-rise">
             <Outlet />
           </div>
         </main>

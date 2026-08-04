@@ -45,7 +45,7 @@ export function MarginSummaryCard({ margin, productName }: { margin: Margin; pro
 
   return (
     <div
-      className={`rounded-[3px] border bg-white p-5 ${
+      className={`rounded-heemia-lg border bg-white p-5 shadow-heemia-sm ${
         margin.sottoSoglia ? 'border-heemia-border border-l-2 border-l-heemia-carmine' : 'border-heemia-border'
       }`}
     >
@@ -86,7 +86,7 @@ export function MarginSummaryCard({ margin, productName }: { margin: Margin; pro
           {priceBands.map((band) => (
             <div
               key={band.label}
-              className={`rounded-[3px] border px-3 py-1.5 ${
+              className={`rounded-heemia border px-3 py-1.5 ${
                 band.sottoBreakEven ? 'border-heemia-carmine/40 bg-heemia-carmine-light' : 'border-heemia-border bg-heemia-cream'
               }`}
             >

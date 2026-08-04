@@ -13,7 +13,7 @@ import { useRole } from '../../context/RoleContext'
 import { canApproveEmailDrafts, canEdit } from '../../lib/permissions'
 
 const textareaClass =
-  'w-full rounded-[3px] border border-heemia-border p-3 text-sm text-heemia-black focus:border-heemia-black focus:outline-none'
+  'w-full rounded-heemia border border-heemia-border p-3 text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10'
 
 const SUPPLIER_CATEGORIES: SupplierCategoria[] = [
   'Tessuti', 'Filati', 'Passamaneria', 'Lycra', 'Felpa', 'Asole/Bottoni', 'Fodere', 'Cartellini/Etichette',
@@ -180,7 +180,7 @@ export function SupplierList() {
                     </dl>
 
                     {r.rispostaFornitore && (
-                      <div className="rounded-[3px] border-l-2 border-heemia-border-strong bg-heemia-cream p-3 text-xs text-heemia-black">
+                      <div className="rounded-heemia border-l-2 border-heemia-border-strong bg-heemia-cream p-3 text-xs text-heemia-black">
                         <p className="font-mono-heemia mb-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Risposta fornitore</p>
                         {r.rispostaFornitore}
                       </div>

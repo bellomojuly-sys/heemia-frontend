@@ -26,9 +26,11 @@ const DOT_CLASSES: Partial<Record<BadgeVariant, string>> = {
 
 export function Badge({ children, variant = 'neutral' }: { children: ReactNode; variant?: BadgeVariant }) {
   const dot = DOT_CLASSES[variant]
+  // Fase 14: badge a pillola (`rounded-full`). Su un'etichetta alta 20px qualsiasi
+  // raggio intermedio si legge come "quasi tondo": o squadrato o pillola.
   return (
     <span
-      className={`font-mono-heemia inline-flex items-center gap-1.5 rounded-[2px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.06em] whitespace-nowrap ${VARIANT_CLASSES[variant]}`}
+      className={`font-mono-heemia inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] uppercase tracking-[0.06em] whitespace-nowrap ${VARIANT_CLASSES[variant]}`}
     >
       {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
       {children}

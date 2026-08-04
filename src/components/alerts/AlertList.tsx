@@ -17,7 +17,7 @@ export function AlertList({ alerts }: { alerts: AlertItem[] }) {
   }
 
   return (
-    <ul className="divide-y divide-heemia-border rounded-[3px] border border-heemia-border bg-white">
+    <ul className="animate-fade-in divide-y divide-heemia-border overflow-hidden rounded-heemia-lg border border-heemia-border bg-white shadow-heemia-sm">
       {alerts.map((a) => {
         const content = (
           <div className="flex items-start gap-3 px-4 py-3">
@@ -31,7 +31,7 @@ export function AlertList({ alerts }: { alerts: AlertItem[] }) {
         return (
           <li key={a.id}>
             {a.link ? (
-              <Link to={a.link} className="block transition-colors hover:bg-heemia-cream">
+              <Link to={a.link} className="block transition-colors duration-200 ease-heemia hover:bg-heemia-cream">
                 {content}
               </Link>
             ) : (

@@ -124,7 +124,7 @@ export function Dashboard() {
                 <li key={item.label}>
                   <Link
                     to={item.link}
-                    className="flex items-center justify-between px-4 py-2.5 text-sm transition-colors hover:bg-white/60"
+                    className="flex items-center justify-between px-4 py-2.5 text-sm transition-colors duration-200 ease-heemia hover:bg-white/60"
                   >
                     <span className="text-heemia-black">{item.label}</span>
                     <span className="font-mono-heemia font-semibold text-heemia-carmine">{item.count}</span>
@@ -152,7 +152,7 @@ export function Dashboard() {
             <ul className="divide-y divide-heemia-border">
               {materialAlerts.map((m) => (
                 <li key={m.id}>
-                  <Link to={m.link} className="flex items-center justify-between px-4 py-2.5 text-sm transition-colors hover:bg-heemia-cream">
+                  <Link to={m.link} className="flex items-center justify-between px-4 py-2.5 text-sm transition-colors duration-200 ease-heemia hover:bg-heemia-cream">
                     <span className="min-w-0 truncate text-heemia-black">{m.nome}</span>
                     <Badge variant={m.stato === 'esaurito' ? 'critical-solid' : 'warning-outline'}>
                       {m.stato === 'esaurito' ? 'Esaurito' : 'Sotto soglia'}

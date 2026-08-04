@@ -15,7 +15,7 @@ export function FinishedGoodsInventory() {
   const stock = getStockOverview(inventoryRecords)
 
   const qtyInputClass =
-    'font-mono-heemia w-20 rounded-[3px] border border-heemia-border bg-white px-2 py-1 text-right text-sm text-heemia-black focus:border-heemia-black focus:outline-none'
+    'font-mono-heemia w-20 rounded-heemia border border-heemia-border bg-white px-2 py-1 text-right text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10'
 
   const columns: DataTableColumn<InventoryRecord>[] = [
     {

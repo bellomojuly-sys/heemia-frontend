@@ -20,11 +20,14 @@ export function Modal({
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-heemia-black/40 px-4 py-10">
+    // Fase 14: lo sfondo sfuma e sfoca invece di comparire di colpo, il pannello
+    // sale di 8px con una micro-scalatura. Entrambe le animazioni sono brevi
+    // (0,22-0,28s): il modale deve sembrare già lì, non farsi aspettare.
+    <div className="scroll-smooth-y fixed inset-0 z-50 flex animate-fade-in items-start justify-center bg-heemia-black/40 px-4 py-10 backdrop-blur-[2px]">
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-lg rounded-[3px] border border-heemia-border bg-white shadow-lg"
+        className="w-full max-w-lg animate-pop rounded-heemia-xl border border-heemia-border bg-white shadow-heemia-lg"
       >
         <div className="flex items-start justify-between gap-4 border-b border-heemia-border px-5 py-4">
           <div>
@@ -35,7 +38,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Chiudi"
-            className="text-heemia-grey transition-colors hover:text-heemia-black"
+            className="rounded-full p-1 text-heemia-grey transition-all duration-200 ease-heemia hover:rotate-90 hover:bg-heemia-cream hover:text-heemia-black"
           >
             <X className="h-4 w-4" />
           </button>
@@ -46,8 +49,10 @@ export function Modal({
   )
 }
 
+// L'anello di focus (`ring`) sostituisce il salto di bordo secco: il campo attivo
+// si accende con un alone tenue invece di cambiare colore di scatto.
 export const fieldClass =
-  'w-full rounded-[3px] border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black transition-colors placeholder:text-heemia-grey-light focus:border-heemia-black focus:outline-none'
+  'w-full rounded-heemia-sm border border-heemia-border bg-white px-3 py-1.5 text-sm text-heemia-black transition-all duration-200 ease-heemia placeholder:text-heemia-grey-light hover:border-heemia-border-strong focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10'
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (

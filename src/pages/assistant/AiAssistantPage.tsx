@@ -102,11 +102,11 @@ export function AiAssistantPage() {
     <div>
       <PageHeader title="AI Assistant" subtitle="Accesso in sola lettura ai dati del gestionale: non modifica nulla." />
 
-      <div className="flex flex-col rounded-[3px] border border-heemia-border bg-white">
+      <div className="flex flex-col rounded-heemia-lg border border-heemia-border bg-white shadow-heemia-sm">
         <div className="max-h-[50vh] space-y-3 overflow-y-auto p-5">
           {messages.map((m) => (
             <div key={m.id} className={`flex ${m.autore === 'utente' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-md rounded-[3px] px-3.5 py-2.5 text-sm ${m.autore === 'utente' ? 'bg-heemia-black text-white' : 'bg-heemia-cream text-heemia-black'}`}>
+              <div className={`max-w-md rounded-heemia px-3.5 py-2.5 text-sm ${m.autore === 'utente' ? 'bg-heemia-black text-white' : 'bg-heemia-cream text-heemia-black'}`}>
                 {m.testo}
               </div>
             </div>
@@ -120,7 +120,7 @@ export function AiAssistantPage() {
                 key={ex}
                 type="button"
                 onClick={() => setInput(ex)}
-                className="rounded-[3px] border border-heemia-border px-3 py-1 text-xs text-heemia-grey transition-colors hover:border-heemia-black hover:text-heemia-black"
+                className="rounded-heemia border border-heemia-border px-3 py-1 text-xs text-heemia-grey transition-colors hover:border-heemia-black hover:text-heemia-black"
               >
                 {ex}
               </button>
@@ -133,7 +133,7 @@ export function AiAssistantPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && send()}
               placeholder="Fai una domanda sull'app o sui dati…"
-              className="flex-1 rounded-[3px] border border-heemia-border px-3 py-2 text-sm focus:border-heemia-black focus:outline-none"
+              className="flex-1 rounded-heemia border border-heemia-border px-3 py-2 text-sm transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10"
             />
             <Button onClick={send}>Invia</Button>
           </div>

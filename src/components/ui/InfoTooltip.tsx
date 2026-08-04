@@ -23,14 +23,16 @@ export function InfoTooltip({ text }: { text: string }) {
         onClick={() => setOpen((v) => !v)}
         aria-label="Cos'è questo?"
         aria-expanded={open}
-        className="flex h-4 w-4 items-center justify-center rounded-full border border-heemia-grey-light text-[10px] leading-none text-heemia-grey hover:border-heemia-black hover:text-heemia-black"
+        className="flex h-4 w-4 items-center justify-center rounded-full border border-heemia-grey-light text-[10px] leading-none text-heemia-grey transition-all duration-200 ease-heemia hover:scale-110 hover:border-heemia-black hover:text-heemia-black"
       >
         i
       </button>
+      {/* Qui serve `animate-fade-in` e non `animate-pop`: quest'ultima anima la
+          `transform`, che sovrascriverebbe il `-translate-x-1/2` di centratura. */}
       {open && (
         <span
           role="tooltip"
-          className="absolute left-1/2 top-6 z-20 w-56 -translate-x-1/2 rounded-[3px] border border-heemia-border-strong bg-white p-3 text-xs leading-snug text-heemia-black shadow-[0_4px_16px_rgba(23,21,18,0.12)]"
+          className="absolute left-1/2 top-6 z-20 w-56 -translate-x-1/2 animate-fade-in rounded-heemia border border-heemia-border-strong bg-white p-3 text-xs leading-snug text-heemia-black shadow-heemia-md"
         >
           {text}
         </span>

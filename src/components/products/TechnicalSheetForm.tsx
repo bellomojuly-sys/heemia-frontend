@@ -389,7 +389,7 @@ export function TechnicalSheetForm({
               onChange={(e) => e.target.files?.[0] && onPdf(e.target.files[0])}
             />
 
-            <div className="flex flex-wrap items-center gap-3 rounded-[3px] border border-heemia-border bg-heemia-cream px-4 py-3">
+            <div className="flex flex-wrap items-center gap-3 rounded-heemia border border-heemia-border bg-heemia-cream px-4 py-3">
               <FileText aria-hidden className="h-4 w-4 shrink-0 text-heemia-grey" />
               {form.pdfFile ? (
                 <div className="min-w-0 flex-1">
@@ -424,13 +424,13 @@ export function TechnicalSheetForm({
             </div>
 
             {scanErrore && (
-              <p className="mt-3 rounded-[3px] border-l-2 border-heemia-carmine bg-white px-3 py-2 text-sm text-heemia-black">
+              <p className="mt-3 rounded-heemia border-l-2 border-heemia-carmine bg-white px-3 py-2 text-sm text-heemia-black">
                 {scanErrore}
               </p>
             )}
 
             {scan && (
-              <div className="mt-3 rounded-[3px] border border-heemia-border p-3">
+              <div className="mt-3 rounded-heemia border border-heemia-border p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Sparkles aria-hidden className="h-3.5 w-3.5 text-heemia-grey" />
                   <span className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
@@ -561,7 +561,7 @@ export function TechnicalSheetForm({
                 const usata = confermata ?? suggerita
                 const totale = usata * m.costoUnitario * (1 + Math.max(0, m.percentualeScarto) / 100)
                 return (
-                  <div key={m.id} className="rounded-[3px] border border-heemia-border bg-heemia-cream p-3">
+                  <div key={m.id} className="rounded-heemia border border-heemia-border bg-heemia-cream p-3">
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                       <div className="col-span-2">
                         <Field label="Materiale">
@@ -669,7 +669,7 @@ export function TechnicalSheetForm({
           {costi.length > 0 && (
             <div className="mb-3 space-y-2">
               {costi.map((c) => (
-                <div key={c.id} className="grid grid-cols-2 items-end gap-3 rounded-[3px] border border-heemia-border bg-heemia-cream p-3 sm:grid-cols-5">
+                <div key={c.id} className="grid grid-cols-2 items-end gap-3 rounded-heemia border border-heemia-border bg-heemia-cream p-3 sm:grid-cols-5">
                   <Field label="Voce">
                     <select className={fieldClass} value={c.voce} onChange={(e) => {
                       const voce = e.target.value as SheetCostVoce
@@ -726,7 +726,7 @@ export function TechnicalSheetForm({
           {/* I due gruppi sono separati perché si comportano in modo diverso nel calcolo:
               i diretti pesano per intero sul capo, gli altri si dividono per i capi previsti. */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-[3px] border border-heemia-border p-3">
+            <div className="rounded-heemia border border-heemia-border p-3">
               <p className="font-mono-heemia mb-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
                 Costi diretti del capo
               </p>
@@ -744,7 +744,7 @@ export function TechnicalSheetForm({
               </div>
             </div>
 
-            <div className="rounded-[3px] border border-heemia-border bg-heemia-cream p-3">
+            <div className="rounded-heemia border border-heemia-border bg-heemia-cream p-3">
               <p className="font-mono-heemia mb-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
                 Costi di sviluppo una-tantum
               </p>
@@ -839,12 +839,12 @@ export function TechnicalSheetForm({
             </Button>
             <span className="text-xs text-heemia-grey">{foto.length > 0 ? `${foto.length} foto caricate` : 'Nessuna foto caricata'}</span>
           </div>
-          {fotoErrore && <p className="mb-3 rounded-[3px] border-l-2 border-heemia-carmine bg-heemia-cream px-3 py-2 text-xs text-heemia-black">{fotoErrore}</p>}
+          {fotoErrore && <p className="mb-3 rounded-heemia border-l-2 border-heemia-carmine bg-heemia-cream px-3 py-2 text-xs text-heemia-black">{fotoErrore}</p>}
 
           {foto.length > 0 && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
               {foto.map((f) => (
-                <figure key={f.id} className="overflow-hidden rounded-[3px] border border-heemia-border bg-white">
+                <figure key={f.id} className="overflow-hidden rounded-heemia border border-heemia-border bg-white">
                   <img src={f.dataUrl} alt={f.nome} className="h-28 w-full object-cover" />
                   <figcaption className="flex items-center justify-between gap-1 px-2 py-1">
                     <span className="truncate text-[10px] text-heemia-grey" title={f.nome}>{f.nome}</span>
