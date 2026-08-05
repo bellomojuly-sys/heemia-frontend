@@ -266,6 +266,30 @@ enum AiAutore {
   assistant
 }
 
+// --- Magazzino multi-ubicazione (Database_Schema.md §2, richiesta di Giulia 2026-08-05) ---
+enum InventoryLocationType {
+  magazzino
+  laboratorio
+  showroom
+  resi
+  produzione_esterna
+}
+
+enum InventoryMovementType {
+  carico
+  scarico
+  trasferimento
+  rettifica
+}
+
+// --- Import tracking (Database_Schema.md §2) ---
+enum ImportStatus {
+  in_corso
+  completato
+  completato_con_errori
+  fallito
+}
+
 // ---------- MODELLI ----------
 model User {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -277,10 +301,12 @@ model User {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  activityLogs     ActivityLog[]
-  aiSessions       AiSession[]
-  sessions         Session[]
-  approvedRequests SupplierRequest[] @relation("ApprovedBy")
+  activityLogs       ActivityLog[]
+  aiSessions         AiSession[]
+  sessions           Session[]
+  approvedRequests   SupplierRequest[]   @relation("ApprovedBy")
+  inventoryMovements InventoryMovement[]
+  importBatches      ImportBatch[]
 
   @@map("users")
 }
@@ -364,6 +390,9 @@ model Supplier {
   invoices    Invoice[]
   schedeLaboratorio TechnicalSheet[]     @relation("LaboratorioConfezione")
   righeSchede       SheetMaterialUsage[]
+  listiniMateriali  SupplierMaterial[]
+  listiniAccessori  SupplierAccessory[]
+  listiniServizi    SupplierServicePrice[]
 
   @@map("suppliers")
 }
@@ -445,6 +474,9 @@ model ProductVariant {
 
   inventory  InventoryRecord?
   orderItems OrderItem[]
+  balances      InventoryBalance[]
+  movements     InventoryMovement[]
+  snapshotItems InventorySnapshotItem[]
 
   @@index([productId])
   @@map("product_variants")
@@ -481,6 +513,7 @@ model Material {
   supplierReqs    SupplierRequest[]
   orderItems      OrderItem[]
   righeSchede     SheetMaterialUsage[]
+  listiniFornitori SupplierMaterial[]
 
   @@index([supplierId])
   // Filtro stato in listMaterials()/listStockAlerts() (materials/service.ts).
@@ -510,6 +543,7 @@ model Accessory {
   tsAccessori  TechnicalSheetAccessory[]
   supplierReqs SupplierRequest[]
   righeSchede  SheetMaterialUsage[]
+  listiniFornitori SupplierAccessory[]
 
   @@index([supplierId])
   // Filtro stato in listAccessories()/listStockAlerts() (materials/service.ts).
@@ -950,4 +984,208 @@ model InventoryRecord {
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("inventory_records")
+}
+
+// =====================================================================
+// MAGAZZINO MULTI-UBICAZIONE (Database_Schema.md §2, richiesta di Giulia
+// 2026-08-05). `inventory_records` resta la fonte usata oggi dal backend
+// (una riga per variante, colonne fisse magazzino/laboratorio); queste
+// tabelle sono il modello a ubicazioni arbitrarie (magazzino, laboratorio,
+// showroom, resi, produzione esterna) verso cui migrare in un passo
+// successivo — vedi nota in Database_Schema.md §2.
+// =====================================================================
+
+model InventoryLocation {
+  id        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codice    String                @unique
+  nome      String
+  tipo      InventoryLocationType
+  indirizzo String?
+  attiva    Boolean               @default(true)
+  createdAt DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  balances      InventoryBalance[]
+  movementiDa    InventoryMovement[] @relation("MovimentoOrigine")
+  movementiA     InventoryMovement[] @relation("MovimentoDestinazione")
+  snapshotItems InventorySnapshotItem[]
+
+  @@map("inventory_locations")
+}
+
+model InventoryBalance {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  variantId             String            @map("variant_id") @db.Uuid
+  variant               ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  locationId            String            @map("location_id") @db.Uuid
+  location              InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  quantitaDisponibile   Int               @default(0) @map("quantita_disponibile")
+  quantitaRiservata     Int               @default(0) @map("quantita_riservata")
+  quantitaInLavorazione Int               @default(0) @map("quantita_in_lavorazione")
+  updatedAt             DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([variantId, locationId])
+  @@index([locationId])
+  @@map("inventory_balances")
+}
+
+model InventoryMovement {
+  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  variantId       String                 @map("variant_id") @db.Uuid
+  variant         ProductVariant         @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  locationFromId  String?                @map("location_from_id") @db.Uuid
+  locationFrom    InventoryLocation?     @relation("MovimentoOrigine", fields: [locationFromId], references: [id], onDelete: SetNull)
+  locationToId    String?                @map("location_to_id") @db.Uuid
+  locationTo      InventoryLocation?     @relation("MovimentoDestinazione", fields: [locationToId], references: [id], onDelete: SetNull)
+  createdBy       String?                @map("created_by") @db.Uuid
+  creatoDa        User?                  @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  tipo            InventoryMovementType
+  quantita        Int
+  riferimentoTipo String?                @map("riferimento_tipo")
+  riferimentoId   String?                @map("riferimento_id") @db.Uuid
+  note            String?
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([variantId])
+  @@map("inventory_movements")
+}
+
+model InventorySnapshot {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  importBatchId String?      @map("import_batch_id") @db.Uuid
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  dataSnapshot  DateTime     @map("data_snapshot") @db.Date
+  fonte         String?
+  chiuso        Boolean      @default(false)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  items InventorySnapshotItem[]
+
+  @@map("inventory_snapshots")
+}
+
+model InventorySnapshotItem {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  snapshotId String            @map("snapshot_id") @db.Uuid
+  snapshot   InventorySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  variantId  String            @map("variant_id") @db.Uuid
+  variant    ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  locationId String            @map("location_id") @db.Uuid
+  location   InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  quantita   Int
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([snapshotId, variantId, locationId])
+  @@map("inventory_snapshot_items")
+}
+
+// =====================================================================
+// LISTINI FORNITORE con validità temporale (Database_Schema.md §2,
+// richiesta di Giulia 2026-08-05). Oggi il prezzo vive direttamente su
+// `materials.prezzo_al_metro`/`accessories.costo_unitario` con un unico
+// fornitore collegato; queste tabelle permettono più fornitori/prezzi per
+// materiale o accessorio, ciascuno valido in una finestra temporale.
+// =====================================================================
+
+model SupplierMaterial {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplierId      String        @map("supplier_id") @db.Uuid
+  supplier        Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  materialId      String        @map("material_id") @db.Uuid
+  material        Material      @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  codiceFornitore String?       @map("codice_fornitore")
+  prezzoUnitario  Decimal       @map("prezzo_unitario") @db.Decimal(10, 2)
+  unitaMisura     MaterialUnita @map("unita_misura")
+  quantitaMinima  Decimal?      @map("quantita_minima") @db.Decimal(10, 2)
+  leadTimeGiorni  Int?          @map("lead_time_giorni")
+  validoDal       DateTime      @map("valido_dal") @db.Date
+  validoAl        DateTime?     @map("valido_al") @db.Date
+  preferito       Boolean       @default(false)
+
+  @@unique([supplierId, materialId, validoDal])
+  @@index([materialId])
+  @@map("supplier_materials")
+}
+
+model SupplierAccessory {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplierId      String         @map("supplier_id") @db.Uuid
+  supplier        Supplier       @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  accessoryId     String         @map("accessory_id") @db.Uuid
+  accessory       Accessory      @relation(fields: [accessoryId], references: [id], onDelete: Cascade)
+  codiceFornitore String?        @map("codice_fornitore")
+  prezzoUnitario  Decimal        @map("prezzo_unitario") @db.Decimal(10, 2)
+  unitaMisura     AccessoryUnita @map("unita_misura")
+  quantitaMinima  Decimal?       @map("quantita_minima") @db.Decimal(10, 2)
+  leadTimeGiorni  Int?           @map("lead_time_giorni")
+  validoDal       DateTime       @map("valido_dal") @db.Date
+  validoAl        DateTime?      @map("valido_al") @db.Date
+  preferito       Boolean        @default(false)
+
+  @@unique([supplierId, accessoryId, validoDal])
+  @@index([accessoryId])
+  @@map("supplier_accessories")
+}
+
+model SupplierServicePrice {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplierId        String    @map("supplier_id") @db.Uuid
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  categoriaServizio String    @map("categoria_servizio")
+  nomeServizio      String    @map("nome_servizio")
+  prezzoMinimo      Decimal?  @map("prezzo_minimo") @db.Decimal(10, 2)
+  prezzoMassimo     Decimal?  @map("prezzo_massimo") @db.Decimal(10, 2)
+  unitaMisura       String?   @map("unita_misura")
+  validoDal         DateTime  @map("valido_dal") @db.Date
+  validoAl          DateTime? @map("valido_al") @db.Date
+  note              String?
+
+  @@index([supplierId])
+  @@map("supplier_service_prices")
+}
+
+// =====================================================================
+// TRACCIAMENTO IMPORT (Database_Schema.md §2, richiesta di Giulia
+// 2026-08-05). Registra ogni import massivo (es. da Billy, da Shopify, da
+// export fornitore) con esito riga per riga, per audit e per poter
+// rilanciare/correggere un import fallito.
+// =====================================================================
+
+model ImportBatch {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String?      @map("user_id") @db.Uuid
+  user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  nomeFile         String       @map("nome_file")
+  fileHash         String       @unique @map("file_hash")
+  tipoImportazione String       @map("tipo_importazione")
+  stato            ImportStatus @default(in_corso)
+  righeTotali      Int          @default(0) @map("righe_totali")
+  righeImportate   Int          @default(0) @map("righe_importate")
+  numeroErrori     Int          @default(0) @map("numero_errori")
+  numeroWarning    Int          @default(0) @map("numero_warning")
+  startedAt        DateTime     @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?    @map("completed_at") @db.Timestamptz(6)
+
+  errors    ImportError[]
+  snapshots InventorySnapshot[]
+
+  @@index([userId])
+  @@map("import_batches")
+}
+
+model ImportError {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  importBatchId   String      @map("import_batch_id") @db.Uuid
+  importBatch     ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  severity        String
+  numeroRiga      Int?        @map("numero_riga")
+  tabellaTarget   String?     @map("tabella_target")
+  campo           String?
+  codiceRecord    String?     @map("codice_record")
+  messaggio       String
+  valoreOriginale Json?       @map("valore_originale")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([importBatchId])
+  @@map("import_errors")
 }
