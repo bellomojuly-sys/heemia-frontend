@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '../ui/Button'
-import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../ui/Modal'
+import { Modal, Field, FormActions, campoClass, fieldClass } from '../ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Linea, Product } from '../../types'
 
@@ -43,7 +43,7 @@ export function EditProductForm({
 
   type Campo = 'nome' | 'codiceProdotto' | 'prezzoVendita' | 'prezzoShowroom' | 'prezzoConsigliato'
 
-  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<Campo>(
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<Campo>(
     () => ({
       nome: regole.obbligatorio(form.nome, 'Il nome prodotto'),
       codiceProdotto: regole.obbligatorio(form.codiceProdotto, 'Il codice prodotto'),
@@ -193,7 +193,6 @@ export function EditProductForm({
           {checkboxRow('Visibile nella showroom app', 'visibileShowroom')}
         </div>
       </div>
-      <FormError message={erroreServer} />
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
         <Button onClick={() => void submit()} disabled={inCorso}>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '../ui/Button'
-import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../ui/Modal'
+import { Modal, Field, FormActions, campoClass, fieldClass } from '../ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Product } from '../../types'
 import type { NewVariantInput } from '../../context/MockStore'
@@ -25,7 +25,7 @@ export function AddVariantForm({
     return [product.codiceProdotto, taglia, colore].filter(Boolean).join('-')
   }
 
-  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<
     'taglia' | 'colore' | 'stockIniziale' | 'sogliaMinima'
   >(
     () => ({
@@ -98,7 +98,6 @@ export function AddVariantForm({
           </Field>
         </div>
       </div>
-      <FormError message={erroreServer} />
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
         <Button onClick={() => void submit()} disabled={inCorso}>

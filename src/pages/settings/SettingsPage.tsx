@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
@@ -5,6 +6,8 @@ import { NAV_GROUPS } from '../../components/layout/nav'
 import { canAccessModule, canEdit, ROLE_LABELS } from '../../lib/permissions'
 import { useMarginThreshold } from '../../hooks/useMarginThreshold'
 import { useRole } from '../../context/RoleContext'
+import { useGoatAlert } from '../../context/GoatAlertContext'
+import { isGoatSoundMuto, playGoatBleat, setGoatSoundMuto } from '../../lib/goatSound'
 import type { Role } from '../../types'
 
 const ROLES: Role[] = ['admin', 'ceo', 'team', 'viewer']
@@ -13,6 +16,11 @@ const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items)
 export function SettingsPage() {
   const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
   const { role } = useRole()
+  const { avvisa } = useGoatAlert()
+  // Letto una sola volta all'apertura pagina: se lo si cambiasse da un'altra scheda
+  // aperta, questa non se ne accorgerebbe finché non viene ricaricata — coerente col
+  // resto delle preferenze del prototipo, che non sono sincronizzate tra schede.
+  const [suonoMuto, setSuonoMuto] = useState(() => isGoatSoundMuto())
 
   return (
     <div>
@@ -22,6 +30,36 @@ export function SettingsPage() {
         <CardHeader title="Ruolo attivo" subtitle="Selettore demo nell'header: sostituisce l'autenticazione reale in questa fase." />
         <div className="p-5">
           <Badge variant="info">{ROLE_LABELS[role]}</Badge>
+        </div>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader
+          title="Avvisi della capretta"
+          subtitle="Il popup che segnala azioni bloccate (dati mancanti, salvataggi falliti, spostamenti non consentiti…)."
+        />
+        <div className="flex flex-wrap items-center justify-between gap-4 p-5">
+          <label className="flex items-center gap-2 text-sm text-heemia-black">
+            <input
+              type="checkbox"
+              checked={!suonoMuto}
+              onChange={(e) => {
+                const attivo = e.target.checked
+                setSuonoMuto(!attivo)
+                setGoatSoundMuto(!attivo)
+                if (attivo) playGoatBleat()
+              }}
+              className="h-3.5 w-3.5 accent-heemia-black"
+            />
+            Verso della capretta a ogni avviso
+          </label>
+          <button
+            type="button"
+            onClick={() => avvisa('generico', { titolo: 'Prova avviso', testo: 'È così che si presenta un avviso della capretta.' })}
+            className="rounded-heemia-sm border border-heemia-border-strong px-3 py-1.5 text-xs text-heemia-grey transition-all duration-200 ease-heemia hover:border-heemia-black hover:bg-heemia-surface hover:text-heemia-black active:scale-95"
+          >
+            Prova un avviso
+          </button>
         </div>
       </Card>
 

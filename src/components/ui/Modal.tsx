@@ -101,23 +101,6 @@ export function Field({
   )
 }
 
-/**
- * Errore restituito dal server (o dalla rete) sull'invio del form.
- * Sta in cima alle azioni, non in cima al modale: chi sbaglia sta guardando il
- * pulsante "Salva" nel momento in cui l'errore compare, non l'intestazione.
- */
-export function FormError({ message }: { message?: string | null }) {
-  if (!message) return null
-  return (
-    <p
-      role="alert"
-      className="mt-4 animate-rise rounded-heemia border-l-2 border-heemia-carmine bg-heemia-carmine-light px-3 py-2 text-xs text-heemia-black"
-    >
-      {message}
-    </p>
-  )
-}
-
 export function FormActions({ children }: { children: ReactNode }) {
   return <div className="mt-5 flex justify-end gap-2 border-t border-heemia-border pt-4">{children}</div>
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '../ui/Button'
-import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../ui/Modal'
+import { Modal, Field, FormActions, campoClass, fieldClass } from '../ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Linea } from '../../types'
 import type { NewProductInput } from '../../context/MockStore'
@@ -25,7 +25,7 @@ export function AddProductForm({
 }) {
   const [form, setForm] = useState(emptyForm)
 
-  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'codiceProdotto'>(
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'codiceProdotto'>(
     () => ({
       nome: regole.obbligatorio(form.nome, 'Il nome prodotto'),
       codiceProdotto: regole.obbligatorio(form.codiceProdotto, 'Il codice prodotto'),
@@ -86,7 +86,6 @@ export function AddProductForm({
           </select>
         </Field>
       </div>
-      <FormError message={erroreServer} />
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
         <Button onClick={() => void submit()} disabled={inCorso}>

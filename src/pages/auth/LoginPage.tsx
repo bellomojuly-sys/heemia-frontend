@@ -3,9 +3,11 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { ApiError } from '../../lib/api'
+import { useGoatAlert } from '../../context/GoatAlertContext'
 
 export function LoginPage() {
   const { login } = useAuth()
+  const { avvisa } = useGoatAlert()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errore, setErrore] = useState<string | null>(null)
@@ -20,13 +22,16 @@ export function LoginPage() {
       await login(email.trim(), password)
     } catch (err) {
       // Le credenziali sbagliate non devono suggerire se l'email esista: messaggio unico.
-      setErrore(
+      const motivo =
         err instanceof ApiError && err.status === 401
           ? 'Email o password non corretti.'
           : err instanceof Error
             ? err.message
-            : 'Accesso non riuscito.',
-      )
+            : 'Accesso non riuscito.'
+      setErrore(motivo)
+      // Qui il messaggio in linea resta: la schermata di accesso non ha altro
+      // contenuto e la ragione deve restare sotto gli occhi mentre si ridigita.
+      avvisa(err instanceof ApiError && err.code === 'NETWORK' ? 'connessione' : 'permesso', { testo: motivo })
     } finally {
       setInCorso(false)
     }

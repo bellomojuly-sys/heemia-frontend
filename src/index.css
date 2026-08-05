@@ -215,6 +215,90 @@ body {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Fase 14 — GoatAlert: il popup della capretta per azioni bloccate.
+   Entrata a scatto morbido (fade + slide dal basso su mobile, da destra su
+   desktop — coerente con la posizione della pila, vedi GoatAlert.tsx), uscita
+   sullo stesso percorso invertito. La capretta stessa si muove appena: la testa
+   si inclina piano in loop, gli occhi sbattono a intervalli irregolari — un
+   ciclo perfettamente regolare avrebbe l'aria di un'icona che gira, non di un
+   animale.
+   --------------------------------------------------------------------------- */
+
+@keyframes goat-alert-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (min-width: 640px) {
+  @keyframes goat-alert-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) translateX(14px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) translateX(0) scale(1);
+    }
+  }
+}
+
+.goat-alert {
+  animation: goat-alert-in 0.32s var(--ease-heemia-out) backwards;
+}
+
+.goat-alert-uscita {
+  animation: goat-alert-in 0.26s var(--ease-heemia) reverse forwards;
+}
+
+/* Saltello con squash & stretch: un accenno di salto ogni 3,2s, non un rimbalzo
+   continuo — un personaggio che rimbalza senza sosta per tutti i 4-6s in cui
+   l'avviso resta a schermo stanca l'occhio. `transform-origin` in basso al
+   centro (le zampe), così lo schiacciamento all'atterraggio sembra ancorato a
+   terra invece che al centro del disegno. */
+@keyframes goat-hop {
+  0%,
+  40%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  6% {
+    transform: translateY(1px) scaleY(0.93);
+  }
+  20% {
+    transform: translateY(-7px) scaleY(1.06);
+  }
+  32% {
+    transform: translateY(0) scaleY(0.95);
+  }
+}
+
+.goat-hop {
+  transform-origin: 50% 100%;
+  animation: goat-hop 3.2s ease-in-out infinite;
+}
+
+/* Le animazioni per-pezzo (orecchie sfasate, coda che scodinzola, campanella a
+   pendolo, battito di ciglia) esistevano quando la capretta era un SVG disegnato
+   a mano, con ogni parte come gruppo a sé. Da quando è l'illustrazione vera
+   fornita dalla founder — un raster piatto — quei gruppi non esistono più: le
+   regole sono state tolte invece di lasciarle come codice morto. Resta il
+   saltello sull'immagine intera, che è comunque quanto la richiesta originale
+   chiedeva come minimo ("piccolo salto, battito di ciglia o movimento della
+   testa" — una delle tre). */
+
+@media (prefers-reduced-motion: reduce) {
+  .goat-hop {
+    animation: none !important;
+  }
+}
+
 /* Superficie interattiva: si solleva appena al passaggio del mouse e "si preme"
    al click. Un solo posto per la regola, così tutte le card si comportano uguale. */
 /* Tabella dentro una card: niente cornice nella cornice.

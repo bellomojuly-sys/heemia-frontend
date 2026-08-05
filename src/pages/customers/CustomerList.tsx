@@ -5,7 +5,7 @@ import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
-import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../../components/ui/Modal'
+import { Modal, Field, FormActions, campoClass, fieldClass } from '../../components/ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
@@ -23,7 +23,7 @@ const emptyCustomerForm = { nome: '', email: '', paese: 'IT', tipologia: 'ecomme
 function AddCustomerForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewCustomerInput) => void | Promise<unknown> }) {
   const [form, setForm] = useState(emptyCustomerForm)
 
-  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'email'>(
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'email'>(
     () => ({
       nome: regole.obbligatorio(form.nome, 'Il nome del cliente'),
       email: regole.email(form.email),
@@ -57,7 +57,6 @@ function AddCustomerForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
           </select>
         </Field>
       </div>
-      <FormError message={erroreServer} />
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
         <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva cliente'}</Button>
@@ -71,7 +70,7 @@ const emptyOrderForm = { numero: '', canale: 'shopify' as 'shopify' | 'fisico', 
 function AddOrderForm({ customerName, onClose, onSubmit }: { customerName: string; onClose: () => void; onSubmit: (input: Omit<NewOrderInput, 'customerId'>) => void | Promise<unknown> }) {
   const [form, setForm] = useState(emptyOrderForm)
 
-  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<'numero' | 'totale' | 'data'>(
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<'numero' | 'totale' | 'data'>(
     () => ({
       numero: regole.obbligatorio(form.numero, 'Il numero ordine'),
       totale: regole.numeroRichiesto(form.totale, 'Il totale'),
@@ -110,7 +109,6 @@ function AddOrderForm({ customerName, onClose, onSubmit }: { customerName: strin
           <input type="number" min="0" step="0.01" className={campoClass(errori.totale)} value={form.totale} onChange={(e) => { setForm({ ...form, totale: e.target.value }); pulisci('totale') }} />
         </Field>
       </div>
-      <FormError message={erroreServer} />
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
         <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva ordine'}</Button>

@@ -1,4 +1,4 @@
-import { PRODUCT_STAGES, type Accessory, type Material, type ProductionStep, type ProductStage } from '../types'
+import { PRODUCT_STAGES, type Accessory, type Material, type Product, type ProductionStep, type ProductStage } from '../types'
 import type { TechnicalSheet } from '../types'
 
 // FR-07: "Il sistema blocca il passaggio a fasi successive se mancano dati critici
@@ -30,6 +30,7 @@ export interface AdvanceContext {
   materials?: Material[]
   accessories?: Accessory[]
   technicalSheets?: TechnicalSheet[]
+  products?: Product[]
 }
 
 export function checkAdvance(step: Pick<ProductionStep, 'fase' | 'productId'>, ctx: AdvanceContext = {}): AdvanceCheck {

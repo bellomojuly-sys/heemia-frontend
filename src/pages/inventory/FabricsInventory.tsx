@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Button } from '../../components/ui/Button'
-import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../../components/ui/Modal'
+import { Modal, Field, FormActions, campoClass, fieldClass } from '../../components/ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
@@ -29,7 +29,7 @@ function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
   const { suppliers } = useMockStore()
   const [form, setForm] = useState(emptyForm)
 
-  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<
     'nome' | 'codice' | 'supplierId' | 'prezzoAlMetro' | 'metriAcquistati' | 'sogliaMinima' | 'altezzaCm'
   >(
     () => ({
@@ -95,7 +95,6 @@ function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
           <input type="number" min="0" step="0.1" className={campoClass(errori.sogliaMinima)} value={form.sogliaMinima} onChange={(e) => { setForm({ ...form, sogliaMinima: e.target.value }); pulisci('sogliaMinima') }} />
         </Field>
       </div>
-      <FormError message={erroreServer} />
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
         <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva tessuto'}</Button>

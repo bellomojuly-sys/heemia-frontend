@@ -6,7 +6,7 @@ import { Toolbar } from '../../components/ui/Toolbar'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card, CardHeader } from '../../components/ui/Card'
-import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../../components/ui/Modal'
+import { Modal, Field, FormActions, campoClass, fieldClass } from '../../components/ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
@@ -116,7 +116,7 @@ function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
 
   const isEstera = form.valuta.trim().toUpperCase() !== 'EUR' && form.valuta.trim() !== ''
 
-  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<
     'numero' | 'data' | 'imponibile' | 'iva' | 'tassoCambio'
   >(
     () => ({
@@ -261,7 +261,6 @@ function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
           onToggle={(id) => setForm({ ...form, materialiIds: toggleId(form.materialiIds, id) })}
         />
       </div>
-      <FormError message={erroreServer} />
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
         <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva fattura'}</Button>
@@ -371,7 +370,7 @@ function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit
     reader.readAsText(file)
   }
 
-  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<'mese' | 'totale' | 'numero'>(
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<'mese' | 'totale' | 'numero'>(
     () => ({
       mese: mese ? undefined : 'Il mese di riferimento è obbligatorio.',
       totale: regole.numeroRichiesto(totale, 'Il totale incassato'),
@@ -423,7 +422,6 @@ function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit
           <input className={fieldClass} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Es. include il mercatino del 12" />
         </Field>
       </div>
-      <FormError message={erroreServer} />
       <FormActions>
         <Button variant="secondary" onClick={onClose} disabled={inCorso}>Annulla</Button>
         <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Registrazione…' : 'Registra chiusura'}</Button>

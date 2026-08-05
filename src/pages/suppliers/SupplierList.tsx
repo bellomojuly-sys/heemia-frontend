@@ -4,7 +4,7 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
-import { Modal, Field, FormActions, FormError, campoClass, fieldClass } from '../../components/ui/Modal'
+import { Modal, Field, FormActions, campoClass, fieldClass } from '../../components/ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatDateIt } from '../../lib/format'
@@ -40,7 +40,7 @@ const emptySupplierForm = {
 function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewSupplierInput) => void | Promise<unknown> }) {
   const [form, setForm] = useState(emptySupplierForm)
 
-  const { errori, erroreServer, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'citta' | 'email' | 'tempi'>(
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'citta' | 'email' | 'tempi'>(
     () => ({
       nome: regole.obbligatorio(form.nome, 'Il nome del fornitore'),
       citta: regole.obbligatorio(form.citta, 'La città'),
@@ -84,7 +84,6 @@ function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
           <input type="number" min="0" className={campoClass(errori.tempi)} value={form.tempiMediConsegnaGiorni} onChange={(e) => { setForm({ ...form, tempiMediConsegnaGiorni: e.target.value }); pulisci('tempi') }} />
         </Field>
       </div>
-      <FormError message={erroreServer} />
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
         <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva fornitore'}</Button>

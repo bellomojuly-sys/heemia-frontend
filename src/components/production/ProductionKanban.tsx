@@ -1,9 +1,9 @@
 import { useState, type DragEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle } from 'lucide-react'
 import { PRODUCT_STAGES, type ProductionStep, type ProductStage } from '../../types'
 import { checkAdvance, stageLabel } from '../../lib/production'
 import { useMockStore } from '../../context/MockStore'
+import { useGoatAlert } from '../../context/GoatAlertContext'
 import { Button } from '../ui/Button'
 
 // FR-31: colonne per fase, non barra lineare. Le colonne restano le 13 fasi FR-07 esistenti
@@ -39,20 +39,27 @@ export function ProductionKanban({
 }) {
   const { technicalSheets, products, materials, accessories } = useMockStore()
 
+  const { avvisa } = useGoatAlert()
   const [trascinato, setTrascinato] = useState<{ id: string; destinazione: ProductStage | null } | null>(null)
   const [colonnaSotto, setColonnaSotto] = useState<ProductStage | null>(null)
   const [inCorso, setInCorso] = useState<string | null>(null)
-  const [errore, setErrore] = useState<string | null>(null)
 
   const sposta = async (stepId: string) => {
     setInCorso(stepId)
-    setErrore(null)
     // L'esito veniva scartato: se il server rifiutava (materiale esaurito, scheda
     // mancante, ruolo senza permesso) la card semplicemente non si muoveva, senza
     // dire perché.
     const esito = await onAdvance(stepId)
-    if (!esito.ok) setErrore(esito.reason ?? 'Spostamento non riuscito.')
+    if (!esito.ok) {
+      const ragione = esito.reason ?? 'Spostamento non riuscito.'
+      avvisa(/scheda tecnica/i.test(ragione) ? 'scheda-tecnica' : 'kanban-bloccato', { testo: ragione })
+    }
     setInCorso(null)
+  }
+
+  /** Tentativo di far partire il trascinamento di una card bloccata dal gate FR-07. */
+  const spiegaBlocco = (motivo: string | undefined) => {
+    avvisa(motivo && /scheda tecnica/i.test(motivo) ? 'scheda-tecnica' : 'kanban-bloccato', { testo: motivo })
   }
 
   const fineTrascinamento = () => {
@@ -80,16 +87,6 @@ export function ProductionKanban({
 
   return (
     <div className="mb-8">
-      {errore && (
-        <p
-          role="alert"
-          className="mb-3 flex items-start gap-2 animate-rise rounded-heemia border-l-2 border-heemia-carmine bg-heemia-carmine-light px-3 py-2 text-xs text-heemia-black"
-        >
-          <AlertTriangle aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-heemia-carmine" />
-          {errore}
-        </p>
-      )}
-
       {canAct && (
         <p className="mb-2 text-xs text-heemia-grey-light">
           Trascina una card sulla colonna successiva per far avanzare il capo, oppure usa il pulsante sulla card.
@@ -124,18 +121,26 @@ export function ProductionKanban({
                   ) : (
                     stepsInStage.map((step) => {
                       const product = products.find((p) => p.id === step.productId)
-                      const check = checkAdvance(step, { materials, accessories, technicalSheets })
+                      const check = checkAdvance(step, { materials, accessories, technicalSheets, products })
                       const trascinabile = canAct && check.ok && inCorso === null
                       const inMovimento = trascinato?.id === step.id || inCorso === step.id
                       return (
                         <div
                           key={step.id}
-                          draggable={trascinabile}
+                          // Anche le card bloccate restano trascinabili: il trascinamento
+                          // viene annullato subito e la capretta spiega perché. Se fossero
+                          // `draggable={false}` l'evento non partirebbe nemmeno e chi ci
+                          // prova non riceverebbe alcuna risposta.
+                          draggable={canAct && inCorso === null && check.next !== null}
                           onDragStart={(e) => {
+                            if (!check.ok) {
+                              e.preventDefault()
+                              spiegaBlocco(check.reason)
+                              return
+                            }
                             e.dataTransfer.setData('text/plain', step.id)
                             e.dataTransfer.effectAllowed = 'move'
                             setTrascinato({ id: step.id, destinazione: check.next })
-                            setErrore(null)
                           }}
                           onDragEnd={fineTrascinamento}
                           className={`rounded-heemia border bg-white p-2.5 shadow-heemia-xs transition-all duration-200 ease-heemia ${
@@ -162,8 +167,8 @@ export function ProductionKanban({
                             <Button
                               variant="ghost"
                               className="mt-1.5 !px-0 !py-0 text-[10px] normal-case tracking-normal"
-                              disabled={!check.ok || inCorso !== null}
-                              onClick={() => void sposta(step.id)}
+                              disabled={inCorso !== null}
+                              onClick={() => (check.ok ? void sposta(step.id) : spiegaBlocco(check.reason))}
                             >
                               {inCorso === step.id
                                 ? 'Spostamento…'
