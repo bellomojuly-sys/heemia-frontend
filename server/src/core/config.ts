@@ -6,6 +6,24 @@ function required(name: string): string {
   return v
 }
 
+/**
+ * Segreto di firma: deve essere lungo e casuale (Fase 15).
+ * Il server si RIFIUTA di partire con un segreto corto invece di accettarlo in silenzio:
+ * un valore debole rende falsificabili i cookie firmati, e un errore all'avvio si nota
+ * subito, mentre una sessione falsificabile no. 32 caratteri = i 24 byte di
+ * `openssl rand -base64 24`, il comando indicato in Environment_Setup.
+ */
+function segreto(name: string): string {
+  const v = required(name)
+  if (v.length < 32) {
+    throw new Error(
+      `${name} troppo corto (${v.length} caratteri, minimo 32). ` +
+        'Generane uno con: openssl rand -base64 32',
+    )
+  }
+  return v
+}
+
 // Render inietta gli host senza schema (es. "heemia-app.onrender.com"). Il confronto CORS
 // avviene sull'origin completo, quindi qui lo normalizziamo: senza https:// nessuna
 // richiesta del frontend passerebbe.
@@ -19,7 +37,7 @@ export const config = {
   env: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3001),
   databaseUrl: required('DATABASE_URL'),
-  sessionSecret: required('SESSION_SECRET'),
+  sessionSecret: segreto('SESSION_SECRET'),
   appBaseUrl: conSchema(process.env.APP_BASE_URL ?? 'http://localhost:3001'),
   corsOrigin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',').map(conSchema).filter(Boolean),
   sessionTtlHours: Number(process.env.SESSION_TTL_HOURS ?? 12),

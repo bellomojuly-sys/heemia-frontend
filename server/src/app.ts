@@ -1,6 +1,7 @@
 import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import cors from '@fastify/cors'
+import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import { config } from './core/config.js'
 import { AppError } from './core/errors.js'
@@ -36,6 +37,20 @@ export async function buildApp() {
   const app = Fastify({
     logger: { level: config.isProd ? 'info' : 'debug' },
     bodyLimit: 30 * 1024 * 1024,
+  })
+
+  // Intestazioni di sicurezza (Fase 15). Vanno registrate per prime, così valgono anche
+  // per le risposte d'errore. Il backend serve solo JSON: non ha pagine da mostrare, quindi
+  // la Content-Security-Policy è la più restrittiva possibile (nessuna origine consentita)
+  // e `frameguard` impedisce che le risposte finiscano dentro un iframe altrui.
+  // HSTS solo in produzione: in locale il server è in HTTP e forzare HTTPS lo renderebbe
+  // irraggiungibile dal browser dopo la prima visita.
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'none'"] },
+    },
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // il frontend sta su un altro dominio
+    hsts: config.isProd ? { maxAge: 15552000, includeSubDomains: true } : false,
   })
 
   await app.register(cookie, { secret: config.sessionSecret })
