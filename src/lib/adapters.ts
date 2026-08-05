@@ -6,8 +6,9 @@
 //    mentre il client usa array di id ("prodottiCollegatiIds").
 import type {
   Accessory, ActivityLogEntry, CashClosure, Customer, FixedCostItem, InventoryRecord,
-  Invoice, Material, Order, Product, ProductionStep, ProductVariant, QuotaHistoryEntry,
-  SheetCostLine, SheetMaterialUsage, Supplier, SupplierRequest, TechnicalSheet,
+  Invoice, LabDetail, Material, Order, PatternDocument, PatternDocumentNote, Product,
+  ProductionStep, ProductVariant, QuotaHistoryEntry, SheetCostLine, SheetMaterialUsage,
+  SheetMeasurement, Lavorazione, StockMovement, Supplier, SupplierRequest, TechnicalSheet,
 } from '../types'
 import { isoDate, num } from './api'
 
@@ -44,6 +45,8 @@ export function toProduct(r: Row): Product {
     disponibilitaShowroom: Boolean(r.disponibilitaShowroom),
     visibileShowroom: Boolean(r.visibileShowroom),
     personalizzabileSuMisura: Boolean(r.personalizzabileSuMisura),
+    campioneApprovatoIl: r.campioneApprovatoIl ? isoDate(r.campioneApprovatoIl) : undefined,
+    campioneNote: r.campioneNote ? s(r.campioneNote) : undefined,
   } as Product
 }
 
@@ -62,18 +65,85 @@ export function toVariant(r: Row): ProductVariant {
 }
 
 export function toInventoryRecord(r: Row): InventoryRecord {
+  const qtaMagazzino = num(r.qtaMagazzino)
+  const qtaLaboratorio = num(r.qtaLaboratorio)
+  const qtaInProduzione = num(r.qtaInProduzione)
   return {
     id: s(r.id),
     variantId: s(r.variantId),
-    qtaMagazzino: num(r.qtaMagazzino),
-    qtaLaboratorio: num(r.qtaLaboratorio),
+    qtaMagazzino,
+    qtaLaboratorio,
     qtaRiservata: num(r.qtaRiservata),
     qtaVenduta: num(r.qtaVenduta),
     sogliaMinima: num(r.sogliaMinima),
+    sogliaMinimaLaboratorio: num(r.sogliaMinimaLaboratorio),
     stato: r.stato as InventoryRecord['stato'],
     stockShopify: num(r.stockShopify),
     divergenzaShopify: Boolean(r.divergenzaShopify),
+    // Il server li calcola già; il fallback copre le risposte che non li includono.
+    disponibileTotale: r.disponibileTotale === undefined ? qtaMagazzino + qtaLaboratorio : num(r.disponibileTotale),
+    qtaInProduzione,
+    disponibileReale:
+      r.disponibileReale === undefined
+        ? Math.max(0, qtaMagazzino + qtaLaboratorio - qtaInProduzione)
+        : num(r.disponibileReale),
+    laboratorioSottoSoglia: Boolean(r.laboratorioSottoSoglia),
   } as InventoryRecord
+}
+
+export function toLavorazione(r: Row): Lavorazione {
+  const prod = r.product && typeof r.product === 'object' ? (r.product as Row) : undefined
+  const utente = r.creatoDa && typeof r.creatoDa === 'object' ? (r.creatoDa as Row) : undefined
+  return {
+    id: s(r.id),
+    variantId: s(r.variantId),
+    quantita: num(r.quantita),
+    stato: r.stato as Lavorazione['stato'],
+    prodotto: prod ? s(prod.nome) : undefined,
+    note: r.note ? s(r.note) : undefined,
+    utente: utente ? s(utente.nome || utente.email) : undefined,
+    createdAt: isoDate(r.createdAt),
+    chiusoIl: r.chiusoIl ? isoDate(r.chiusoIl) : undefined,
+  }
+}
+
+export function toLabDetail(r: Row): LabDetail {
+  const movimenti = arr<Row>(r.movimenti).map(toStockMovement)
+  return {
+    variantId: s(r.variantId),
+    sku: s(r.sku),
+    prodotto: s(r.prodotto),
+    taglia: s(r.taglia),
+    colore: s(r.colore),
+    qtaLaboratorio: num(r.qtaLaboratorio),
+    qtaMagazzino: num(r.qtaMagazzino),
+    disponibileTotale: num(r.disponibileTotale),
+    qtaInProduzione: num(r.qtaInProduzione),
+    disponibileInLaboratorio: num(r.disponibileInLaboratorio),
+    sogliaMinimaLaboratorio: num(r.sogliaMinimaLaboratorio),
+    sottoSoglia: Boolean(r.sottoSoglia),
+    movimenti,
+    reintegri: arr<Row>(r.reintegri).map(toStockMovement),
+    consumi: arr<Row>(r.consumi).map(toStockMovement),
+    inProduzione: arr<Row>(r.inProduzione).map(toLavorazione),
+    storicoLavorazioni: arr<Row>(r.storicoLavorazioni).map(toLavorazione),
+  }
+}
+
+export function toStockMovement(r: Row): StockMovement {
+  const location = (v: unknown) => (v && typeof v === 'object' ? s((v as Row).nome) : undefined)
+  const utente = r.creatoDa && typeof r.creatoDa === 'object' ? (r.creatoDa as Row) : undefined
+  return {
+    id: s(r.id),
+    variantId: s(r.variantId),
+    tipo: r.tipo as StockMovement['tipo'],
+    quantita: num(r.quantita),
+    origine: location(r.locationFrom),
+    destinazione: location(r.locationTo),
+    utente: utente ? s(utente.nome || utente.email) : undefined,
+    note: r.note ? s(r.note) : undefined,
+    createdAt: s(r.createdAt),
+  }
 }
 
 export function toMaterial(r: Row): Material {
@@ -332,6 +402,16 @@ export function toTechnicalSheet(r: Row): TechnicalSheet {
       costoTotaleUnitario: num(h.costoTotaleUnitario),
       prezzoBreakEven: num(h.prezzoBreakEven),
     })),
+    misure: arr<Row>(r.misure).map((m) => ({
+      id: s(m.id),
+      nome: s(m.nome),
+      valore: m.valore === null || m.valore === undefined ? undefined : num(m.valore),
+      unita: (m.unita as SheetMeasurement['unita']) ?? 'cm',
+      tagliaRiferimento: m.tagliaRiferimento ? s(m.tagliaRiferimento) : undefined,
+      tolleranza: m.tolleranza ? s(m.tolleranza) : undefined,
+      nota: m.nota ? s(m.nota) : undefined,
+      fonte: m.fonte as SheetMeasurement['fonte'],
+    })),
     pdfFile: r.pdfFileDataUrl
       ? { dataUrl: s(r.pdfFileDataUrl), nome: s(r.pdfFileNome), caricatoIl: isoDate(r.pdfFileCaricatoIl) }
       : undefined,
@@ -345,6 +425,33 @@ export function toTechnicalSheet(r: Row): TechnicalSheet {
         }
       : undefined,
   } as TechnicalSheet
+}
+
+export function toPatternDocument(r: Row): PatternDocument {
+  const persona = (v: unknown) => {
+    if (!v || typeof v !== 'object') return undefined
+    const u = v as Row
+    return s(u.nome || u.email) || undefined
+  }
+  return {
+    id: s(r.id),
+    productId: s(r.productId),
+    fileName: s(r.fileName),
+    dataUrl: s(r.dataUrl),
+    tipologia: r.tipologia as PatternDocument['tipologia'],
+    versione: s(r.versione),
+    autore: r.autore ? s(r.autore) : undefined,
+    statoApprovazione: r.statoApprovazione as PatternDocument['statoApprovazione'],
+    caricatoDa: persona(r.caricatoDa),
+    createdAt: isoDate(r.createdAt),
+    note: arr<Row>(r.note).map((n) => ({
+      id: s(n.id),
+      testo: s(n.testo),
+      tipo: n.tipo as PatternDocumentNote['tipo'],
+      autore: persona(n.autore),
+      createdAt: isoDate(n.createdAt),
+    })),
+  }
 }
 
 export function toFixedCostItem(r: Row): FixedCostItem {

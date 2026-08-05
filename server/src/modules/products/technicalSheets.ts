@@ -19,6 +19,7 @@ const INCLUDE_COMPLETO = {
   righeCosti: { orderBy: { ordine: 'asc' } },
   foto: { orderBy: { caricataIl: 'asc' } },
   storicoCosti: { orderBy: { registratoIl: 'asc' } },
+  misure: { orderBy: { ordine: 'asc' } },
 } satisfies Prisma.TechnicalSheetInclude
 
 export function listTechnicalSheets(productId: string) {
@@ -64,6 +65,16 @@ export interface RigaCostoInput {
 export interface FotoInput {
   nome: string
   dataUrl: string
+}
+
+export interface MisuraInput {
+  nome: string
+  valore?: number
+  unita?: string
+  tagliaRiferimento?: string
+  tolleranza?: string
+  nota?: string
+  fonte?: Prisma.SheetMeasurementCreateManyInput['fonte']
 }
 
 /** Campi semplici della scheda, senza le collezioni figlie. */
@@ -113,7 +124,7 @@ export async function createTechnicalSheet(
 export async function updateTechnicalSheet(
   id: string,
   campi: CampiScheda,
-  collezioni: { righeMateriali?: RigaMaterialeInput[]; righeCosti?: RigaCostoInput[] },
+  collezioni: { righeMateriali?: RigaMaterialeInput[]; righeCosti?: RigaCostoInput[]; misure?: MisuraInput[] },
   userId: string,
 ) {
   const before = await prisma.technicalSheet.findUnique({ where: { id } })
@@ -160,6 +171,25 @@ export async function updateTechnicalSheet(
             fatturaId: c.fatturaId,
             ammortizzabile: c.ammortizzabile ?? false,
             quantitaPrevista: c.quantitaPrevista,
+            ordine: i,
+          })),
+        })
+      }
+    }
+
+    if (collezioni.misure) {
+      await tx.sheetMeasurement.deleteMany({ where: { technicalSheetId: id } })
+      if (collezioni.misure.length) {
+        await tx.sheetMeasurement.createMany({
+          data: collezioni.misure.map((m, i) => ({
+            technicalSheetId: id,
+            nome: m.nome,
+            valore: dec(m.valore),
+            unita: m.unita ?? 'cm',
+            tagliaRiferimento: m.tagliaRiferimento,
+            tolleranza: m.tolleranza,
+            nota: m.nota,
+            fonte: m.fonte,
             ordine: i,
           })),
         })

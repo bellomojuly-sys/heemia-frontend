@@ -7,6 +7,11 @@ import { prisma } from '../../core/prisma.js'
 import { canSeeAlertModulo, type AlertModulo } from '../../core/permissions.js'
 import { daysFromToday, mesePrecedente, meseLabel } from '../../core/dates.js'
 import { computeAllMargins } from '../margins/service.js'
+import { stageLabel } from '../production/service.js'
+
+// Fasi in cui il campione è stato realizzato: da qui in poi la mancata approvazione è
+// un'azione aperta, non un dato ancora da produrre.
+const STAGES_CAMPIONE = ['prototipo', 'campionario']
 
 export interface AlertItem {
   id: string
@@ -19,7 +24,7 @@ export interface AlertItem {
 }
 
 export async function computeAlerts(role: Role): Promise<AlertItem[]> {
-  const [products, materials, accessories, invoices, inventoryRecords, orders, cashClosures, margins, sogliaSetting] =
+  const [products, materials, accessories, invoices, inventoryRecords, orders, cashClosures, stepsBloccati, margins, sogliaSetting] =
     await Promise.all([
       prisma.product.findMany({ include: { technicalSheets: true } }),
       prisma.material.findMany(),
@@ -28,6 +33,7 @@ export async function computeAlerts(role: Role): Promise<AlertItem[]> {
       prisma.inventoryRecord.findMany({ include: { variant: true } }),
       prisma.order.findMany(),
       prisma.cashClosure.findMany(),
+      prisma.productionStep.findMany({ where: { bloccata: true, dataFine: null } }),
       computeAllMargins(),
       prisma.appSetting.findUnique({ where: { chiave: 'soglia_margine_percent' } }),
     ])
@@ -166,13 +172,52 @@ export async function computeAlerts(role: Role): Promise<AlertItem[]> {
         data: now, entitaId: p.id, link: `/prodotti/${p.id}`,
       })
     }
+    // Backlog "Note" §9, categoria "Campioni da approvare": il capo è arrivato alla fase
+    // in cui il campione esiste, ma nessuno lo ha ancora approvato — finché non succede
+    // il gate della produzione (checkAdvance) resta chiuso.
+    if (STAGES_CAMPIONE.includes(p.stato) && !p.campioneApprovatoIl) {
+      alerts.push({
+        id: `alert-campione-${p.id}`, modulo: 'Produzione', livello: 'attenzione',
+        messaggio: `${p.nome}: campione da controllare e approvare prima di avviare la produzione`,
+        data: now, entitaId: p.id, link: `/prodotti/${p.id}`,
+      })
+    }
+  }
+
+  // Categoria "Prodotti bloccati": fase di pipeline messa in blocco a mano, con il motivo.
+  for (const step of stepsBloccati) {
+    const p = productById.get(step.productId)
+    alerts.push({
+      id: `alert-bloccato-${step.id}`, modulo: 'Produzione', livello: 'critico',
+      messaggio: `${p?.nome ?? step.productId}: fase "${stageLabel(step.fase)}" bloccata${step.motivoBlocco ? ` — ${step.motivoBlocco}` : ''}`,
+      data: step.dataInizio?.toISOString() ?? now, entitaId: step.productId, link: `/prodotti/${step.productId}`,
+    })
   }
 
   for (const rec of inventoryRecords) {
     if (rec.divergenzaShopify) {
       alerts.push({
         id: `alert-stock-div-${rec.id}`, modulo: 'Shopify', livello: 'attenzione',
-        messaggio: `SKU ${rec.variant?.sku ?? rec.variantId}: stock interno (${rec.qtaMagazzino}) diverge da Shopify (${rec.stockShopify})`,
+        // Il disponibile è magazzino + laboratorio: sono entrambi capi finiti vendibili.
+        messaggio: `SKU ${rec.variant?.sku ?? rec.variantId}: stock interno (${rec.qtaMagazzino + rec.qtaLaboratorio}) diverge da Shopify (${rec.stockShopify})`,
+        data: now, entitaId: rec.variantId, link: '/inventario/prodotti-finiti',
+      })
+    }
+
+    // Reintegro del laboratorio: serve a ricordare di spostare capi dal magazzino,
+    // anche quando la giacenza complessiva è ancora abbondante.
+    if (rec.sogliaMinimaLaboratorio > 0 && rec.qtaLaboratorio <= rec.sogliaMinimaLaboratorio) {
+      const inMagazzino = rec.qtaMagazzino
+      alerts.push({
+        id: `alert-lab-soglia-${rec.id}`,
+        modulo: 'Inventario prodotti finiti',
+        livello: inMagazzino > 0 ? 'attenzione' : 'critico',
+        messaggio:
+          `SKU ${rec.variant?.sku ?? rec.variantId}: scorta laboratorio in esaurimento ` +
+          `(${rec.qtaLaboratorio} su soglia ${rec.sogliaMinimaLaboratorio}). ` +
+          (inMagazzino > 0
+            ? `Recuperare materiale dal magazzino (${inMagazzino} disponibili).`
+            : 'Nessun pezzo in magazzino da cui reintegrare.'),
         data: now, entitaId: rec.variantId, link: '/inventario/prodotti-finiti',
       })
     }

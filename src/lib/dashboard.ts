@@ -88,9 +88,15 @@ export function getPendingEmailDrafts(supplierRequests: SupplierRequest[]) {
 // records: passare i record dal MockStore (mutabili in sessione) per riflettere le quantità
 // modificate; se omesso usa i dati mock statici iniziali.
 export function getStockOverview(records: InventoryRecord[] = []) {
-  const disponibile = records.reduce((sum, r) => sum + r.qtaMagazzino, 0)
+  // Disponibile = magazzino + laboratorio: sono entrambe giacenze di capi finiti.
+  const disponibile = records.reduce((sum, r) => sum + r.qtaMagazzino + r.qtaLaboratorio, 0)
+  const inMagazzino = records.reduce((sum, r) => sum + r.qtaMagazzino, 0)
+  const inLaboratorio = records.reduce((sum, r) => sum + r.qtaLaboratorio, 0)
+  const inProduzione = records.reduce((sum, r) => sum + (r.qtaInProduzione ?? 0), 0)
   const riservato = records.reduce((sum, r) => sum + r.qtaRiservata, 0)
   const lowStock = records.filter((r) => r.stato === 'low_stock').length
   const esaurito = records.filter((r) => r.stato === 'esaurito').length
-  return { disponibile, riservato, lowStock, esaurito }
+  // Varianti la cui giacenza di laboratorio è scesa sotto la soglia di reintegro.
+  const daReintegrare = records.filter((r) => r.laboratorioSottoSoglia).length
+  return { disponibile, inMagazzino, inLaboratorio, inProduzione, riservato, lowStock, esaurito, daReintegrare }
 }

@@ -8,7 +8,7 @@ import { computeAllMargins } from '../margins/service.js'
 const IN_SVILUPPO = ['concept', 'sviluppo_modello', 'scelta_tessuto', 'scelta_accessori', 'prototipo', 'campionario']
 
 export async function getDashboardKpis() {
-  const [products, materials, accessories, invoices, deadlines, margins, sheets] = await Promise.all([
+  const [products, materials, accessories, invoices, deadlines, margins, sheets, inventoryRecords] = await Promise.all([
     prisma.product.findMany(),
     prisma.material.findMany(),
     prisma.accessory.findMany(),
@@ -16,6 +16,7 @@ export async function getDashboardKpis() {
     prisma.deadline.findMany(),
     computeAllMargins(),
     prisma.technicalSheet.findMany({ select: { productId: true } }),
+    prisma.inventoryRecord.findMany({ select: { qtaMagazzino: true, qtaLaboratorio: true } }),
   ])
 
   const productIdsWithSheet = new Set(sheets.map((s) => s.productId))
@@ -47,6 +48,11 @@ export async function getDashboardKpis() {
       (p) => p.stato !== 'idea' && p.stato !== 'archivio' && Number(p.prezzoVendita) <= 0,
     ).length,
     fabricLibraryCount: materials.length,
+    // Backlog "Note" §7: i due KPI di stock sono quantità di capi, non conteggi di righe.
+    // "Riservati al laboratorio" = capi fisicamente spostati in laboratorio; "In magazzino"
+    // = capi ancora a magazzino. La somma dei due è il disponibile totale.
+    capiInLaboratorio: inventoryRecords.reduce((s, r) => s + r.qtaLaboratorio, 0),
+    capiInMagazzino: inventoryRecords.reduce((s, r) => s + r.qtaMagazzino, 0),
     collezioniCount: new Set(products.map((p) => p.collezione).filter(Boolean)).size,
     scadenze7gg: scadenzeGiorni.filter((g) => g >= 0 && g <= 7).length,
     scadenze30gg: scadenzeGiorni.filter((g) => g > 7 && g <= 30).length,

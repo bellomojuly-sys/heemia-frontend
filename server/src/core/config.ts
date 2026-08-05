@@ -28,4 +28,12 @@ export const config = {
   // Volutamente NON obbligatoria: senza chiave il server parte lo stesso e solo
   // l'endpoint /ai/* risponde con un errore chiaro, invece di bloccare tutta l'app.
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  // Google Analytics 4 (backlog "note" §10-11). Come la chiave Claude: NON obbligatorie.
+  // Senza credenziali il server parte lo stesso e solo /analytics/* risponde che manca la
+  // configurazione. `gaCredentialsJson` è il JSON del service account su una riga; in
+  // alternativa vale GOOGLE_APPLICATION_CREDENTIALS (percorso del file), che la libreria
+  // Google legge da sé. Le credenziali non escono mai dal server.
+  gaPropertyId: (process.env.GA_PROPERTY_ID ?? '').replace(/^properties\//, ''),
+  gaCredentialsJson: process.env.GA_CREDENTIALS_JSON ?? '',
+  gaCredentialsFile: process.env.GOOGLE_APPLICATION_CREDENTIALS ?? '',
 }

@@ -62,5 +62,18 @@ export function checkAdvance(step: Pick<ProductionStep, 'fase' | 'productId'>, c
     }
   }
 
+  // Backlog "Note" §6: in produzione si entra solo con il campione approvato.
+  // Il controllo completo (documenti della modellista, misure) lo fa il server.
+  if (next === 'produzione') {
+    const product = (ctx.products ?? []).find((p) => p.id === step.productId)
+    if (product && !product.campioneApprovatoIl) {
+      return {
+        ok: false,
+        next,
+        reason: 'Campione non ancora approvato: usa "Approva campione e avvia produzione" nella scheda prodotto.',
+      }
+    }
+  }
+
   return { ok: true, next }
 }

@@ -1,41 +1,33 @@
+import { useMemo } from 'react'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { Card, CardHeader } from '../../components/ui/Card'
-import { AlertList } from '../../components/alerts/AlertList'
+import { Card } from '../../components/ui/Card'
+import { AzioniRichieste } from '../../components/alerts/AzioniRichieste'
 import { useServerAlerts } from '../../hooks/useServerAlerts'
-import type { AlertItem } from '../../types'
+import { useMockStore } from '../../context/MockStore'
+import { toAzioni } from '../../lib/azioni'
 
-const LEVEL_LABEL: Record<AlertItem['livello'], string> = { critico: 'Critici', attenzione: 'Attenzione', info: 'Info' }
-
+// Backlog "Note" §9: stessa lettura della dashboard, non un secondo formato. Prima questa
+// pagina raggruppava per livello (Critici / Attenzione / Info) e la dashboard per modulo:
+// due tassonomie diverse sugli stessi dati. Ora il raggruppamento è per tipo di azione e il
+// livello resta come ordinamento dentro ogni gruppo.
 export function AlertsPage() {
   // Gli alert arrivano dal server già filtrati per ruolo (canSeeAlertModulo lato API).
-  const alertsServer = useServerAlerts()
-
-  // Il gating per-modulo va applicato qui (non da RoleGuard): la rotta /alert è aperta
-  // a team/viewer, ma alcune categorie di alert (Margini, Fatture, Scadenze…) restano
-  // riservate ad Admin/CEO anche dentro questa pagina.
-  const visible = alertsServer
-
-  const groups: AlertItem['livello'][] = ['critico', 'attenzione', 'info']
+  const alerts = useServerAlerts()
+  const { products } = useMockStore()
+  const azioni = useMemo(() => toAzioni(alerts, products), [alerts, products])
 
   return (
     <div>
-      <PageHeader title="Alert e notifiche" subtitle="Tutte le segnalazioni operative, prioritizzate per livello." />
+      <PageHeader
+        title="Azioni richieste"
+        subtitle={`Tutte le segnalazioni aperte, raggruppate per tipo. ${azioni.length} in totale.`}
+      />
 
-      <div className="space-y-6">
-        {groups.map((level) => {
-          const items = visible.filter((a) => a.livello === level)
-          if (items.length === 0) return null
-          return (
-            <Card key={level}>
-              <CardHeader title={LEVEL_LABEL[level]} subtitle={`${items.length} segnalazioni`} />
-              <div className="p-4">
-                <AlertList alerts={items} />
-              </div>
-            </Card>
-          )
-        })}
-        {visible.length === 0 && <AlertList alerts={[]} />}
-      </div>
+      <Card>
+        <div className="p-4">
+          <AzioniRichieste azioni={azioni} />
+        </div>
+      </Card>
     </div>
   )
 }

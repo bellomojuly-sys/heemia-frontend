@@ -20,6 +20,8 @@ export interface DashboardKpis {
   prodottiSenzaSchedaTecnica: number
   prodottiSenzaPrezzo: number
   fabricLibraryCount: number
+  capiInLaboratorio: number
+  capiInMagazzino: number
   collezioniCount: number
   scadenze7gg: number
   scadenze30gg: number
@@ -31,6 +33,7 @@ const VUOTI: DashboardKpis = {
   prodottiProntiEcommerce: 0, prodottiPubblicati: 0, margineSottoTarget: 0, sottoBreakEven: 0,
   tessutiSottoSoglia: 0, accessoriSottoSoglia: 0, fattureNonAssociate: 0,
   prodottiSenzaSchedaTecnica: 0, prodottiSenzaPrezzo: 0, fabricLibraryCount: 0,
+  capiInLaboratorio: 0, capiInMagazzino: 0,
   collezioniCount: 0, scadenze7gg: 0, scadenze30gg: 0, reportPronti: 0,
 }
 

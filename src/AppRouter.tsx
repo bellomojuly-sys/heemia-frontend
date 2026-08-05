@@ -23,6 +23,7 @@ import { SupplierList } from './pages/suppliers/SupplierList'
 import { CustomerList } from './pages/customers/CustomerList'
 import { ShopifyPage } from './pages/shopify/ShopifyPage'
 import { ReportsPage } from './pages/reports/ReportsPage'
+import { AnalyticsPage } from './pages/analytics/AnalyticsPage'
 import { AlertsPage } from './pages/alerts/AlertsPage'
 import { AiAssistantPage } from './pages/assistant/AiAssistantPage'
 import { ActivityLogPage } from './pages/logs/ActivityLogPage'
@@ -84,6 +85,7 @@ export function AppRouter() {
             <Route path="/clienti" element={<RoleGuard moduleKey="clienti"><CustomerList /></RoleGuard>} />
             <Route path="/shopify" element={<RoleGuard moduleKey="shopify"><ShopifyPage /></RoleGuard>} />
             <Route path="/report" element={<RoleGuard moduleKey="report"><ReportsPage /></RoleGuard>} />
+            <Route path="/analytics" element={<RoleGuard moduleKey="analytics"><AnalyticsPage /></RoleGuard>} />
             <Route path="/alert" element={<RoleGuard moduleKey="alert"><AlertsPage /></RoleGuard>} />
             <Route path="/assistente" element={<RoleGuard moduleKey="ai-assistant"><AiAssistantPage /></RoleGuard>} />
             <Route path="/log" element={<RoleGuard moduleKey="activity-log"><ActivityLogPage /></RoleGuard>} />

@@ -87,6 +87,9 @@ export interface Product {
   visibileShowroom: boolean
   /** DEC-023: il capo è proposto anche nel catalogo su misura della sub-app showroom. */
   personalizzabileSuMisura?: boolean
+  /** Data di approvazione del campione: finché è assente il capo non può entrare in produzione. */
+  campioneApprovatoIl?: string
+  campioneNote?: string
 }
 
 export interface ProductIdea {
@@ -238,6 +241,8 @@ export interface TechnicalSheet {
   aggiornataIl?: string
   /** Storico dei calcoli costo (spec §6), non sovrascritto. */
   storicoCosti?: SheetCostSnapshot[]
+  /** Misure tecniche del capo: elenco variabile per categoria, modificabile e riordinabile. */
+  misure?: SheetMeasurement[]
 
   // --- Versioni Finale e Piazzamento: PDF caricato + note + scansione AI ---
   /** PDF della scheda caricato dal dispositivo (data URL), persistito come le foto. */
@@ -252,6 +257,56 @@ export interface TechnicalSheet {
     affidabilita: 'alta' | 'media' | 'bassa'
     vociEstratte: number
   }
+}
+
+/** Una misura tecnica del capo. Il valore lo compila il modellista, non l'AI. */
+export interface SheetMeasurement {
+  id: string
+  nome: string
+  valore?: number
+  unita: 'cm' | 'mm' | 'in'
+  tagliaRiferimento?: string
+  tolleranza?: string
+  nota?: string
+  /** `ai` quando la misura è stata proposta da Claude, `manuale` quando l'ha aggiunta una persona. */
+  fonte: CostSource
+}
+
+// ---------------------------------------------------------------------------
+// Documenti delle modelliste (backlog "Note" §4)
+// ---------------------------------------------------------------------------
+
+export type PatternDocumentTipo =
+  | 'cartamodello' | 'scheda_misure' | 'revisione_modellista'
+  | 'piazzamento' | 'documento_taglio' | 'altro'
+
+export type PatternDocumentStato = 'in_attesa' | 'approvato' | 'rifiutato' | 'richiede_revisione'
+
+export type PatternDocumentNoteTipo =
+  | 'commento' | 'correzione' | 'problema' | 'modifica_misure'
+  | 'indicazione_taglio' | 'approvazione' | 'richiesta_nuova_versione'
+
+export interface PatternDocumentNote {
+  id: string
+  testo: string
+  tipo: PatternDocumentNoteTipo
+  autore?: string
+  createdAt: string
+}
+
+export interface PatternDocument {
+  id: string
+  productId: string
+  fileName: string
+  dataUrl: string
+  tipologia: PatternDocumentTipo
+  /** Testo libero (V1, V2, finale…): caricare una nuova versione non sovrascrive le precedenti. */
+  versione: string
+  autore?: string
+  statoApprovazione: PatternDocumentStato
+  caricatoDa?: string
+  createdAt: string
+  note: PatternDocumentNote[]
 }
 
 // ---------------------------------------------------------------------------
@@ -328,9 +383,65 @@ export interface InventoryRecord {
   qtaRiservata: number
   qtaVenduta: number
   sogliaMinima: number
+  /** Soglia della sola giacenza di laboratorio: sotto questa scatta l'alert di reintegro. */
+  sogliaMinimaLaboratorio: number
   stato: 'disponibile' | 'esaurito' | 'low_stock'
   stockShopify: number
   divergenzaShopify: boolean
+  /** Magazzino + laboratorio: entrambe giacenze di capi finiti, quindi entrambe vendibili. */
+  disponibileTotale: number
+  /** Capi mandati in produzione: fisicamente in laboratorio, ma non più disponibili per altro. */
+  qtaInProduzione: number
+  /** Disponibile totale meno i capi in produzione. */
+  disponibileReale: number
+  laboratorioSottoSoglia: boolean
+}
+
+/** Capi mandati in produzione: restano in laboratorio finché non vengono consumati. */
+export interface Lavorazione {
+  id: string
+  variantId: string
+  quantita: number
+  stato: 'in_produzione' | 'consumato' | 'rilasciato'
+  prodotto?: string
+  note?: string
+  utente?: string
+  createdAt: string
+  chiusoIl?: string
+}
+
+/** Vista di dettaglio del laboratorio per una variante. */
+export interface LabDetail {
+  variantId: string
+  sku: string
+  prodotto: string
+  taglia: string
+  colore: string
+  qtaLaboratorio: number
+  qtaMagazzino: number
+  disponibileTotale: number
+  qtaInProduzione: number
+  disponibileInLaboratorio: number
+  sogliaMinimaLaboratorio: number
+  sottoSoglia: boolean
+  movimenti: StockMovement[]
+  reintegri: StockMovement[]
+  consumi: StockMovement[]
+  inProduzione: Lavorazione[]
+  storicoLavorazioni: Lavorazione[]
+}
+
+/** Movimento di stock tra magazzino e laboratorio, o rettifica manuale di una quantità. */
+export interface StockMovement {
+  id: string
+  variantId: string
+  tipo: 'carico' | 'scarico' | 'trasferimento' | 'rettifica'
+  quantita: number
+  origine?: string
+  destinazione?: string
+  utente?: string
+  note?: string
+  createdAt: string
 }
 
 // ---------------------------------------------------------------------------
@@ -552,11 +663,13 @@ export type AlertModulo =
   | 'Fatture'
   | 'Inventario tessuti'
   | 'Inventario accessori'
+  | 'Inventario prodotti finiti'
   | 'Scadenze'
   | 'Anagrafica'
   | 'Shopify'
   | 'Report'
   | 'Ordini'
+  | 'Produzione'
 
 export interface AlertItem {
   id: string

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { InfoTooltip } from '../ui/InfoTooltip'
 
 // Card KPI singola e autonoma (non più una striscia condivisa con divisori interni): ogni
@@ -24,6 +25,9 @@ const TONE_TEXT: Record<KpiTone, string> = {
   neutral: 'text-heemia-black',
 }
 
+// `to`: backlog "Note" §7 — ogni KPI della dashboard deve aprire la pagina già filtrata.
+// La tile diventa un Link solo quando la destinazione c'è, così le tile informative
+// (es. quelle dell'inventario) restano non cliccabili e senza affordance ingannevole.
 export function KpiTile({
   label,
   value,
@@ -32,6 +36,7 @@ export function KpiTile({
   weight = 'primary',
   tone = 'neutral',
   icon,
+  to,
 }: {
   label: string
   value: string | number
@@ -40,13 +45,14 @@ export function KpiTile({
   weight?: 'primary' | 'secondary'
   tone?: KpiTone
   icon?: ReactNode
+  to?: string
 }) {
   const isPrimary = weight === 'primary'
   const valueColor = critical ? 'text-heemia-carmine' : isPrimary ? TONE_TEXT[tone] : 'text-heemia-grey'
   const valueSize = isPrimary ? 'text-[1.75rem]' : 'text-[1.25rem]'
 
-  return (
-    <div className="surface-raised group relative min-w-[9.5rem] flex-1 rounded-heemia-lg border border-heemia-border bg-white px-4 py-2.5 shadow-heemia-sm">
+  const contenuto = (
+    <>
       {icon && (
         <span
           aria-hidden
@@ -63,6 +69,21 @@ export function KpiTile({
       <p className={`font-sans mt-1 leading-none font-medium tabular-nums ${valueSize} ${valueColor}`}>
         {value}
       </p>
-    </div>
+    </>
   )
+
+  // La tile cliccabile usa `.surface-interactive` (sollevamento + affondamento al click),
+  // quella informativa `.surface-raised` (solo sollevamento): far "affondare" un riquadro
+  // che poi non porta da nessuna parte è una promessa non mantenuta.
+  const base = 'group relative min-w-[9.5rem] flex-1 rounded-heemia-lg border border-heemia-border bg-white px-4 py-2.5 shadow-heemia-sm'
+
+  if (to) {
+    return (
+      <Link to={to} className={`${base} surface-interactive block`}>
+        {contenuto}
+      </Link>
+    )
+  }
+
+  return <div className={`${base} surface-raised`}>{contenuto}</div>
 }

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FileText, Upload, ExternalLink, Printer, Plus, Pencil } from 'lucide-react'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
@@ -14,7 +14,9 @@ import { EditProductForm } from '../../components/products/EditProductForm'
 import { AddVariantForm } from '../../components/products/AddVariantForm'
 import { TechnicalSheetForm } from '../../components/products/TechnicalSheetForm'
 import { SheetCostBreakdown } from '../../components/products/SheetCostBreakdown'
-import { SheetPdfDocument } from '../../components/products/SheetPdfDocument'
+import { SheetPdfDocument, type PdfVariante } from '../../components/products/SheetPdfDocument'
+import { PatternDocuments } from '../../components/products/PatternDocuments'
+import { SampleApproval } from '../../components/production/SampleApproval'
 import { StatusBadge } from '../../lib/statusBadge'
 import { checkAdvance, stageLabel } from '../../lib/production'
 import { formatCurrency, formatDateIt } from '../../lib/format'
@@ -26,15 +28,11 @@ import { useLiveMargins } from '../../hooks/useLiveMargins'
 import type { Material, ProductVariant, TechnicalSheet, TechnicalSheetVersion } from '../../types'
 import { useMockStore } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
-import { canAccessModule, canEdit } from '../../lib/permissions'
+import { canAccessModule, canDeleteProducts, canEdit } from '../../lib/permissions'
+import { DeleteProductModal } from '../../components/products/DeleteProductModal'
 
-// FR-14 + spec versioning: le tre versioni sono numerate e ordinate V1 → V2 → V3.
-const VERSION_LABEL: Record<TechnicalSheetVersion, string> = {
-  preliminare: 'V1 · Preliminare',
-  finale: 'V2 · Finale',
-  piazzamento: 'V3 · Piazzamento e taglio',
-}
-
+// Ordine storico delle vecchie versioni: serve solo a scegliere quale scheda mostrare
+// quando un prodotto ne ha più di una in archivio.
 const VERSION_ORDER: TechnicalSheetVersion[] = ['preliminare', 'finale', 'piazzamento']
 
 type TabId = 'panoramica' | 'tessuto' | 'costi' | 'tecnico' | 'produzione' | 'shopify' | 'media' | 'note'
@@ -73,6 +71,7 @@ function FabricRow({ material, ruolo }: { material: Material; ruolo: string }) {
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>()
   const { role } = useRole()
+  const navigate = useNavigate()
   const {
     productionSteps, products, productVariants, updateProduct, addVariant, updateVariantQuantities,
     fixedCostItems, capiProdottiAnnui, technicalSheets, invoices, suppliers, addTechnicalSheet, persistenzaAvviso,
@@ -82,7 +81,9 @@ export function ProductDetail() {
   const liveMargins = useLiveMargins()
   const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
   const product = products.find((p) => p.id === id)
-  // Le versioni si mostrano sempre in ordine V1 → V2 → V3, non nell'ordine di creazione.
+  // Una sola scheda tecnica per prodotto: quella compilata qui dentro. Le vecchie schede
+  // Finale e Piazzamento restano leggibili, ma non se ne creano di nuove — cartamodelli e
+  // piazzamenti sono documenti della modellista e stanno nella sezione dedicata.
   const sheets = technicalSheets
     .filter((ts) => ts.productId === id)
     .slice()
@@ -90,12 +91,20 @@ export function ProductDetail() {
 
   const [activeTab, setActiveTab] = useState<TabId>('panoramica')
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [addVariantOpen, setAddVariantOpen] = useState(false)
-  const [activeVersion, setActiveVersion] = useState<TechnicalSheetVersion | null>(
-    sheets.find((s) => s.versione === 'finale')?.versione ?? sheets[0]?.versione ?? null,
-  )
   const [sheetFormId, setSheetFormId] = useState<string | null>(null)
-  const activeSheet = sheets.find((s) => s.versione === activeVersion) ?? sheets[0]
+  // Quale versione del documento stampare. Il montaggio deve precedere window.print(),
+  // altrimenti si stampa quella precedente: la stampa parte dall'effetto qui sotto.
+  const [pdfVariante, setPdfVariante] = useState<PdfVariante>('completa')
+  const [stampaRichiesta, setStampaRichiesta] = useState(false)
+
+  useEffect(() => {
+    if (!stampaRichiesta) return
+    setStampaRichiesta(false)
+    window.print()
+  }, [stampaRichiesta])
+  const activeSheet = sheets[0]
 
   // DEC-021: documento PDF per versione, aggiunto sopra ai campi strutturati (non li sostituisce —
   // FR-09 legge costoTessuto/costoAccessori ecc. da lì). Stato locale: il prototipo non ha upload
@@ -132,8 +141,8 @@ export function ProductDetail() {
   const canSeeEconomics = canAccessModule(role, 'costi-margini')
   const userCanEdit = canEdit(role)
 
-  // Tab Tessuto: usa la versione finale se esiste, altrimenti la più recente disponibile.
-  const fabricSheet: TechnicalSheet | undefined = sheets.find((s) => s.versione === 'finale') ?? sheets[0]
+  // Tab Tessuto: legge dalla stessa scheda tecnica mostrata nel tab Tecnico.
+  const fabricSheet: TechnicalSheet | undefined = activeSheet
   const mainFabric = fabricSheet ? materials.find((m) => m.id === fabricSheet.tessutoPrincipaleId) : undefined
   const secondaryFabrics = fabricSheet
     ? fabricSheet.tessutiSecondariId.map((mid) => materials.find((m) => m.id === mid)).filter((m): m is Material => Boolean(m))
@@ -146,7 +155,8 @@ export function ProductDetail() {
     { id: 'panoramica', label: 'Panoramica', visible: true },
     { id: 'tessuto', label: 'Tessuto', visible: true },
     { id: 'costi', label: 'Costi & Margini', visible: canSeeEconomics },
-    { id: 'tecnico', label: 'Tecnico', visible: true },
+    // Scheda tecnica e documenti della modellista sono lo stesso lavoro sul capo: un unico tab.
+    { id: 'tecnico', label: 'Tecnico & Modellista', visible: true },
     { id: 'produzione', label: 'Produzione', visible: true },
     { id: 'shopify', label: 'Shopify', visible: true },
     { id: 'media', label: 'Media', visible: true },
@@ -230,9 +240,22 @@ export function ProductDetail() {
             <Badge variant="neutral">{product.linea === 'tessile' ? 'Tessile' : 'Maglieria'}</Badge>
             <StatusBadge status={product.statoPubblicazioneShopify} />
             {canEdit(role) && <Button variant="secondary" onClick={() => setEditOpen(true)}>Modifica dati</Button>}
+            {/* Eliminazione (solo Admin/CEO): dopo la cancellazione il capo non esiste
+                più, quindi si torna all'anagrafica invece di restare su una pagina vuota. */}
+            {canDeleteProducts(role) && (
+              <Button variant="ghost" onClick={() => setDeleteOpen(true)}>Elimina</Button>
+            )}
           </div>
         }
       />
+
+      {deleteOpen && (
+        <DeleteProductModal
+          product={product}
+          onClose={() => setDeleteOpen(false)}
+          onDeleted={() => navigate('/prodotti')}
+        />
+      )}
 
       {editOpen && (
         <EditProductForm
@@ -307,7 +330,7 @@ export function ProductDetail() {
         <Card>
           <CardHeader
             title="Tessuti e accessori del capo"
-            subtitle={fabricSheet ? `Dalla scheda tecnica ${VERSION_LABEL[fabricSheet.versione].toLowerCase()}` : undefined}
+            subtitle={fabricSheet ? 'Dalla scheda tecnica del capo' : undefined}
           />
           <div className="p-5">
             {!fabricSheet ? (
@@ -360,7 +383,7 @@ export function ProductDetail() {
             <Card>
               <CardHeader
                 title="Costi diretti da scheda tecnica"
-                subtitle={`${VERSION_LABEL[activeSheet.versione]} · il dettaglio completo con la tracciabilità è nel tab Tecnico.`}
+                subtitle="Il dettaglio completo con la tracciabilità è nel tab Tecnico & Modellista."
               />
               <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3 lg:grid-cols-6">
                 <DetailField label="Materiali"><span className="font-mono-heemia">{formatCurrency(sheetCost.costoMateriali)}</span></DetailField>
@@ -394,27 +417,24 @@ export function ProductDetail() {
         <Card>
           <CardHeader
             title="Scheda tecnica"
-            subtitle="Tre versioni: preliminare, finale, piazzamento e taglio. Ogni versione si salva ed esporta separatamente."
+            subtitle="Una sola scheda per capo: si compila qui e si esporta in PDF."
             action={
               userCanEdit ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Crea le versioni mancanti, nell'ordine V1 → V2 → V3. */}
-                  {VERSION_ORDER.filter((v) => !sheets.some((s) => s.versione === v)).map((v) => (
+                  {sheets.length === 0 && (
                     <Button
-                      key={v}
                       variant="secondary"
                       onClick={async () => {
                         // L'id lo assegna il database: si attende la risposta prima di aprire il form.
-                        const creata = await addTechnicalSheet(product.id, v)
-                        setActiveVersion(v)
+                        const creata = await addTechnicalSheet(product.id, 'preliminare')
                         setSheetFormId(creata.id)
                       }}
                     >
                       <span className="inline-flex items-center gap-1.5">
-                        <Plus aria-hidden className="h-3.5 w-3.5" /> {VERSION_LABEL[v]}
+                        <Plus aria-hidden className="h-3.5 w-3.5" /> Crea scheda tecnica
                       </span>
                     </Button>
-                  ))}
+                  )}
                   {activeSheet && (
                     <>
                       <Button variant="secondary" onClick={() => setSheetFormId(activeSheet.id)}>
@@ -422,7 +442,24 @@ export function ProductDetail() {
                           <Pencil aria-hidden className="h-3.5 w-3.5" /> Compila / modifica
                         </span>
                       </Button>
-                      <Button onClick={() => window.print()}>
+                      <Button
+                        variant="secondary"
+                        title="Scheda per la modellista: lavorazione e misure, nessun dato economico"
+                        onClick={() => {
+                          setPdfVariante('tecnica')
+                          setStampaRichiesta(true)
+                        }}
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          <Printer aria-hidden className="h-3.5 w-3.5" /> PDF per la modellista
+                        </span>
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setPdfVariante('completa')
+                          setStampaRichiesta(true)
+                        }}
+                      >
                         <span className="inline-flex items-center gap-1.5">
                           <Printer aria-hidden className="h-3.5 w-3.5" /> Esporta PDF
                         </span>
@@ -439,34 +476,18 @@ export function ProductDetail() {
                 title="Nessuna scheda tecnica"
                 description={
                   step
-                    ? (step.motivoBlocco ?? checkAdvance(step, { materials, accessories, technicalSheets }).reason ?? 'Scheda tecnica non ancora creata per questo prodotto.')
+                    ? (step.motivoBlocco ?? checkAdvance(step, { materials, accessories, technicalSheets, products }).reason ?? 'Scheda tecnica non ancora creata per questo prodotto.')
                     : 'Scheda tecnica non ancora creata per questo prodotto.'
                 }
               />
             ) : (
               <div>
-                <div className="mb-5 flex gap-5 border-b border-heemia-border">
-                  {sheets.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setActiveVersion(s.versione)}
-                      className={`font-mono-heemia -mb-px rounded-t-heemia-sm border-b-2 px-2 pb-2 pt-1 text-[11px] uppercase tracking-[0.06em] transition-all duration-200 ease-heemia ${
-                        activeVersion === s.versione
-                          ? 'border-heemia-carmine text-heemia-black'
-                          : 'border-transparent text-heemia-grey hover:border-heemia-border-strong hover:bg-heemia-surface-muted/40 hover:text-heemia-black'
-                      }`}
-                    >
-                      {VERSION_LABEL[s.versione]}
-                    </button>
-                  ))}
-                </div>
                 {activeSheet && (
                   <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-heemia border border-heemia-border bg-heemia-surface px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <FileText aria-hidden className="h-4 w-4 shrink-0 text-heemia-grey" />
-                      {/* Due origini possibili: il PDF caricato dal dispositivo (versioni Finale e
-                          Piazzamento) e il vecchio collegamento a un file su Drive (DEC-021). */}
+                      {/* Due origini possibili: il PDF caricato dal dispositivo e il vecchio
+                          collegamento a un file su Drive (DEC-021). */}
                       {activeSheet.pdfFile ? (
                         <div className="min-w-0">
                           <a
@@ -628,8 +649,22 @@ export function ProductDetail() {
           {/* Costo del capo e break-even calcolati da questa scheda (spec §4/§5/§6). */}
           {activeSheet && canSeeEconomics && !sheetFormId && <SheetCostBreakdown sheet={activeSheet} />}
 
+          {/* Documenti ricevuti dalla modellista: stesso tab della scheda, non una pagina separata.
+              Nascosti mentre il form di compilazione è aperto, come il riepilogo costi. */}
+          {!sheetFormId && (
+            <Card>
+              <CardHeader
+                title="Documenti della modellista"
+                subtitle="Cartamodelli, piazzamenti, schede misure e revisioni, con note e versioni."
+              />
+              <div className="p-5">
+                <PatternDocuments productId={product.id} canEdit={userCanEdit} />
+              </div>
+            </Card>
+          )}
+
           {/* Documento nascosto a schermo, stampato da "Esporta PDF". */}
-          {activeSheet && <SheetPdfDocument product={product} sheet={activeSheet} />}
+          {activeSheet && <SheetPdfDocument product={product} sheet={activeSheet} variante={pdfVariante} />}
         </div>
       )}
 
@@ -642,7 +677,7 @@ export function ProductDetail() {
                 <StageProgress
                   currentStage={step.fase}
                   blocked={step.bloccata}
-                  blockReason={step.motivoBlocco ?? checkAdvance(step, { materials, accessories, technicalSheets }).reason}
+                  blockReason={step.motivoBlocco ?? checkAdvance(step, { materials, accessories, technicalSheets, products }).reason}
                 />
                 <div className="mt-5 grid grid-cols-2 gap-4 border-t border-heemia-border pt-4 sm:grid-cols-4">
                   <DetailField label="Responsabile">{step.responsabile}</DetailField>
@@ -652,6 +687,7 @@ export function ProductDetail() {
                   </DetailField>
                   <DetailField label="Note fase">{step.note ?? '–'}</DetailField>
                 </div>
+                <SampleApproval productId={product.id} canEdit={userCanEdit} />
                 <p className="mt-4 text-xs text-heemia-grey">
                   L'avanzamento tra le fasi si gestisce dalla <Link to="/produzione" className="underline hover:text-heemia-black">Pipeline produzione</Link>.
                 </p>
@@ -660,6 +696,7 @@ export function ProductDetail() {
               <div>
                 <StageProgress currentStage={product.stato} />
                 <p className="mt-4 text-sm text-heemia-grey">Nessuno step di produzione attivo per questo prodotto.</p>
+                <SampleApproval productId={product.id} canEdit={userCanEdit} />
               </div>
             )}
           </div>

@@ -77,6 +77,33 @@ enum StatoScheda {
   archiviata
 }
 
+// --- Documenti delle modelliste (backlog "Note" §4) ---
+enum PatternDocumentTipo {
+  cartamodello
+  scheda_misure
+  revisione_modellista
+  piazzamento
+  documento_taglio
+  altro
+}
+
+enum PatternDocumentStato {
+  in_attesa
+  approvato
+  rifiutato
+  richiede_revisione
+}
+
+enum PatternDocumentNoteTipo {
+  commento
+  correzione
+  problema
+  modifica_misure
+  indicazione_taglio
+  approvazione
+  richiesta_nuova_versione
+}
+
 enum Affidabilita {
   alta
   media
@@ -282,6 +309,13 @@ enum InventoryMovementType {
   rettifica
 }
 
+// Stato dei capi mandati in lavorazione (stock_commitments).
+enum CommitmentStato {
+  in_produzione
+  consumato
+  rilasciato
+}
+
 // --- Import tracking (Database_Schema.md §2) ---
 enum ImportStatus {
   in_corso
@@ -307,6 +341,11 @@ model User {
   approvedRequests   SupplierRequest[]   @relation("ApprovedBy")
   inventoryMovements InventoryMovement[]
   importBatches      ImportBatch[]
+  measurementTemplates MeasurementTemplate[]
+  patternDocuments   PatternDocument[]
+  patternDocumentNotes PatternDocumentNote[]
+  campioniApprovati  Product[]           @relation("CampioneApprovato")
+  stockCommitments   StockCommitment[]
 
   @@map("users")
 }
@@ -425,6 +464,13 @@ model Product {
   disponibilitaShowroom     Boolean              @default(false) @map("disponibilita_showroom")
   visibileShowroom          Boolean              @default(false) @map("visibile_showroom")
   personalizzabileSuMisura  Boolean              @default(false) @map("personalizzabile_su_misura")
+  // Approvazione del campione (backlog "Note" §6): la produzione parte solo dopo che il
+  // campione è stato ricevuto, controllato e approvato. Finché è null il passaggio alla
+  // fase "produzione" resta bloccato.
+  campioneApprovatoIl       DateTime?            @map("campione_approvato_il") @db.Timestamptz(6)
+  campioneApprovatoDa       String?              @map("campione_approvato_da") @db.Uuid
+  campioneApprovatore       User?                @relation("CampioneApprovato", fields: [campioneApprovatoDa], references: [id], onDelete: SetNull)
+  campioneNote              String?              @map("campione_note")
   createdAt                 DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -436,6 +482,8 @@ model Product {
   orderItems      OrderItem[]
   invoiceLinks    InvoiceProduct[]
   supplierReqs    SupplierRequest[]
+  patternDocuments PatternDocument[]
+  stockCommitments StockCommitment[]
 
   // Colonne filtrate in listProducts()/listProduction() (products/service.ts, production/service.ts).
   @@index([stato])
@@ -477,6 +525,7 @@ model ProductVariant {
   balances      InventoryBalance[]
   movements     InventoryMovement[]
   snapshotItems InventorySnapshotItem[]
+  impegni       StockCommitment[]
 
   @@index([productId])
   @@map("product_variants")
@@ -634,10 +683,87 @@ model TechnicalSheet {
   righeCosti     SheetCostLine[]
   foto           TechnicalSheetPhoto[]
   storicoCosti   SheetCostSnapshot[]
+  misure         SheetMeasurement[]
 
   @@unique([productId, versione])
   @@index([productId])
   @@map("technical_sheets")
+}
+
+// Misura tecnica del capo (backlog "Note" §3). L'elenco cambia con la categoria: viene
+// proposto dall'AI o compilato a mano, e resta modificabile, riordinabile ed eliminabile.
+// I valori numerici li inserisce il modellista, l'AI indica solo QUALI misure servono.
+model SheetMeasurement {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  technicalSheetId String         @map("technical_sheet_id") @db.Uuid
+  technicalSheet   TechnicalSheet @relation(fields: [technicalSheetId], references: [id], onDelete: Cascade)
+  nome             String
+  valore           Decimal?       @db.Decimal(8, 2)
+  unita            String         @default("cm")
+  tagliaRiferimento String?       @map("taglia_riferimento")
+  tolleranza       String?
+  nota             String?
+  fonte            CostSource     @default(manuale)
+  ordine           Int            @default(0)
+
+  @@index([technicalSheetId])
+  @@map("sheet_measurements")
+}
+
+// Modello di misure riutilizzabile per categoria: si salva un set una volta e lo si
+// riapplica ai capi successivi della stessa tipologia.
+model MeasurementTemplate {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome      String
+  categoria String
+  misure    Json
+  createdBy String?  @map("created_by") @db.Uuid
+  creatoDa  User?    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([nome, categoria])
+  @@map("measurement_templates")
+}
+
+// Documenti ricevuti dalle modelliste (backlog "Note" §4): cartamodelli, piazzamenti,
+// schede misure, revisioni. Collegati al PRODOTTO e non alla singola scheda tecnica,
+// perché uno stesso piazzamento può valere per più versioni. La versione è testo libero
+// e NON è unica: caricare una V2 non sovrascrive mai la V1.
+model PatternDocument {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId         String                @map("product_id") @db.Uuid
+  product           Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fileName          String                @map("file_name")
+  dataUrl           String                @map("data_url")
+  tipologia         PatternDocumentTipo
+  versione          String                @default("V1")
+  autore            String?
+  statoApprovazione PatternDocumentStato  @default(in_attesa) @map("stato_approvazione")
+  createdBy         String?               @map("created_by") @db.Uuid
+  caricatoDa        User?                 @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  note PatternDocumentNote[]
+
+  @@index([productId])
+  @@map("pattern_documents")
+}
+
+// Note del team su un documento della modellista: solo aggiunte, mai sovrascritte,
+// così la discussione su correzioni e approvazioni resta leggibile per intero.
+model PatternDocumentNote {
+  id         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId String                  @map("document_id") @db.Uuid
+  document   PatternDocument         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  testo      String
+  tipo       PatternDocumentNoteTipo @default(commento)
+  createdBy  String?                 @map("created_by") @db.Uuid
+  autore     User?                   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt  DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([documentId])
+  @@map("pattern_document_notes")
 }
 
 // Riga "materiale utilizzato" della scheda (spec §2/§3): tiene separata la quantità
@@ -751,6 +877,8 @@ model ProductionStep {
   motivoBlocco String?      @map("motivo_blocco")
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  impegni StockCommitment[]
 
   @@index([productId])
   @@map("production_steps")
@@ -978,12 +1106,44 @@ model InventoryRecord {
   qtaRiservata      Int            @default(0) @map("qta_riservata")
   qtaVenduta        Int            @default(0) @map("qta_venduta")
   sogliaMinima      Int            @default(0) @map("soglia_minima")
+  // Soglia della sola giacenza di laboratorio: sotto questa quantità scatta l'alert di
+  // reintegro dal magazzino. È distinta da `sogliaMinima`, che riguarda il totale.
+  sogliaMinimaLaboratorio Int      @default(0) @map("soglia_minima_laboratorio")
   stato             InventoryStato @default(disponibile)
   stockShopify      Int            @default(0) @map("stock_shopify")
   divergenzaShopify Boolean        @default(false) @map("divergenza_shopify")
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("inventory_records")
+}
+
+// Capi in produzione: quantità mandate in lavorazione ma non ancora consumate.
+// Restano fisicamente in laboratorio (la giacenza non cambia finché non si consumano),
+// ma non sono più disponibili per altro: nelle viste si mostrano separati.
+//
+// Ciclo di vita: in_produzione → consumato (scarico definitivo dal laboratorio)
+//                             → rilasciato (la lavorazione decade, i capi tornano disponibili)
+model StockCommitment {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  variantId    String            @map("variant_id") @db.Uuid
+  variant      ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  // Lavorazione per cui il capo è impegnato: il prodotto in produzione e, quando c'è,
+  // la fase specifica della pipeline.
+  productId    String?           @map("product_id") @db.Uuid
+  product      Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  stepId       String?           @map("step_id") @db.Uuid
+  step         ProductionStep?   @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  quantita     Int
+  stato        CommitmentStato   @default(in_produzione)
+  note         String?
+  createdBy    String?           @map("created_by") @db.Uuid
+  creatoDa     User?             @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  chiusoIl     DateTime?         @map("chiuso_il") @db.Timestamptz(6)
+
+  @@index([variantId])
+  @@index([stato])
+  @@map("stock_commitments")
 }
 
 // =====================================================================

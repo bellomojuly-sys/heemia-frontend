@@ -19,6 +19,7 @@ export type ModuleKey =
   | 'clienti'
   | 'shopify'
   | 'report'
+  | 'analytics'
   | 'alert'
   | 'ai-assistant'
   | 'activity-log'
@@ -44,6 +45,9 @@ const MODULE_ACCESS: Record<ModuleKey, Role[]> = {
   clienti: ADMIN_CEO,
   shopify: ADMIN_CEO,
   report: ADMIN_CEO,
+  // Analytics (backlog "note" §10): dati commerciali del sito, stesso gating di Shopify e
+  // Report. Assunzione da confermare con la founder (OQ-20).
+  analytics: ADMIN_CEO,
   alert: ADMIN_CEO_TEAM_VIEWER,
   'ai-assistant': ADMIN_CEO_TEAM_VIEWER,
   'activity-log': ADMIN_CEO,
@@ -60,6 +64,15 @@ export function canAccessModule(role: Role, moduleKey: ModuleKey): boolean {
 export function canSeeAlertModulo(role: Role, modulo: AlertModulo): boolean {
   if (!RESTRICTED_ALERT_MODULES.includes(modulo)) return true
   return ADMIN_CEO.includes(role)
+}
+
+/**
+ * Eliminare un capo è riservato ad Admin e CEO: le altre scritture si correggono, questa
+ * porta via varianti, giacenze, schede tecniche e documenti. Stessa regola sul server
+ * (`requireRole('admin','ceo')` su DELETE /products/:id), che è l'autorità vera.
+ */
+export function canDeleteProducts(role: Role): boolean {
+  return role === 'admin' || role === 'ceo'
 }
 
 export function canEdit(role: Role): boolean {

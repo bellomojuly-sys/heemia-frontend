@@ -113,12 +113,114 @@ export interface SheetScanResult {
   affidabilita: 'alta' | 'media' | 'bassa'
 }
 
+// --- Misure tecniche suggerite (richiesta 3 del backlog "Note") ---
+// Le misure necessarie cambiano con la categoria del capo: un pantalone non ha le stesse
+// misure di un cappotto. L'AI propone QUALI misure servono; i valori numerici restano da
+// compilare a mano, perché dipendono dalla taglia base e dal modello.
+
+const MEASUREMENTS_SCHEMA = {
+  type: 'object',
+  properties: {
+    misure: {
+      type: 'array',
+      description: 'Misure tecniche pertinenti per questo capo, in ordine di rilevazione',
+      items: {
+        type: 'object',
+        properties: {
+          nome: { type: 'string', description: 'Nome della misura in italiano, es. "Girovita"' },
+          unita: { type: 'string', enum: ['cm', 'mm', 'in'] },
+          tolleranza: { type: ['string', 'null'], description: 'Tolleranza tipica, es. "±0,5 cm"' },
+          nota: { type: ['string', 'null'], description: 'Come si rileva la misura, se non ovvio' },
+        },
+        required: ['nome', 'unita', 'tolleranza', 'nota'],
+        additionalProperties: false,
+      },
+    },
+    note: { type: 'string', description: 'Nota sintetica in italiano sulle scelte fatte' },
+  },
+  required: ['misure', 'note'],
+  additionalProperties: false,
+} as const
+
+const MEASUREMENTS_PROMPT = `Sei un modellista esperto di abbigliamento che lavora per un'azienda di moda italiana.
+
+Dato un capo, elenchi le misure tecniche da rilevare sul modello.
+
+Regole:
+- Proponi SOLO misure pertinenti alla categoria del capo: un pantalone ha girovita, girobacino, altezza cavallo, lunghezza esterna e interna, larghezza coscia, ginocchio e fondo; un cappotto ha lunghezza totale, larghezza spalle, circonferenza torace, larghezza fondo, lunghezza e giro manica, profondità scalfo, altezza collo.
+- Usa i nomi italiani correnti in sartoria.
+- NON inventare valori numerici: indichi quali misure servono, non quanto devono misurare.
+- Ordina le misure come si rilevano in pratica, dall'alto verso il basso.
+- Da 5 a 12 misure: poche e giuste, non un elenco esaustivo.`
+
+export interface SuggestedMeasurement {
+  nome: string
+  unita: 'cm' | 'mm' | 'in'
+  tolleranza: string | null
+  nota: string | null
+}
+
+export interface MeasurementsSuggestion {
+  misure: SuggestedMeasurement[]
+  note: string
+}
+
+export interface MeasurementsInput {
+  categoria: string
+  descrizione?: string
+  vestibilita?: string
+  stile?: string
+  genere?: string
+  lunghezza?: string
+  volume?: string
+  dettagliCostruttivi?: string
+}
+
+export async function suggestMeasurements(input: MeasurementsInput): Promise<MeasurementsSuggestion> {
+  if (!input.categoria.trim()) throw badRequest('Serve la categoria del capo per suggerire le misure.')
+
+  const contesto = [
+    `Categoria: ${input.categoria}`,
+    input.descrizione && `Descrizione dell'idea: ${input.descrizione}`,
+    input.vestibilita && `Vestibilità desiderata: ${input.vestibilita}`,
+    input.stile && `Stile: ${input.stile}`,
+    input.genere && `Genere: ${input.genere}`,
+    input.lunghezza && `Lunghezza: ${input.lunghezza}`,
+    input.volume && `Volume: ${input.volume}`,
+    input.dettagliCostruttivi && `Dettagli costruttivi: ${input.dettagliCostruttivi}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  const anthropic = getClient()
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-5',
+      max_tokens: 4000,
+      system: MEASUREMENTS_PROMPT,
+      output_config: { format: { type: 'json_schema', schema: MEASUREMENTS_SCHEMA } },
+      messages: [{ role: 'user', content: `Quali misure tecniche servono per questo capo?\n\n${contesto}` }],
+    })
+
+    if (response.stop_reason === 'refusal') {
+      throw new AppError(422, 'Claude non ha potuto rispondere. Aggiungi le misure a mano.', 'AI_REFUSAL')
+    }
+    const testo = response.content.find((b) => b.type === 'text')
+    if (!testo || testo.type !== 'text') {
+      throw new AppError(502, 'Risposta AI senza contenuto leggibile. Aggiungi le misure a mano.', 'AI_EMPTY')
+    }
+    return JSON.parse(testo.text) as MeasurementsSuggestion
+  } catch (err) {
+    throw tradurreErroreAI(err)
+  }
+}
+
 let client: Anthropic | null = null
 function getClient(): Anthropic {
   if (!config.anthropicApiKey) {
     throw new AppError(
       503,
-      'Scansione AI non disponibile: manca la chiave Claude API. Imposta ANTHROPIC_API_KEY in server/.env e riavvia il server.',
+      'Funzioni AI non disponibili: manca la chiave Claude API. Imposta ANTHROPIC_API_KEY in server/.env e riavvia il server.',
       'AI_NOT_CONFIGURED',
     )
   }
@@ -176,20 +278,24 @@ export async function scanTechnicalSheetPdf(pdfBase64: string, nomeFile?: string
 
     return JSON.parse(testo.text) as SheetScanResult
   } catch (err) {
-    if (err instanceof AppError) throw err
-    // Errori tipizzati dell'SDK: li traduciamo in messaggi comprensibili invece di un 500 generico.
-    if (err instanceof Anthropic.AuthenticationError) {
-      throw new AppError(503, 'Chiave Claude API non valida. Controlla ANTHROPIC_API_KEY in server/.env.', 'AI_BAD_KEY')
-    }
-    if (err instanceof Anthropic.RateLimitError) {
-      throw new AppError(429, 'Troppe richieste alla AI in questo momento. Riprova tra poco.', 'AI_RATE_LIMIT')
-    }
-    if (err instanceof Anthropic.APIConnectionError) {
-      throw new AppError(503, 'Non riesco a raggiungere Claude API: controlla la connessione.', 'AI_UNREACHABLE')
-    }
-    if (err instanceof Anthropic.APIError) {
-      throw new AppError(502, `Errore della AI (${err.status}): ${err.message}`, 'AI_ERROR')
-    }
-    throw err
+    throw tradurreErroreAI(err)
   }
+}
+
+/** Errori tipizzati dell'SDK tradotti in messaggi comprensibili invece di un 500 generico. */
+function tradurreErroreAI(err: unknown): unknown {
+  if (err instanceof AppError) return err
+  if (err instanceof Anthropic.AuthenticationError) {
+    return new AppError(503, 'Chiave Claude API non valida. Controlla ANTHROPIC_API_KEY in server/.env.', 'AI_BAD_KEY')
+  }
+  if (err instanceof Anthropic.RateLimitError) {
+    return new AppError(429, 'Troppe richieste alla AI in questo momento. Riprova tra poco.', 'AI_RATE_LIMIT')
+  }
+  if (err instanceof Anthropic.APIConnectionError) {
+    return new AppError(503, 'Non riesco a raggiungere Claude API: controlla la connessione.', 'AI_UNREACHABLE')
+  }
+  if (err instanceof Anthropic.APIError) {
+    return new AppError(502, `Errore della AI (${err.status}): ${err.message}`, 'AI_ERROR')
+  }
+  return err
 }

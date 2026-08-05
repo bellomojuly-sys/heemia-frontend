@@ -44,12 +44,13 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Fornitori', path: '/fornitori', moduleKey: 'fornitori' },
       { label: 'Clienti', path: '/clienti', moduleKey: 'clienti' },
       { label: 'Shopify', path: '/shopify', moduleKey: 'shopify' },
+      { label: 'Analytics', path: '/analytics', moduleKey: 'analytics' },
     ],
   },
   {
     label: 'Sistema',
     items: [
-      { label: 'Alert', path: '/alert', moduleKey: 'alert' },
+      { label: 'Azioni richieste', path: '/alert', moduleKey: 'alert' },
       { label: 'AI Assistant', path: '/assistente', moduleKey: 'ai-assistant' },
       { label: 'Activity log', path: '/log', moduleKey: 'activity-log' },
       { label: 'Impostazioni', path: '/impostazioni', moduleKey: 'impostazioni' },

@@ -5,11 +5,13 @@ import { Card, CardHeader } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { Field, fieldClass } from '../ui/Modal'
 import { InfoTooltip } from '../ui/InfoTooltip'
+import { SheetMeasurementsEditor } from './SheetMeasurementsEditor'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import { estimateConsumption, weightedAverageUnitCost } from '../../lib/materialCosting'
 import { VOCE_LABEL } from '../../lib/sheetCost'
 import { api, ApiError } from '../../lib/api'
 import { useMockStore, type TechnicalSheetInput } from '../../context/MockStore'
+import { useGoatAlert } from '../../context/GoatAlertContext'
 import type {
   Product,
   SheetCostLine,
@@ -18,7 +20,6 @@ import type {
   StatoScheda,
   TechnicalSheet,
   TechnicalSheetPhoto,
-  TechnicalSheetVersion,
 } from '../../types'
 
 // Form di compilazione della scheda tecnica (spec §1/§2/§4). Pannello full-width inline,
@@ -26,12 +27,6 @@ import type {
 // Il costo unitario dei materiali è risolto automaticamente dalle fatture collegate
 // (lib/materialCosting) e la quantità è stimata dall'app ma sempre correggibile a mano:
 // vengono conservati sia il valore suggerito sia quello confermato dall'utente.
-
-const VERSION_LABEL: Record<TechnicalSheetVersion, string> = {
-  preliminare: 'V1 · Preliminare',
-  finale: 'V2 · Finale',
-  piazzamento: 'V3 · Piazzamento e taglio',
-}
 
 const STATO_LABEL: Record<StatoScheda, string> = {
   bozza: 'Bozza',
@@ -132,16 +127,14 @@ export function TechnicalSheetForm({
   const { materials, accessories, invoices, suppliers, technicalSheets, updateTechnicalSheet, recordSheetCostSnapshot } =
     useMockStore()
 
+  const { avvisa } = useGoatAlert()
   const [form, setForm] = useState<TechnicalSheet>(sheet)
   const fileRef = useRef<HTMLInputElement>(null)
   const pdfRef = useRef<HTMLInputElement>(null)
   const [fotoErrore, setFotoErrore] = useState('')
   const [scanInCorso, setScanInCorso] = useState(false)
   const [scanErrore, setScanErrore] = useState('')
-
-  // La V1 Preliminare è l'unica scheda che si compila a mano. Le versioni Finale e
-  // Piazzamento partono dal PDF: si carica il documento, l'AI ne estrae i costi.
-  const isPreliminare = form.versione === 'preliminare'
+  const [salvataggioInCorso, setSalvataggioInCorso] = useState(false)
 
   const set = <K extends keyof TechnicalSheet>(key: K, value: TechnicalSheet[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -251,7 +244,9 @@ export function TechnicalSheetForm({
         const dataUrl = await fileToDownscaledDataUrl(file)
         nuove.push({ id: localId('photo'), dataUrl, nome: file.name, caricataIl: TODAY_ISO() })
       } catch {
-        setFotoErrore(`Non sono riuscito a leggere "${file.name}". Riprova con un'altra immagine.`)
+        const motivo = `Non sono riuscito a leggere "${file.name}". Riprova con un'altra immagine.`
+        setFotoErrore(motivo)
+        avvisa('upload', { testo: motivo })
       }
     }
     if (nuove.length > 0) setFrom('foto', (f) => [...(f.foto ?? []), ...nuove])
@@ -268,7 +263,9 @@ export function TechnicalSheetForm({
       const dataUrl = await fileToDataUrl(file)
       set('pdfFile', { dataUrl, nome: file.name, caricatoIl: TODAY_ISO() })
     } catch {
-      setScanErrore(`Non sono riuscito a leggere "${file.name}".`)
+      const motivo = `Non sono riuscito a leggere "${file.name}".`
+      setScanErrore(motivo)
+      avvisa('upload', { testo: motivo })
     }
     if (pdfRef.current) pdfRef.current.value = ''
   }
@@ -334,11 +331,12 @@ export function TechnicalSheetForm({
         },
       }))
     } catch (err) {
-      setScanErrore(
+      const motivo =
         err instanceof ApiError
           ? err.message
-          : "Scansione non riuscita. Puoi comunque inserire i costi a mano nella scheda preliminare.",
-      )
+          : 'Scansione non riuscita. Puoi comunque inserire i costi a mano nella scheda preliminare.'
+      setScanErrore(motivo)
+      avvisa(err instanceof ApiError && err.code === 'NETWORK' ? 'connessione' : 'upload', { testo: motivo })
     } finally {
       setScanInCorso(false)
     }
@@ -346,140 +344,47 @@ export function TechnicalSheetForm({
 
   // --- Salvataggio -----------------------------------------------------------
 
-  const salva = () => {
+  // Il salvataggio ATTENDE la risposta del server e tiene aperto il form se fallisce.
+  // Prima le due chiamate partivano senza await: se il server rifiutava (sessione scaduta,
+  // campo non valido, backend giù) il modale si chiudeva lo stesso e il salvataggio
+  // sembrava riuscito. Stesso difetto corretto negli altri form nella Fase 14.
+  const salva = async () => {
+    if (salvataggioInCorso) return
     const patch: TechnicalSheetInput = { ...form }
     delete (patch as Partial<TechnicalSheet>).id
     delete (patch as Partial<TechnicalSheet>).productId
-    updateTechnicalSheet(sheet.id, patch)
-    // Spec §6: ogni salvataggio registra uno snapshot del costo, senza toccare i precedenti.
-    recordSheetCostSnapshot(sheet.id, 'Salvataggio scheda tecnica')
-    onClose()
+    setSalvataggioInCorso(true)
+    try {
+      await updateTechnicalSheet(sheet.id, patch)
+      // Spec §6: ogni salvataggio registra uno snapshot del costo, senza toccare i precedenti.
+      await recordSheetCostSnapshot(sheet.id, 'Salvataggio scheda tecnica')
+      onClose()
+    } catch (e) {
+      avvisa(e instanceof ApiError && (e.isAuthError || e.isForbidden) ? 'permesso' : 'salvataggio', {
+        testo:
+          e instanceof ApiError
+            ? e.message
+            : 'Scheda non salvata per un errore imprevisto. Riprova; se continua, segnalalo.',
+      })
+    } finally {
+      setSalvataggioInCorso(false)
+    }
   }
 
   const selectMaterialValue = (m: SheetMaterialUsage) =>
     m.materialId ? `mat:${m.materialId}` : m.accessoryId ? `acc:${m.accessoryId}` : ''
 
-  // --- Versioni Finale e Piazzamento: solo PDF, note e scansione AI ---------
-  if (!isPreliminare) {
-    const scan = form.scanAI
-    return (
-      <Card className="mb-4">
-        <CardHeader
-          title={`Scheda tecnica — ${VERSION_LABEL[form.versione]}`}
-          subtitle="Carica il PDF della scheda: l'assistente lo legge e ne ricava i costi del capo. Aggiungi eventuali note."
-          action={
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={onClose}>Annulla</Button>
-              <Button onClick={salva}>Salva scheda</Button>
-            </div>
-          }
-        />
-
-        <div className="space-y-6 p-5">
-          <section>
-            <SectionTitle hint="Il PDF resta salvato nel browser e viene allegato all'export della scheda.">
-              Documento della scheda tecnica
-            </SectionTitle>
-
-            <input
-              ref={pdfRef}
-              type="file"
-              accept="application/pdf,.pdf"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && onPdf(e.target.files[0])}
-            />
-
-            <div className="flex flex-wrap items-center gap-3 rounded-heemia border border-heemia-border bg-heemia-surface px-4 py-3">
-              <FileText aria-hidden className="h-4 w-4 shrink-0 text-heemia-grey" />
-              {form.pdfFile ? (
-                <div className="min-w-0 flex-1">
-                  <a
-                    href={form.pdfFile.dataUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block truncate text-sm text-heemia-black hover:underline"
-                    title={form.pdfFile.nome}
-                  >
-                    {form.pdfFile.nome}
-                  </a>
-                  <p className="text-xs text-heemia-grey">Caricato il {formatDateIt(form.pdfFile.caricatoIl)}</p>
-                </div>
-              ) : (
-                <p className="flex-1 text-sm text-heemia-grey">Nessun PDF caricato per questa versione.</p>
-              )}
-              <Button variant="secondary" onClick={() => pdfRef.current?.click()}>
-                <span className="inline-flex items-center gap-1.5">
-                  <Upload aria-hidden className="h-3.5 w-3.5" />
-                  {form.pdfFile ? 'Sostituisci PDF' : 'Carica PDF'}
-                </span>
-              </Button>
-              {form.pdfFile && (
-                <Button onClick={analizzaPdf} disabled={scanInCorso}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Sparkles aria-hidden className="h-3.5 w-3.5" />
-                    {scanInCorso ? 'Lettura in corso…' : 'Ricava i costi con AI'}
-                  </span>
-                </Button>
-              )}
-            </div>
-
-            {scanErrore && (
-              <p className="mt-3 rounded-heemia border-l-2 border-heemia-carmine bg-white px-3 py-2 text-sm text-heemia-black">
-                {scanErrore}
-              </p>
-            )}
-
-            {scan && (
-              <div className="mt-3 rounded-heemia border border-heemia-border p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Sparkles aria-hidden className="h-3.5 w-3.5 text-heemia-grey" />
-                  <span className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
-                    Lettura AI del {formatDateIt(scan.analizzatoIl)}
-                  </span>
-                  <Badge variant={scan.affidabilita === 'alta' ? 'success' : scan.affidabilita === 'media' ? 'warning' : 'critical'}>
-                    Affidabilità {scan.affidabilita}
-                  </Badge>
-                  <span className="text-xs text-heemia-grey">{scan.vociEstratte} voci estratte</span>
-                </div>
-                <p className="mt-1.5 text-sm text-heemia-black">{scan.note}</p>
-                <p className="mt-2 text-xs text-heemia-grey">
-                  I valori estratti alimentano il costo del capo qui sotto e restano marcati come provenienti dall'AI:
-                  verificali prima di considerarli definitivi.
-                </p>
-              </div>
-            )}
-          </section>
-
-          <section>
-            <SectionTitle>Note su questa versione</SectionTitle>
-            <textarea
-              rows={4}
-              className={fieldClass}
-              value={form.noteVersione ?? ''}
-              onChange={(e) => set('noteVersione', e.target.value)}
-              placeholder="Es. modifiche rispetto alla preliminare, indicazioni per il confezionista, dubbi da chiarire…"
-            />
-          </section>
-
-          <div className="flex justify-end gap-2 border-t border-heemia-border pt-4">
-            <Button variant="ghost" onClick={onClose}>Annulla</Button>
-            <Button onClick={salva}>Salva scheda</Button>
-          </div>
-        </div>
-      </Card>
-    )
-  }
-
-  // --- V1 Preliminare: la scheda che si compila a mano ----------------------
+  // Scheda tecnica unica: si compila a mano qui. I documenti della modellista
+  // (cartamodelli, piazzamenti, revisioni) non passano più da questo form.
   return (
     <Card className="mb-4">
       <CardHeader
-        title={`Compila scheda tecnica — ${VERSION_LABEL[form.versione]}`}
+        title="Compila scheda tecnica"
         subtitle="I costi unitari sono ricavati dalle fatture collegate; le quantità sono stimate dall'app e restano correggibili a mano."
         action={
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>Annulla</Button>
-            <Button onClick={salva}>Salva scheda</Button>
+            <Button onClick={() => void salva()} disabled={salvataggioInCorso}>{salvataggioInCorso ? 'Salvataggio…' : 'Salva scheda'}</Button>
           </div>
         }
       />
@@ -504,11 +409,6 @@ export function TechnicalSheetForm({
             <Field label="Stato scheda">
               <select className={fieldClass} value={form.statoScheda ?? 'bozza'} onChange={(e) => set('statoScheda', e.target.value as StatoScheda)}>
                 {Object.entries(STATO_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-            </Field>
-            <Field label="Versione">
-              <select className={fieldClass} value={form.versione} onChange={(e) => set('versione', e.target.value as TechnicalSheetVersion)}>
-                {Object.entries(VERSION_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </Field>
             <div className="sm:col-span-3">
@@ -538,11 +438,25 @@ export function TechnicalSheetForm({
               <input className={fieldClass} value={form.composizioneCompleta} onChange={(e) => set('composizioneCompleta', e.target.value)} placeholder="100% Cotone" />
             </Field>
             <div className="sm:col-span-3">
-              <Field label="Misure e vestibilità">
-                <textarea rows={2} className={fieldClass} value={form.misureVestibilita ?? ''} onChange={(e) => set('misureVestibilita', e.target.value)} placeholder="Es. Oversize. Torace 60cm, lunghezza 72cm, manica 62cm (taglia M)…" />
+              <Field label="Vestibilità">
+                <textarea rows={2} className={fieldClass} value={form.misureVestibilita ?? ''} onChange={(e) => set('misureVestibilita', e.target.value)} placeholder="Es. Oversize, spalla scesa, volume ampio sul fondo…" />
               </Field>
             </div>
           </div>
+        </section>
+
+        {/* 2b. Misure tecniche ---------------------------------------------- */}
+        <section>
+          <SectionTitle hint="Le misure necessarie cambiano con la categoria del capo: un pantalone non ha le stesse misure di un cappotto. L'AI propone quali misure servono; i valori li inserisci tu, perché dipendono dalla taglia base e dal modello.">
+            Misure tecniche
+          </SectionTitle>
+          <SheetMeasurementsEditor
+            misure={form.misure ?? []}
+            categoria={form.categoria || product.categoria}
+            descrizione={form.descrizioneTecnica}
+            vestibilita={form.misureVestibilita}
+            onChange={(aggiorna) => setFrom('misure', (f) => aggiorna(f.misure ?? []))}
+          />
         </section>
 
         {/* 3. Materiali ------------------------------------------------------ */}
@@ -863,9 +777,96 @@ export function TechnicalSheetForm({
           )}
         </section>
 
+        {/* 7. PDF della scheda e lettura AI ---------------------------------- */}
+        <section>
+          <SectionTitle hint="Se la scheda esiste già come PDF, caricalo qui: l'assistente ne ricava i costi del capo, che restano correggibili a mano.">
+            Documento PDF della scheda
+          </SectionTitle>
+
+          <input
+            ref={pdfRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && onPdf(e.target.files[0])}
+          />
+
+          <div className="flex flex-wrap items-center gap-3 rounded-heemia border border-heemia-border bg-heemia-surface px-4 py-3">
+            <FileText aria-hidden className="h-4 w-4 shrink-0 text-heemia-grey" />
+            {form.pdfFile ? (
+              <div className="min-w-0 flex-1">
+                <a
+                  href={form.pdfFile.dataUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block truncate text-sm text-heemia-black hover:underline"
+                  title={form.pdfFile.nome}
+                >
+                  {form.pdfFile.nome}
+                </a>
+                <p className="text-xs text-heemia-grey">Caricato il {formatDateIt(form.pdfFile.caricatoIl)}</p>
+              </div>
+            ) : (
+              <p className="flex-1 text-sm text-heemia-grey">Nessun PDF caricato per questa scheda.</p>
+            )}
+            <Button variant="secondary" onClick={() => pdfRef.current?.click()}>
+              <span className="inline-flex items-center gap-1.5">
+                <Upload aria-hidden className="h-3.5 w-3.5" />
+                {form.pdfFile ? 'Sostituisci PDF' : 'Carica PDF'}
+              </span>
+            </Button>
+            {form.pdfFile && (
+              <Button onClick={analizzaPdf} disabled={scanInCorso}>
+                <span className="inline-flex items-center gap-1.5">
+                  <Sparkles aria-hidden className="h-3.5 w-3.5" />
+                  {scanInCorso ? 'Lettura in corso…' : 'Ricava i costi con AI'}
+                </span>
+              </Button>
+            )}
+          </div>
+
+          {scanErrore && (
+            <p className="mt-3 rounded-heemia border-l-2 border-heemia-carmine bg-white px-3 py-2 text-sm text-heemia-black">
+              {scanErrore}
+            </p>
+          )}
+
+          {form.scanAI && (
+            <div className="mt-3 rounded-heemia border border-heemia-border p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Sparkles aria-hidden className="h-3.5 w-3.5 text-heemia-grey" />
+                <span className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
+                  Lettura AI del {formatDateIt(form.scanAI.analizzatoIl)}
+                </span>
+                <Badge variant={form.scanAI.affidabilita === 'alta' ? 'success' : form.scanAI.affidabilita === 'media' ? 'warning' : 'critical'}>
+                  Affidabilità {form.scanAI.affidabilita}
+                </Badge>
+                <span className="text-xs text-heemia-grey">{form.scanAI.vociEstratte} voci estratte</span>
+              </div>
+              <p className="mt-1.5 text-sm text-heemia-black">{form.scanAI.note}</p>
+              <p className="mt-2 text-xs text-heemia-grey">
+                I valori estratti alimentano il costo del capo e restano marcati come provenienti dall'AI:
+                verificali prima di considerarli definitivi.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-4">
+            <Field label="Note sulla scheda">
+              <textarea
+                rows={3}
+                className={fieldClass}
+                value={form.noteVersione ?? ''}
+                onChange={(e) => set('noteVersione', e.target.value)}
+                placeholder="Es. indicazioni per il confezionista, dubbi da chiarire, modifiche rispetto al prototipo…"
+              />
+            </Field>
+          </div>
+        </section>
+
         <div className="flex justify-end gap-2 border-t border-heemia-border pt-4">
           <Button variant="ghost" onClick={onClose}>Annulla</Button>
-          <Button onClick={salva}>Salva scheda</Button>
+          <Button onClick={() => void salva()} disabled={salvataggioInCorso}>{salvataggioInCorso ? 'Salvataggio…' : 'Salva scheda'}</Button>
         </div>
       </div>
     </Card>

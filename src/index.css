@@ -342,9 +342,11 @@ body {
   border-color: var(--color-heemia-black);
 }
 
-/* Variante per le superfici che si sollevano ma NON si cliccano (i KPI della
-   dashboard): stesso stacco al passaggio del mouse, nessun effetto di pressione.
-   Far "affondare" un riquadro che poi non fa niente è una promessa non mantenuta. */
+/* Variante per le superfici che si sollevano ma NON si cliccano (i KPI senza
+   destinazione: quelli della dashboard ora aprono la pagina filtrata e usano
+   `.surface-interactive`): stesso stacco al passaggio del mouse, nessun effetto di
+   pressione. Far "affondare" un riquadro che poi non fa niente è una promessa non
+   mantenuta. */
 .surface-raised {
   transition:
     transform 0.26s var(--ease-heemia-out),

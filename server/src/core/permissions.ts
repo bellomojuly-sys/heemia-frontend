@@ -5,7 +5,7 @@ import type { Role } from '@prisma/client'
 export type ModuleKey =
   | 'dashboard' | 'prodotti' | 'produzione' | 'inventario' | 'ordini' | 'fatture'
   | 'scadenze' | 'costi-margini' | 'fornitori' | 'clienti' | 'shopify' | 'report'
-  | 'alert' | 'ai-assistant' | 'activity-log' | 'impostazioni'
+  | 'analytics' | 'alert' | 'ai-assistant' | 'activity-log' | 'impostazioni'
 
 const ADMIN_CEO: Role[] = ['admin', 'ceo']
 const ALL_INTERNAL: Role[] = ['admin', 'ceo', 'team', 'viewer']
@@ -23,6 +23,8 @@ const MODULE_ACCESS: Record<ModuleKey, Role[]> = {
   clienti: ADMIN_CEO,
   shopify: ADMIN_CEO,
   report: ADMIN_CEO,
+  // Analytics GA4 (backlog "note" §10): dati commerciali, stesso gating di Shopify/Report.
+  analytics: ADMIN_CEO,
   alert: ALL_INTERNAL,
   'ai-assistant': ALL_INTERNAL,
   'activity-log': ADMIN_CEO,
@@ -36,7 +38,8 @@ export function canAccessModule(role: Role, moduleKey: ModuleKey): boolean {
 // Etichette di modulo usate dagli alert (FR-27): non coincidono con le ModuleKey delle pagine.
 export type AlertModulo =
   | 'Margini' | 'Costi' | 'Fatture' | 'Inventario tessuti' | 'Inventario accessori'
-  | 'Scadenze' | 'Anagrafica' | 'Shopify' | 'Report' | 'Ordini'
+  | 'Inventario prodotti finiti' | 'Scadenze' | 'Anagrafica' | 'Shopify' | 'Report' | 'Ordini'
+  | 'Produzione'
 
 // Alert la cui visibilità segue lo stesso gating del modulo economico corrispondente
 // (porting di RESTRICTED_ALERT_MODULES in src/lib/permissions.ts).

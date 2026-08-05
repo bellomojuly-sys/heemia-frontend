@@ -84,7 +84,103 @@ export async function checkAdvance(productId: string): Promise<AdvanceCheck> {
     }
   }
 
+  // Backlog "Note" §6: in produzione si entra solo dopo che il campione è stato
+  // ricevuto, controllato e approvato — non basta più che esista la scheda tecnica.
+  if (next === 'produzione' && !product.campioneApprovatoIl) {
+    return {
+      ok: false,
+      next,
+      reason: 'Campione non ancora approvato: usa "Approva campione e avvia produzione" nella scheda prodotto.',
+    }
+  }
+
   return { ok: true, next }
+}
+
+/** Cosa deve esserci prima di poter approvare il campione (backlog "Note" §6). */
+export interface RequisitoCampione {
+  chiave: 'scheda_tecnica' | 'misure' | 'documentazione_modellista' | 'piazzamento'
+  etichetta: string
+  soddisfatto: boolean
+  dettaglio?: string
+}
+
+export async function checkRequisitiCampione(productId: string): Promise<{
+  requisiti: RequisitoCampione[]
+  approvabile: boolean
+  giaApprovato: boolean
+}> {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: {
+      technicalSheets: { where: { archiviata: false }, include: { misure: true } },
+      patternDocuments: true,
+    },
+  })
+  if (!product) throw notFound('Prodotto non trovato')
+
+  const sheets = product.technicalSheets
+  const documenti = product.patternDocuments
+  const piazzamenti = documenti.filter((d) => d.tipologia === 'piazzamento')
+
+  const requisiti: RequisitoCampione[] = ([
+    {
+      chiave: 'scheda_tecnica',
+      etichetta: 'Scheda tecnica compilata',
+      soddisfatto: sheets.length > 0,
+      dettaglio: sheets.length === 0 ? 'Nessuna scheda tecnica per questo prodotto.' : undefined,
+    },
+    {
+      chiave: 'misure',
+      etichetta: 'Misure tecniche indicate',
+      soddisfatto: sheets.some((s) => s.misure.length > 0),
+      dettaglio: 'Aggiungi le misure nella scheda tecnica (anche con "Suggerisci misure con AI").',
+    },
+    {
+      chiave: 'documentazione_modellista',
+      etichetta: 'Documentazione della modellista ricevuta',
+      soddisfatto: documenti.length > 0,
+      dettaglio: 'Carica cartamodello, scheda misure o revisione nella sezione Modellista.',
+    },
+    {
+      // Il piazzamento non serve a ogni capo: se non ne è stato caricato nessuno il
+      // requisito è soddisfatto, ma se c'è deve essere approvato prima del taglio.
+      chiave: 'piazzamento',
+      etichetta: 'Piazzamento approvato (se previsto)',
+      soddisfatto: piazzamenti.length === 0 || piazzamenti.some((d) => d.statoApprovazione === 'approvato'),
+      dettaglio: 'È stato caricato un piazzamento ma nessuno risulta approvato.',
+    },
+  ] satisfies RequisitoCampione[]).map((r) => ({ ...r, dettaglio: r.soddisfatto ? undefined : r.dettaglio }))
+
+  return {
+    requisiti,
+    approvabile: requisiti.every((r) => r.soddisfatto),
+    giaApprovato: product.campioneApprovatoIl !== null,
+  }
+}
+
+/**
+ * Approva il campione e, se richiesto, porta il prodotto in produzione.
+ * Se manca qualcosa risponde 409 con l'elenco puntuale di ciò che non c'è.
+ */
+export async function approveSample(productId: string, userId: string, note?: string) {
+  const { requisiti, approvabile } = await checkRequisitiCampione(productId)
+  if (!approvabile) {
+    const mancanti = requisiti.filter((r) => !r.soddisfatto).map((r) => r.etichetta)
+    throw conflict(`Non si può approvare il campione: manca ${mancanti.join('; manca ')}.`)
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.product.update({
+      where: { id: productId },
+      data: { campioneApprovatoIl: new Date(), campioneApprovatoDa: userId, campioneNote: note },
+    })
+    await logActivity(tx, {
+      userId, azione: 'approve_sample', entita: 'product', entitaId: productId,
+      valoreNuovo: note ? `campione approvato — ${note}` : 'campione approvato',
+    })
+    return updated
+  })
 }
 
 // Kanban produzione: prodotti raggruppati per fase con lo stato del gate.

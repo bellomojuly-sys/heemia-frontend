@@ -61,6 +61,13 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      # Google Analytics 4 (pagina Analytics): identificativo numerico della proprietà e
+      # JSON del service account su una riga. Finché mancano, /analytics/* risponde che
+      # l'integrazione non è collegata e il riquadro in dashboard non compare.
+      - key: GA_PROPERTY_ID
+        sync: false
+      - key: GA_CREDENTIALS_JSON
+        sync: false
       # Password del primo amministratore, usata una sola volta dal seed.
       - key: SEED_ADMIN_EMAIL
         sync: false

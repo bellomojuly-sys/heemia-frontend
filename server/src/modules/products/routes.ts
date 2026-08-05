@@ -1,15 +1,20 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
-import { authenticate, requireModule, requireEdit } from '../../core/guards.js'
+import { authenticate, requireModule, requireEdit, requireRole } from '../../core/guards.js'
 import { badRequest } from '../../core/errors.js'
 import {
-  createProduct, createVariant, getProduct, listProducts, updateProduct, updateVariantQuantities,
+  checkProductDeletion, createProduct, createVariant, deleteProduct, getProduct, listProducts,
+  updateProduct, updateVariantQuantities,
 } from './service.js'
 import {
   addCostSnapshot, addPhoto, createTechnicalSheet, getTechnicalSheet, listTechnicalSheets,
   removePhoto, updateTechnicalSheet,
 } from './technicalSheets.js'
+import {
+  addPatternDocumentNote, createPatternDocument, deletePatternDocument,
+  listPatternDocuments, updatePatternDocumentStato,
+} from './patternDocuments.js'
 
 const createSchema = z.object({
   nome: z.string().min(1),
@@ -69,6 +74,7 @@ const variantQuantitiesSchema = z.object({
   qtaLaboratorio: z.number().int().nonnegative().optional(),
   qtaRiservata: z.number().int().nonnegative().optional(),
   sogliaMinima: z.number().int().nonnegative().optional(),
+  sogliaMinimaLaboratorio: z.number().int().nonnegative().optional(),
 })
 
 const technicalSheetCreateSchema = z.object({
@@ -144,10 +150,21 @@ const rigaCostoSchema = z.object({
   quantitaPrevista: z.number().int().positive().optional(),
 })
 
+const misuraSchema = z.object({
+  nome: z.string().min(1),
+  valore: z.number().nonnegative().optional(),
+  unita: z.enum(['cm', 'mm', 'in']).optional(),
+  tagliaRiferimento: z.string().max(30).optional(),
+  tolleranza: z.string().max(60).optional(),
+  nota: z.string().max(500).optional(),
+  fonte: fonteCostoEnum.optional(),
+})
+
 // Nell'update le collezioni sono opzionali: se presenti sostituiscono il set completo.
 const technicalSheetUpdateSchema = technicalSheetCreateSchema.partial().extend({
   righeMateriali: z.array(rigaMaterialeSchema).optional(),
   righeCosti: z.array(rigaCostoSchema).optional(),
+  misure: z.array(misuraSchema).optional(),
 })
 
 // Le foto sono data URL base64: un limite di dimensione evita di gonfiare database e backup.
@@ -157,6 +174,33 @@ const photoSchema = z.object({
   dataUrl: z.string().min(1).refine((v) => v.length <= MAX_FOTO_BYTES, {
     message: 'Immagine troppo grande (massimo ~3 MB): comprimila prima di caricarla',
   }),
+})
+
+// I documenti delle modelliste sono PDF in data URL base64: stesso limite delle foto,
+// alzato a 10 MB perché un cartamodello o un piazzamento pesa più di una fotografia.
+const MAX_DOCUMENTO_BYTES = 10 * 1024 * 1024
+const patternDocumentSchema = z.object({
+  fileName: z.string().min(1),
+  dataUrl: z.string().min(1).refine((v) => v.length <= MAX_DOCUMENTO_BYTES, {
+    message: 'Documento troppo grande (massimo ~10 MB)',
+  }),
+  tipologia: z.enum([
+    'cartamodello', 'scheda_misure', 'revisione_modellista', 'piazzamento', 'documento_taglio', 'altro',
+  ]),
+  versione: z.string().max(20).optional(),
+  autore: z.string().max(120).optional(),
+})
+
+const patternStatoSchema = z.object({
+  statoApprovazione: z.enum(['in_attesa', 'approvato', 'rifiutato', 'richiede_revisione']),
+})
+
+const patternNotaSchema = z.object({
+  testo: z.string().min(1).max(2000),
+  tipo: z.enum([
+    'commento', 'correzione', 'problema', 'modifica_misure',
+    'indicazione_taglio', 'approvazione', 'richiesta_nuova_versione',
+  ]).optional(),
 })
 
 const costSnapshotSchema = z.object({
@@ -173,7 +217,7 @@ const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
 }
 
 // I campi monetari/quantitativi sono Decimal a schema e le date sono Date: convertiti qui.
-function toSheetData(d: Omit<z.infer<typeof technicalSheetUpdateSchema>, 'righeMateriali' | 'righeCosti'>) {
+function toSheetData(d: Omit<z.infer<typeof technicalSheetUpdateSchema>, 'righeMateriali' | 'righeCosti' | 'misure'>) {
   const dec = (v?: number) => (v === undefined ? undefined : new Prisma.Decimal(v))
   const data = (v?: string) => (v === undefined ? undefined : new Date(v))
   return {
@@ -204,6 +248,22 @@ export async function productRoutes(app: FastifyInstance) {
   app.get('/products/:id', read, async (req) => {
     const { id } = req.params as { id: string }
     return getProduct(id)
+  })
+
+  // Cancellazione di un capo: riservata ad Admin e CEO, non a tutto ciò che può scrivere.
+  // Le altre scritture si correggono, questa no — porta via varianti, schede e giacenze.
+  const elimina = { preHandler: [authenticate, requireModule('prodotti'), requireRole('admin', 'ceo')] }
+
+  // Cosa succederebbe eliminando: serve alla conferma a schermo, che deve dire in anticipo
+  // che cosa sparisce e se la cancellazione è possibile — senza doverla provare.
+  app.get('/products/:id/deletion-check', elimina, async (req) => {
+    const { id } = req.params as { id: string }
+    return checkProductDeletion(id)
+  })
+
+  app.delete('/products/:id', elimina, async (req) => {
+    const { id } = req.params as { id: string }
+    return deleteProduct(id, req.user!.id)
   })
 
   app.post('/products', write, async (req, reply) => {
@@ -286,8 +346,8 @@ export async function productRoutes(app: FastifyInstance) {
   app.patch('/technical-sheets/:id', write, async (req) => {
     const { id } = req.params as { id: string }
     const d = parse(technicalSheetUpdateSchema, req.body)
-    const { righeMateriali, righeCosti, ...campi } = d
-    return updateTechnicalSheet(id, toSheetData(campi), { righeMateriali, righeCosti }, req.user!.id)
+    const { righeMateriali, righeCosti, misure, ...campi } = d
+    return updateTechnicalSheet(id, toSheetData(campi), { righeMateriali, righeCosti, misure }, req.user!.id)
   })
 
   // Foto del prototipo: salvate nel database (finiscono nei backup).
@@ -309,6 +369,38 @@ export async function productRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string }
     const d = parse(costSnapshotSchema, req.body)
     const created = await addCostSnapshot(id, d, req.user!.id)
+    reply.code(201)
+    return created
+  })
+
+  // --- Documenti delle modelliste (backlog "Note" §4) ---
+  // Ogni caricamento è una versione a sé: nulla viene sovrascritto.
+  app.get('/products/:id/pattern-documents', read, async (req) => {
+    const { id } = req.params as { id: string }
+    return listPatternDocuments(id)
+  })
+
+  app.post('/products/:id/pattern-documents', write, async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const created = await createPatternDocument(id, parse(patternDocumentSchema, req.body), req.user!.id)
+    reply.code(201)
+    return created
+  })
+
+  app.patch('/pattern-documents/:id', write, async (req) => {
+    const { id } = req.params as { id: string }
+    const d = parse(patternStatoSchema, req.body)
+    return updatePatternDocumentStato(id, d.statoApprovazione, req.user!.id)
+  })
+
+  app.delete('/pattern-documents/:id', write, async (req) => {
+    const { id } = req.params as { id: string }
+    return deletePatternDocument(id, req.user!.id)
+  })
+
+  app.post('/pattern-documents/:id/notes', write, async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const created = await addPatternDocumentNote(id, parse(patternNotaSchema, req.body), req.user!.id)
     reply.code(201)
     return created
   })

@@ -7,6 +7,7 @@ import type {
   Customer,
   FixedCostItem,
   InventoryRecord,
+  LabDetail,
   Invoice,
   Linea,
   Material,
@@ -14,7 +15,12 @@ import type {
   Product,
   ProductionStep,
   ProductVariant,
+  PatternDocument,
+  PatternDocumentNoteTipo,
+  PatternDocumentStato,
+  PatternDocumentTipo,
   QuotaHistoryEntry,
+  StockMovement,
   Supplier,
   SupplierCategoria,
   SupplierRequest,
@@ -34,7 +40,7 @@ import { useAuth } from './AuthContext'
 import {
   toAccessory, toActivityLog, toCashClosure, toCustomer, toFixedCostItem, toInventoryRecord,
   toInvoice, toMaterial, toOrder, toProduct, toProductionStep, toQuotaHistory, toSupplier,
-  toSupplierRequest, toTechnicalSheet, toVariant,
+  toLabDetail, toPatternDocument, toStockMovement, toSupplierRequest, toTechnicalSheet, toVariant,
 } from '../lib/adapters'
 
 /** Riga JSON generica in arrivo dall'API, prima dell'adattamento ai tipi del client. */
@@ -49,7 +55,7 @@ type Row = Record<string, unknown>
 function toSheetPayload(patch?: Partial<TechnicalSheet>): Record<string, unknown> {
   if (!patch) return {}
   const {
-    materiali, costiAggiuntivi, foto, storicoCosti, id, productId, versione,
+    materiali, costiAggiuntivi, foto, storicoCosti, misure, id, productId, versione,
     creataIl, aggiornataIl, tessutiSecondariId, accessoriIds, pdfFile, scanAI,
     ...campi
   } = patch
@@ -80,6 +86,17 @@ function toSheetPayload(patch?: Partial<TechnicalSheet>): Record<string, unknown
       fatturaId: c.fatturaId || undefined,
       ammortizzabile: c.ammortizzabile,
       quantitaPrevista: c.quantitaPrevista,
+    }))
+  }
+  if (misure) {
+    payload.misure = misure.map((m) => ({
+      nome: m.nome,
+      valore: m.valore,
+      unita: m.unita,
+      tagliaRiferimento: m.tagliaRiferimento || undefined,
+      tolleranza: m.tolleranza || undefined,
+      nota: m.nota || undefined,
+      fonte: m.fonte,
     }))
   }
   // Il PDF caricato e l'esito della scansione AI sono colonne piatte sul server.
@@ -232,6 +249,53 @@ export interface VariantQuantitiesPatch {
   qtaMagazzino?: number
   qtaRiservata?: number
   qtaLaboratorio?: number
+  /** Soglia sotto la quale il laboratorio va reintegrato dal magazzino. */
+  sogliaMinimaLaboratorio?: number
+}
+
+// Esito della verifica prima di eliminare un capo (GET /products/:id/deletion-check).
+// `blocchi` è già scritto in italiano dal server: la UI lo mostra così com'è.
+export interface VerificaEliminazioneProdotto {
+  nome: string
+  eliminabile: boolean
+  blocchi: string[]
+  conseguenze: {
+    varianti: number
+    schedeTecniche: number
+    documentiModellista: number
+    fasiPipeline: number
+    pezziInGiacenza: number
+  }
+}
+
+export interface SuggerimentoMisureInput {
+  categoria: string
+  descrizione?: string
+  vestibilita?: string
+  stile?: string
+  genere?: string
+  lunghezza?: string
+  volume?: string
+  dettagliCostruttivi?: string
+}
+
+export interface SuggerimentoMisure {
+  misure: { nome: string; unita: 'cm' | 'mm' | 'in'; tolleranza: string | null; nota: string | null }[]
+  note: string
+}
+
+export interface NewPatternDocumentInput {
+  fileName: string
+  dataUrl: string
+  tipologia: PatternDocumentTipo
+  versione?: string
+  autore?: string
+}
+
+export interface RequisitiCampione {
+  requisiti: { chiave: string; etichetta: string; soddisfatto: boolean; dettaglio?: string }[]
+  approvabile: boolean
+  giaApprovato: boolean
 }
 
 /** Campi compilabili di una scheda tecnica: tutto tranne id/productId/versione, gestiti dallo store. */
@@ -294,8 +358,30 @@ interface MockStoreValue {
 
   addProduct: (input: NewProductInput) => Promise<Product>
   updateProduct: (id: string, patch: Partial<Product>) => Promise<void>
+  /** Verifica preventiva: dice se il capo si può eliminare e cosa sparirebbe con lui. */
+  checkProductDeletion: (id: string) => Promise<VerificaEliminazioneProdotto>
+  deleteProduct: (id: string) => Promise<void>
   addVariant: (input: NewVariantInput) => Promise<ProductVariant>
   updateVariantQuantities: (variantId: string, patch: VariantQuantitiesPatch) => Promise<void>
+  transferStock: (variantId: string, direzione: 'to_lab' | 'to_warehouse', quantita: number, note?: string) => Promise<void>
+  loadStockMovements: (variantId: string) => Promise<StockMovement[]>
+  /** Dettaglio del laboratorio: giacenza, reintegri, consumi e capi in produzione. */
+  loadLabDetail: (variantId: string) => Promise<LabDetail>
+  mandaInProduzione: (variantId: string, quantita: number, note?: string, productId?: string) => Promise<void>
+  chiudiLavorazione: (id: string, esito: 'consumato' | 'rilasciato') => Promise<void>
+
+  /** Misure suggerite da Claude: propone QUALI misure servono, i valori si compilano a mano. */
+  suggerisciMisure: (input: SuggerimentoMisureInput) => Promise<SuggerimentoMisure>
+
+  loadPatternDocuments: (productId: string) => Promise<PatternDocument[]>
+  addPatternDocument: (productId: string, input: NewPatternDocumentInput) => Promise<PatternDocument>
+  setPatternDocumentStato: (id: string, stato: PatternDocumentStato) => Promise<PatternDocument>
+  removePatternDocument: (id: string) => Promise<void>
+  addPatternDocumentNote: (id: string, testo: string, tipo?: PatternDocumentNoteTipo) => Promise<PatternDocument>
+
+  /** Checklist dei documenti richiesti prima di poter approvare il campione. */
+  checkRequisitiCampione: (productId: string) => Promise<RequisitiCampione>
+  approvaCampione: (productId: string, note?: string) => Promise<void>
   addMaterial: (input: NewMaterialInput) => Promise<Material>
   addAccessory: (input: NewAccessoryInput) => Promise<Accessory>
   addInvoice: (input: NewInvoiceInput) => Promise<Invoice>
@@ -588,6 +674,14 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
         await persisti(api.patch<Row>(`/products/${id}`, patch))
       },
 
+      // Cosa comporta eliminare un capo: si chiede al server PRIMA di mostrare la conferma,
+      // perché solo lui sa se ci sono ordini, fatture o movimenti che lo bloccano.
+      checkProductDeletion: (id) => api.get<VerificaEliminazioneProdotto>(`/products/${id}/deletion-check`),
+
+      deleteProduct: async (id) => {
+        await persisti(api.del(`/products/${id}`))
+      },
+
       // Variante + record inventario nascono insieme e restano collegati: la quantità
       // si modifica con updateVariantQuantities, che aggiorna entrambi (FR-03/FR-INV-01).
       addVariant: async (input) => {
@@ -600,6 +694,65 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
       // variante e record di inventario: qui si invia solo la quantità.
       updateVariantQuantities: async (variantId, patch) => {
         await persisti(api.patch<Row>(`/variants/${variantId}/quantities`, patch))
+      },
+
+      // Il server verifica la disponibilità nell'ubicazione di partenza e rifiuta
+      // i trasferimenti che porterebbero la quantità sotto zero.
+      transferStock: async (variantId, direzione, quantita, note) => {
+        await persisti(api.post<Row>(`/inventory/${variantId}/transfer`, { direzione, quantita, note }))
+      },
+
+      loadStockMovements: async (variantId) => {
+        const righe = await api.get<Row[]>(`/inventory/${variantId}/movements`)
+        return righe.map(toStockMovement)
+      },
+
+      loadLabDetail: async (variantId) => toLabDetail(await api.get<Row>(`/inventory/${variantId}/lab`)),
+
+      // Mandare capi in produzione non cambia la giacenza: li toglie dal disponibile reale.
+      mandaInProduzione: async (variantId, quantita, note, productId) => {
+        await persisti(api.post(`/inventory/${variantId}/in-produzione`, { quantita, note, productId }))
+      },
+
+      // "consumato" scarica davvero dal laboratorio; "rilasciato" rimette i capi a disposizione.
+      chiudiLavorazione: async (id, esito) => {
+        await persisti(api.patch(`/in-produzione/${id}`, { esito }))
+      },
+
+      // La chiave Claude vive solo sul server: senza chiave l'endpoint risponde
+      // con un messaggio esplicito e le misure si aggiungono a mano.
+      suggerisciMisure: (input) => api.post<SuggerimentoMisure>('/ai/suggest-measurements', input),
+
+      loadPatternDocuments: async (productId) => {
+        const righe = await api.get<Row[]>(`/products/${productId}/pattern-documents`)
+        return righe.map(toPatternDocument)
+      },
+
+      addPatternDocument: async (productId, input) => {
+        const creato = await api.post<Row>(`/products/${productId}/pattern-documents`, input)
+        return toPatternDocument(creato)
+      },
+
+      setPatternDocumentStato: async (id, stato) => {
+        const aggiornato = await api.patch<Row>(`/pattern-documents/${id}`, { statoApprovazione: stato })
+        return toPatternDocument(aggiornato)
+      },
+
+      removePatternDocument: async (id) => {
+        await api.del(`/pattern-documents/${id}`)
+      },
+
+      addPatternDocumentNote: async (id, testo, tipo) => {
+        const aggiornato = await api.post<Row>(`/pattern-documents/${id}/notes`, { testo, tipo })
+        return toPatternDocument(aggiornato)
+      },
+
+      checkRequisitiCampione: (productId) =>
+        api.get<RequisitiCampione>(`/production/${productId}/sample-check`),
+
+      // Il server rifiuta con 409 se manca un documento, elencando cosa manca.
+      approvaCampione: async (productId, note) => {
+        await persisti(api.post(`/production/${productId}/approve-sample`, { note }))
       },
 
       addMaterial: async (input) => {
