@@ -27,6 +27,9 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Inventario', path: '/inventario', moduleKey: 'inventario' },
       { label: 'Ordini', path: '/ordini', moduleKey: 'ordini' },
+      // Richieste dalla vista cliente showroom: stanno accanto agli ordini perché è lì che
+      // finiscono una volta confermate (DEC-044).
+      { label: 'Richieste showroom', path: '/richieste-showroom', moduleKey: 'richieste-showroom' },
     ],
   },
   {

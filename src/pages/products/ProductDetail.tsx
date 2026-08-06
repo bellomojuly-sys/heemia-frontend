@@ -6,7 +6,6 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/States'
-import { ImagePlaceholder } from '../../components/ui/ImagePlaceholder'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { StageProgress } from '../../components/production/StageProgress'
 import { MarginSummaryCard } from '../../components/margins/MarginSummaryCard'
@@ -16,6 +15,7 @@ import { TechnicalSheetForm } from '../../components/products/TechnicalSheetForm
 import { SheetCostBreakdown } from '../../components/products/SheetCostBreakdown'
 import { SheetPdfDocument, type PdfVariante } from '../../components/products/SheetPdfDocument'
 import { PatternDocuments } from '../../components/products/PatternDocuments'
+import { ProductMedia } from '../../components/products/ProductMedia'
 import { SampleApproval } from '../../components/production/SampleApproval'
 import { StatusBadge } from '../../lib/statusBadge'
 import { checkAdvance, stageLabel } from '../../lib/production'
@@ -711,7 +711,10 @@ export function ProductDetail() {
               <DetailField label="Stato pubblicazione"><StatusBadge status={product.statoPubblicazioneShopify} /></DetailField>
               <DetailField label="Disponibilità online">{product.disponibilitaOnline ? 'Sì' : 'No'}</DetailField>
               <DetailField label="Disponibilità showroom">{product.disponibilitaShowroom ? 'Sì' : 'No'}</DetailField>
-              <DetailField label="Visibile in showroom app">{product.visibileShowroom ? 'Sì' : 'No'}</DetailField>
+              {/* I due attributi che decidono la vista cliente (DEC-044). */}
+              <DetailField label="Visibile in showroom">{product.visibileShowroom ? 'Sì' : 'No'}</DetailField>
+              <DetailField label="Personalizzabile su misura">{product.personalizzabileSuMisura ? 'Sì' : 'No'}</DetailField>
+              <DetailField label="Tempi di realizzazione">{product.tempiRealizzazione || '–'}</DetailField>
               <DetailField label="Prezzo vendita (IVA incl.)"><span className="font-mono-heemia">{product.prezzoVendita > 0 ? formatCurrency(product.prezzoVendita) : '–'}</span></DetailField>
               <DetailField label="Prezzo netto IVA"><span className="font-mono-heemia">{product.prezzoNettoIva > 0 ? formatCurrency(product.prezzoNettoIva) : '–'}</span></DetailField>
               <DetailField label="Prezzo showroom"><span className="font-mono-heemia">{product.prezzoShowroom > 0 ? formatCurrency(product.prezzoShowroom) : '–'}</span></DetailField>
@@ -726,25 +729,7 @@ export function ProductDetail() {
       )}
 
       {activeTab === 'media' && (
-        <Card>
-          <CardHeader title="Media" subtitle="Immagini prodotto: integrazione Google Drive prevista in fase successiva." />
-          <div className="p-5">
-            {product.immaginiUrl.length === 0 ? (
-              <div className="flex items-center gap-4">
-                <ImagePlaceholder label={product.nome} className="h-28 w-28 text-2xl" />
-                <p className="max-w-sm text-sm text-heemia-grey">
-                  Nessuna immagine caricata. Le immagini verranno collegate da Google Drive quando l'integrazione sarà attiva.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {product.immaginiUrl.map((url) => (
-                  <img key={url} src={url} alt={product.nome} className="aspect-square w-full rounded-heemia border border-heemia-border object-cover" />
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
+        <ProductMedia product={product} canEdit={userCanEdit} onSave={(urls) => updateProduct(product.id, { immaginiUrl: urls })} />
       )}
 
       {activeTab === 'note' && (

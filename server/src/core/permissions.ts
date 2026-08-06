@@ -6,6 +6,7 @@ export type ModuleKey =
   | 'dashboard' | 'prodotti' | 'produzione' | 'inventario' | 'ordini' | 'fatture'
   | 'scadenze' | 'costi-margini' | 'fornitori' | 'clienti' | 'shopify' | 'report'
   | 'analytics' | 'alert' | 'ai-assistant' | 'activity-log' | 'impostazioni'
+  | 'richieste-showroom'
 
 const ADMIN_CEO: Role[] = ['admin', 'ceo']
 const ALL_INTERNAL: Role[] = ['admin', 'ceo', 'team', 'viewer']
@@ -16,6 +17,10 @@ const MODULE_ACCESS: Record<ModuleKey, Role[]> = {
   produzione: ALL_INTERNAL,
   inventario: ALL_INTERNAL,
   ordini: ALL_INTERNAL,
+  // Richieste dalla vista cliente (spec 2026-08-06): è lavoro operativo di chi segue il
+  // cliente in showroom, quindi stessa apertura di "ordini". Contiene contatto e misure,
+  // non dati economici aziendali.
+  'richieste-showroom': ALL_INTERNAL,
   fatture: ADMIN_CEO,
   scadenze: ADMIN_CEO,
   'costi-margini': ADMIN_CEO,

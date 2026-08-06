@@ -25,6 +25,9 @@ const createSchema = z.object({
   stagione: z.string().optional(),
   prezzoVendita: z.number().nonnegative().optional(),
   prezzoNettoIva: z.number().nonnegative().optional(),
+  // Attributi commerciali che decidono la vista cliente (spec 2026-08-06, DEC-044):
+  // si impostano già alla creazione, non solo in modifica.
+  visibileShowroom: z.boolean().optional(),
   personalizzabileSuMisura: z.boolean().optional(),
 })
 
@@ -51,7 +54,7 @@ const updateSchema = createSchema.partial().omit({ codiceProdotto: true }).exten
   consigliCura: z.string().optional(),
   disponibilitaOnline: z.boolean().optional(),
   disponibilitaShowroom: z.boolean().optional(),
-  visibileShowroom: z.boolean().optional(),
+  tempiRealizzazione: z.string().max(120).optional(),
   statoPubblicazioneShopify: z.enum(['non_pubblicato', 'bozza', 'pubblicato']).optional(),
 })
 const listQuerySchema = z.object({
@@ -279,6 +282,10 @@ export async function productRoutes(app: FastifyInstance) {
       stagione: d.stagione,
       prezzoVendita: d.prezzoVendita ? new Prisma.Decimal(d.prezzoVendita) : undefined,
       prezzoNettoIva: d.prezzoNettoIva ? new Prisma.Decimal(d.prezzoNettoIva) : undefined,
+      // I due attributi commerciali della vista cliente si impostano già alla creazione
+      // (DEC-044): la rotta costruisce il record campo per campo, quindi vanno elencati qui
+      // o verrebbero scartati in silenzio.
+      visibileShowroom: d.visibileShowroom,
       personalizzabileSuMisura: d.personalizzabileSuMisura,
     }
     const created = await createProduct(data, req.user!.id)

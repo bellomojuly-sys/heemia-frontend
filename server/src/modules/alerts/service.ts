@@ -7,6 +7,7 @@ import { prisma } from '../../core/prisma.js'
 import { canSeeAlertModulo, type AlertModulo } from '../../core/permissions.js'
 import { daysFromToday, mesePrecedente, meseLabel } from '../../core/dates.js'
 import { computeAllMargins } from '../margins/service.js'
+import { calcolaReintegro } from '../inventory/service.js'
 import { stageLabel } from '../production/service.js'
 
 // Fasi in cui il campione è stato realizzato: da qui in poi la mancata approvazione è
@@ -24,7 +25,7 @@ export interface AlertItem {
 }
 
 export async function computeAlerts(role: Role): Promise<AlertItem[]> {
-  const [products, materials, accessories, invoices, inventoryRecords, orders, cashClosures, stepsBloccati, margins, sogliaSetting] =
+  const [products, materials, accessories, invoices, inventoryRecords, orders, cashClosures, showroomRequests, stepsBloccati, margins, sogliaSetting] =
     await Promise.all([
       prisma.product.findMany({ include: { technicalSheets: true } }),
       prisma.material.findMany(),
@@ -33,6 +34,10 @@ export async function computeAlerts(role: Role): Promise<AlertItem[]> {
       prisma.inventoryRecord.findMany({ include: { variant: true } }),
       prisma.order.findMany(),
       prisma.cashClosure.findMany(),
+      prisma.showroomRequest.findMany({
+        where: { stato: { in: ['nuova_richiesta', 'da_contattare'] } },
+        include: { product: { select: { nome: true } } },
+      }),
       prisma.productionStep.findMany({ where: { bloccata: true, dataFine: null } }),
       computeAllMargins(),
       prisma.appSetting.findUnique({ where: { chiave: 'soglia_margine_percent' } }),
@@ -61,6 +66,22 @@ export async function computeAlerts(role: Role): Promise<AlertItem[]> {
         data: o.data.toISOString(), entitaId: o.id, link: '/ordini',
       })
     }
+  }
+
+  // Spec 2026-08-06 §7: richiesta dalla vista cliente ancora da lavorare. Sta prima
+  // dell'ordine SM-*, che nasce solo alla conferma (DEC-044).
+  for (const r of showroomRequests) {
+    alerts.push({
+      id: `alert-richiesta-${r.id}`,
+      modulo: 'Ordini',
+      livello: r.stato === 'nuova_richiesta' ? 'attenzione' : 'info',
+      messaggio: r.tipo === 'personalizzazione'
+        ? `Richiesta su misura ${r.numero}${r.product ? ` su ${r.product.nome}` : ''}: da contattare`
+        : `Richiesta informazioni ${r.numero}${r.product ? ` su ${r.product.nome}` : ''}: da evadere`,
+      data: r.createdAt.toISOString(),
+      entitaId: r.id,
+      link: '/richieste-showroom',
+    })
   }
 
   const productById = new Map(products.map((p) => [p.id, p]))
@@ -205,22 +226,50 @@ export async function computeAlerts(role: Role): Promise<AlertItem[]> {
     }
 
     // Reintegro del laboratorio: serve a ricordare di spostare capi dal magazzino,
-    // anche quando la giacenza complessiva è ancora abbondante.
-    if (rec.sogliaMinimaLaboratorio > 0 && rec.qtaLaboratorio <= rec.sogliaMinimaLaboratorio) {
-      const inMagazzino = rec.qtaMagazzino
+    // anche quando la giacenza complessiva è ancora abbondante. Vale solo a migrazione
+    // conclusa (FR-49): durante la distribuzione iniziale le quantità sono provvisorie e
+    // l'alert sarebbe rumore su ogni variante.
+    const reintegro = calcolaReintegro(rec)
+    if (reintegro) {
       alerts.push({
         id: `alert-lab-soglia-${rec.id}`,
+        // Se il magazzino non copre la soglia il problema non si risolve spostando:
+        // serve produrre o recuperare altrove, quindi è critico.
+        livello: reintegro.copreLaSoglia ? 'attenzione' : 'critico',
         modulo: 'Inventario prodotti finiti',
-        livello: inMagazzino > 0 ? 'attenzione' : 'critico',
         messaggio:
-          `SKU ${rec.variant?.sku ?? rec.variantId}: scorta laboratorio in esaurimento ` +
-          `(${rec.qtaLaboratorio} su soglia ${rec.sogliaMinimaLaboratorio}). ` +
-          (inMagazzino > 0
-            ? `Recuperare materiale dal magazzino (${inMagazzino} disponibili).`
-            : 'Nessun pezzo in magazzino da cui reintegrare.'),
+          `SKU ${rec.variant?.sku ?? rec.variantId}: il laboratorio è sotto la soglia minima ` +
+          `(${rec.qtaLaboratorio} su ${rec.sogliaMinimaLaboratorio}). ` +
+          (reintegro.quantitaSuggerita > 0
+            ? `In magazzino sono disponibili ${reintegro.inMagazzino} capi: trasferiscine ${reintegro.quantitaSuggerita}` +
+              (reintegro.copreLaSoglia
+                ? ` per ripristinare la soglia di ${rec.sogliaMinimaLaboratorio}.`
+                : `, ma il laboratorio resterà sotto soglia: servono nuovi capi o un recupero da un'altra ubicazione.`)
+            : 'Il magazzino è vuoto: servono nuovi capi o un recupero da un\'altra ubicazione.'),
         data: now, entitaId: rec.variantId, link: '/inventario/prodotti-finiti',
       })
     }
+  }
+
+  // Distribuzione iniziale ancora aperta: una riga sola con il conteggio, non una per
+  // variante — su centinaia di SKU importati sarebbero centinaia di alert identici.
+  const daMigrare = inventoryRecords.filter((r) => !r.migrazioneCompletata)
+  if (daMigrare.length > 0) {
+    const nonQuadrate = daMigrare.filter(
+      (r) => r.qtaMagazzino + r.qtaLaboratorio !== (r.totaleMigrazione ?? r.qtaMagazzino + r.qtaLaboratorio),
+    ).length
+    alerts.push({
+      id: 'alert-migrazione-giacenze',
+      modulo: 'Inventario prodotti finiti',
+      livello: nonQuadrate > 0 ? 'attenzione' : 'info',
+      messaggio:
+        (daMigrare.length === 1
+          ? '1 variante ha ancora la distribuzione iniziale da confermare '
+          : `${daMigrare.length} varianti hanno ancora la distribuzione iniziale da confermare `) +
+        `(i capi importati risultano tutti in laboratorio finché non si indica quanti sono in magazzino)` +
+        (nonQuadrate > 0 ? `; su ${nonQuadrate} la somma delle ubicazioni non coincide col totale registrato.` : '.'),
+      data: now, link: '/inventario/prodotti-finiti',
+    })
   }
 
   const rank = { critico: 0, attenzione: 1, info: 2 }

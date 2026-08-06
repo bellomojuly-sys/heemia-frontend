@@ -89,7 +89,7 @@ export async function checkProductDeletion(id: string): Promise<VerificaEliminaz
 
   const [
     righeOrdine, righeFattura, schedeTecniche, documenti, fasiPipeline,
-    movimenti, impegniAperti, giacenze, richiesteFornitore,
+    movimenti, impegniAperti, giacenze, richiesteFornitore, richiesteShowroom,
   ] = await Promise.all([
     prisma.orderItem.count({ where: { productId: id } }),
     prisma.invoiceProduct.count({ where: { productId: id } }),
@@ -105,6 +105,11 @@ export async function checkProductDeletion(id: string): Promise<VerificaEliminaz
         })
       : [],
     prisma.supplierRequest.count({ where: { productId: id } }),
+    // Richieste dalla vista cliente ancora aperte (spec 2026-08-06): il capo resterebbe
+    // scollegato dalla scheda (FK SetNull) e l'atelier non saprebbe più cosa è stato chiesto.
+    prisma.showroomRequest.count({
+      where: { productId: id, stato: { notIn: ['consegnato', 'annullato'] } },
+    }),
   ])
 
   const pezziInGiacenza = giacenze.reduce((s, g) => s + g.qtaMagazzino + g.qtaLaboratorio, 0)
@@ -128,6 +133,9 @@ export async function checkProductDeletion(id: string): Promise<VerificaEliminaz
   }
   if (richiesteFornitore > 0) {
     blocchi.push(`è citato in ${richiesteFornitore} ${richiesteFornitore === 1 ? 'richiesta a fornitore' : 'richieste a fornitore'}`)
+  }
+  if (richiesteShowroom > 0) {
+    blocchi.push(`ha ${richiesteShowroom} ${richiesteShowroom === 1 ? 'richiesta showroom aperta' : 'richieste showroom aperte'}: chiudile o annullale prima`)
   }
 
   return {
@@ -202,6 +210,14 @@ export async function createVariant(
         stato,
         stockShopify: input.stockIniziale,
         divergenzaShopify: false,
+        // Variante creata dall'app: chi la inserisce sa già dove sono i capi, quindi
+        // non c'è nessuna distribuzione iniziale da ricostruire (FR-49). La migrazione
+        // riguarda solo le righe che arrivano dall'import, dove si conosce il totale
+        // ma non la ripartizione fra magazzino e laboratorio.
+        totaleMigrazione: input.stockIniziale,
+        migrazioneCompletata: true,
+        migrazioneConfermataIl: new Date(),
+        migrazioneConfermataDa: userId,
       },
     })
     await logActivity(tx, { userId, azione: 'create', entita: 'product_variant', entitaId: variant.id, valoreNuovo: variant.sku })

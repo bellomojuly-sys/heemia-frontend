@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '../ui/Button'
-import { Modal, Field, FormActions, campoClass, fieldClass } from '../ui/Modal'
+import { Modal, Field, FormActions, SiNoField, campoClass, fieldClass } from '../ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Linea, Product } from '../../types'
 
@@ -36,6 +36,8 @@ export function EditProductForm({
     disponibilitaOnline: product.disponibilitaOnline,
     disponibilitaShowroom: product.disponibilitaShowroom,
     visibileShowroom: product.visibileShowroom,
+    personalizzabileSuMisura: product.personalizzabileSuMisura ?? false,
+    tempiRealizzazione: product.tempiRealizzazione ?? '',
   })
 
   const splitList = (s: string) =>
@@ -78,13 +80,17 @@ export function EditProductForm({
         consigliCuraStato: consigliCura && consigliCura !== (product.consigliCura ?? '') ? 'bozza' : product.consigliCuraStato,
         disponibilitaOnline: form.disponibilitaOnline,
         disponibilitaShowroom: form.disponibilitaShowroom,
+        // I due attributi che decidono la vista cliente (DEC-044): il catalogo si aggiorna
+        // da sé al salvataggio, perché legge la stessa anagrafica.
         visibileShowroom: form.visibileShowroom,
+        personalizzabileSuMisura: form.personalizzabileSuMisura,
+        tempiRealizzazione: form.tempiRealizzazione.trim() || undefined,
       })
       onClose()
     },
   )
 
-  const checkboxRow = (label: string, key: 'disponibilitaOnline' | 'disponibilitaShowroom' | 'visibileShowroom') => (
+  const checkboxRow = (label: string, key: 'disponibilitaOnline' | 'disponibilitaShowroom') => (
     <label className="flex items-center gap-2 text-sm text-heemia-black">
       <input
         type="checkbox"
@@ -187,10 +193,36 @@ export function EditProductForm({
             <textarea rows={2} className={fieldClass} value={form.consigliCura} onChange={(e) => setForm({ ...form, consigliCura: e.target.value })} />
           </Field>
         </div>
+        <div className="col-span-2 grid grid-cols-1 gap-3 border-t border-heemia-border pt-3 sm:grid-cols-2">
+          <p className="font-mono-heemia col-span-full text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
+            Vista cliente showroom
+          </p>
+          <SiNoField
+            label="Visibile in showroom"
+            value={form.visibileShowroom}
+            onChange={(v) => setForm({ ...form, visibileShowroom: v })}
+            hint="Capo esposto e appeso allo stand. Non dipende dalle giacenze."
+          />
+          <SiNoField
+            label="Personalizzabile su misura"
+            value={form.personalizzabileSuMisura}
+            onChange={(v) => setForm({ ...form, personalizzabileSuMisura: v })}
+            hint="Compare fra i modelli su misura anche se non è appeso."
+          />
+          <div className="col-span-full sm:col-span-1">
+            <Field label="Tempi indicativi di realizzazione" hint="Mostrati al cliente sul su misura. Es. 4-6 settimane.">
+              <input
+                className={fieldClass}
+                value={form.tempiRealizzazione}
+                onChange={(e) => setForm({ ...form, tempiRealizzazione: e.target.value })}
+                placeholder="4-6 settimane"
+              />
+            </Field>
+          </div>
+        </div>
         <div className="col-span-2 flex flex-wrap gap-5 border-t border-heemia-border pt-3">
           {checkboxRow('Disponibile online', 'disponibilitaOnline')}
-          {checkboxRow('Disponibile in showroom', 'disponibilitaShowroom')}
-          {checkboxRow('Visibile nella showroom app', 'visibileShowroom')}
+          {checkboxRow('Disponibile in showroom (giacenza)', 'disponibilitaShowroom')}
         </div>
       </div>
       <FormActions>

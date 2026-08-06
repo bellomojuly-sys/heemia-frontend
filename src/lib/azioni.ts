@@ -47,6 +47,8 @@ const REGOLE: [string, Regola][] = [
   ['alert-mat-', { categoria: 'stock', titolo: 'Tessuto in esaurimento', azione: 'Apri tessuti' }],
   ['alert-acc-', { categoria: 'stock', titolo: 'Accessorio in esaurimento', azione: 'Apri accessori' }],
   ['alert-lab-soglia-', { categoria: 'stock', titolo: 'Laboratorio da reintegrare', azione: 'Apri inventario' }],
+  // Riga unica e aggregata (non una per variante): il conteggio sta nel messaggio.
+  ['alert-migrazione-', { categoria: 'documenti', titolo: 'Distribuzione iniziale da confermare', azione: 'Apri inventario' }],
   ['alert-stock-div-', { categoria: 'sincronizzazione', titolo: 'Stock diverso da Shopify', azione: 'Apri inventario' }],
   ['alert-shopify-cost-', { categoria: 'sincronizzazione', titolo: 'Pubblicato senza costi', azione: 'Apri prodotto' }],
   ['alert-inv-scaduta-', { categoria: 'urgenti', titolo: 'Fattura scaduta', azione: 'Apri scadenze' }],
@@ -54,6 +56,9 @@ const REGOLE: [string, Regola][] = [
   ['alert-inv-30-', { categoria: 'urgenti', titolo: 'Fattura in scadenza', azione: 'Apri scadenze' }],
   ['alert-chiusura-', { categoria: 'urgenti', titolo: 'Chiusura di cassa da registrare', azione: 'Apri fatture' }],
   ['alert-sumisura-', { categoria: 'urgenti', titolo: 'Ordine su misura da lavorare', azione: 'Apri ordini' }],
+  // Richiesta arrivata dalla vista cliente: viene prima dell'ordine, che nasce solo alla
+  // conferma (DEC-044). L'entitaId è la richiesta, non un prodotto: nessun nome da estrarre.
+  ['alert-richiesta-', { categoria: 'urgenti', titolo: 'Richiesta showroom da lavorare', azione: 'Apri richieste' }],
   ['alert-margin-', { categoria: 'urgenti', titolo: 'Margine sotto soglia', azione: 'Apri prodotto' }],
   ['alert-breakeven-', { categoria: 'urgenti', titolo: 'Prezzo sotto break-even', azione: 'Apri prodotto' }],
 ]

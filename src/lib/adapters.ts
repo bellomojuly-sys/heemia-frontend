@@ -45,6 +45,7 @@ export function toProduct(r: Row): Product {
     disponibilitaShowroom: Boolean(r.disponibilitaShowroom),
     visibileShowroom: Boolean(r.visibileShowroom),
     personalizzabileSuMisura: Boolean(r.personalizzabileSuMisura),
+    tempiRealizzazione: r.tempiRealizzazione ? s(r.tempiRealizzazione) : undefined,
     campioneApprovatoIl: r.campioneApprovatoIl ? isoDate(r.campioneApprovatoIl) : undefined,
     campioneNote: r.campioneNote ? s(r.campioneNote) : undefined,
   } as Product
@@ -88,6 +89,15 @@ export function toInventoryRecord(r: Row): InventoryRecord {
         ? Math.max(0, qtaMagazzino + qtaLaboratorio - qtaInProduzione)
         : num(r.disponibileReale),
     laboratorioSottoSoglia: Boolean(r.laboratorioSottoSoglia),
+    // Distribuzione iniziale (FR-49). Il fallback vale per le risposte che non portano
+    // questi campi (es. il record restituito da una PATCH): in quel caso il totale
+    // dichiarato coincide con quello distribuito, quindi la differenza è zero.
+    totaleDichiarato: r.totaleDichiarato === undefined ? qtaMagazzino + qtaLaboratorio : num(r.totaleDichiarato),
+    totaleDistribuito: r.totaleDistribuito === undefined ? qtaMagazzino + qtaLaboratorio : num(r.totaleDistribuito),
+    differenzaMigrazione: num(r.differenzaMigrazione),
+    migrazioneCompletata: Boolean(r.migrazioneCompletata),
+    migrazioneConfermabile: Boolean(r.migrazioneConfermabile),
+    reintegro: (r.reintegro as InventoryRecord['reintegro']) ?? null,
   } as InventoryRecord
 }
 
@@ -141,6 +151,7 @@ export function toStockMovement(r: Row): StockMovement {
     origine: location(r.locationFrom),
     destinazione: location(r.locationTo),
     utente: utente ? s(utente.nome || utente.email) : undefined,
+    motivo: r.motivo ? s(r.motivo) : undefined,
     note: r.note ? s(r.note) : undefined,
     createdAt: s(r.createdAt),
   }

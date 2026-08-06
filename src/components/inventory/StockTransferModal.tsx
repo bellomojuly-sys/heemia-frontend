@@ -7,6 +7,15 @@ import type { InventoryRecord } from '../../types'
 export type TransferDirezione = 'to_lab' | 'to_warehouse'
 
 /**
+ * Motivi proposti (FR-49 §5). Testo, non enum: l'elenco cambia con l'uso e una
+ * migrazione a ogni voce nuova non si giustifica. "Altro" lascia il campo alla nota.
+ */
+const MOTIVI: Record<TransferDirezione, string[]> = {
+  to_lab: ['Reintegro laboratorio', 'Lavorazione programmata', 'Campionatura', 'Correzione inventario', 'Altro'],
+  to_warehouse: ['Rientro in magazzino', 'Lavorazione conclusa', 'Reso dal laboratorio', 'Correzione inventario', 'Altro'],
+}
+
+/**
  * Trasferimento di capi tra magazzino e laboratorio. Prima di confermare mostra le
  * quantità attuali e quelle risultanti: il movimento va capito guardando il modale,
  * senza doverlo eseguire per vedere l'effetto.
@@ -22,10 +31,11 @@ export function StockTransferModal({
   descrizione: string
   direzione: TransferDirezione
   onClose: () => void
-  onSubmit: (quantita: number, note?: string) => Promise<unknown>
+  onSubmit: (quantita: number, note?: string, motivo?: string) => Promise<unknown>
 }) {
   const [quantita, setQuantita] = useState('')
   const [note, setNote] = useState('')
+  const [motivo, setMotivo] = useState(MOTIVI[direzione][0])
 
   const versoLaboratorio = direzione === 'to_lab'
   const disponibile = versoLaboratorio ? record.qtaMagazzino : record.qtaLaboratorio
@@ -44,7 +54,7 @@ export function StockTransferModal({
             : undefined,
     }),
     async () => {
-      await onSubmit(richiesta, note.trim() || undefined)
+      await onSubmit(richiesta, note.trim() || undefined, motivo)
       onClose()
     },
   )
@@ -79,6 +89,18 @@ export function StockTransferModal({
           autoFocus
         />
       </Field>
+
+      <div className="mt-3">
+        <Field label="Motivo del movimento" hint="Resta nello storico accanto a data, quantità e persona.">
+          <select className={fieldClass} value={motivo} onChange={(e) => setMotivo(e.target.value)}>
+            {MOTIVI[direzione].map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
 
       <div className="mt-3">
         <Field label="Nota (opzionale)">

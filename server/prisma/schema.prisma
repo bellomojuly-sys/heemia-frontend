@@ -170,13 +170,13 @@ enum SupplierCategoria {
   Passamaneria
   Lycra
   Felpa
-  Asole_Bottoni      @map("Asole/Bottoni")
+  Asole_Bottoni           @map("Asole/Bottoni")
   Fodere
-  Cartellini_Etichette @map("Cartellini/Etichette")
+  Cartellini_Etichette    @map("Cartellini/Etichette")
   Accessori
   Zip
   Bottoni
-  Accessori_vari     @map("Accessori vari")
+  Accessori_vari          @map("Accessori vari")
   Biglietti
   Spalline
   Modellistica_Confezione @map("Modellistica/Confezione")
@@ -185,7 +185,7 @@ enum SupplierCategoria {
   Smacchinatore
   Confezione
   Commercialista
-  Marchi_e_brevetti  @map("Marchi e brevetti")
+  Marchi_e_brevetti       @map("Marchi e brevetti")
   Consulenza
 }
 
@@ -221,7 +221,7 @@ enum CategoriaCosto {
 enum InvoicePaese {
   IT
   EU
-  Extra_EU           @map("Extra-EU")
+  Extra_EU @map("Extra-EU")
 }
 
 enum InvoicePagamento {
@@ -326,26 +326,26 @@ enum ImportStatus {
 
 // ---------- MODELLI ----------
 model User {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nome          String
-  email         String   @unique
-  role          Role
-  passwordHash  String?  @map("password_hash")
-  attivo        Boolean  @default(true)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome         String
+  email        String   @unique
+  role         Role
+  passwordHash String?  @map("password_hash")
+  attivo       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  activityLogs       ActivityLog[]
-  aiSessions         AiSession[]
-  sessions           Session[]
-  approvedRequests   SupplierRequest[]   @relation("ApprovedBy")
-  inventoryMovements InventoryMovement[]
-  importBatches      ImportBatch[]
+  activityLogs         ActivityLog[]
+  aiSessions           AiSession[]
+  sessions             Session[]
+  approvedRequests     SupplierRequest[]     @relation("ApprovedBy")
+  inventoryMovements   InventoryMovement[]
+  importBatches        ImportBatch[]
   measurementTemplates MeasurementTemplate[]
-  patternDocuments   PatternDocument[]
+  patternDocuments     PatternDocument[]
   patternDocumentNotes PatternDocumentNote[]
-  campioniApprovati  Product[]           @relation("CampioneApprovato")
-  stockCommitments   StockCommitment[]
+  campioniApprovati    Product[]             @relation("CampioneApprovato")
+  stockCommitments     StockCommitment[]
 
   @@map("users")
 }
@@ -409,25 +409,25 @@ model AiMessage {
 }
 
 model Supplier {
-  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nome                 String
-  categoria            SupplierCategoria
-  citta                String?
-  paese                String            @default("IT")
-  email                String?
-  referente            String?
-  telefono             String?
-  tempiMediConsegnaGg  Int?              @map("tempi_medi_consegna_gg")
-  condizioniPagamento  String?           @map("condizioni_pagamento")
-  note                 String?
-  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                String
+  categoria           SupplierCategoria
+  citta               String?
+  paese               String            @default("IT")
+  email               String?
+  referente           String?
+  telefono            String?
+  tempiMediConsegnaGg Int?              @map("tempi_medi_consegna_gg")
+  condizioniPagamento String?           @map("condizioni_pagamento")
+  note                String?
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  materials   Material[]
-  accessories Accessory[]
-  requests    SupplierRequest[]
-  invoices    Invoice[]
-  schedeLaboratorio TechnicalSheet[]     @relation("LaboratorioConfezione")
+  materials         Material[]
+  accessories       Accessory[]
+  requests          SupplierRequest[]
+  invoices          Invoice[]
+  schedeLaboratorio TechnicalSheet[]       @relation("LaboratorioConfezione")
   righeSchede       SheetMaterialUsage[]
   listiniMateriali  SupplierMaterial[]
   listiniAccessori  SupplierAccessory[]
@@ -462,8 +462,14 @@ model Product {
   statoPubblicazioneShopify PubblicazioneShopify @default(non_pubblicato) @map("stato_pubblicazione_shopify")
   disponibilitaOnline       Boolean              @default(false) @map("disponibilita_online")
   disponibilitaShowroom     Boolean              @default(false) @map("disponibilita_showroom")
+  // Attributi commerciali che decidono la vista cliente (spec 2026-08-06, DEC-044):
+  // `visibileShowroom` = capo fisicamente appeso allo stand (stato commerciale, non si
+  // deduce dalle giacenze); `personalizzabileSuMisura` = realizzabile o adattabile su
+  // misura anche se non è in showroom. Il catalogo cliente è la loro unione.
   visibileShowroom          Boolean              @default(false) @map("visibile_showroom")
   personalizzabileSuMisura  Boolean              @default(false) @map("personalizzabile_su_misura")
+  /// Tempi indicativi di realizzazione mostrati al cliente sul su misura (spec §6).
+  tempiRealizzazione        String?              @map("tempi_realizzazione")
   // Approvazione del campione (backlog "Note" §6): la produzione parte solo dopo che il
   // campione è stato ricevuto, controllato e approvato. Finché è null il passaggio alla
   // fase "produzione" resta bloccato.
@@ -474,16 +480,19 @@ model Product {
   createdAt                 DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  variants        ProductVariant[]
-  technicalSheets TechnicalSheet[]
-  productionSteps ProductionStep[]
-  materials       ProductMaterial[]
-  accessories     ProductAccessory[]
-  orderItems      OrderItem[]
-  invoiceLinks    InvoiceProduct[]
-  supplierReqs    SupplierRequest[]
-  patternDocuments PatternDocument[]
-  stockCommitments StockCommitment[]
+  variants          ProductVariant[]
+  technicalSheets   TechnicalSheet[]
+  productionSteps   ProductionStep[]
+  materials         ProductMaterial[]
+  accessories       ProductAccessory[]
+  orderItems        OrderItem[]
+  invoiceLinks      InvoiceProduct[]
+  supplierReqs      SupplierRequest[]
+  patternDocuments  PatternDocument[]
+  stockCommitments  StockCommitment[]
+  showroomViews     ShowroomProductView[]
+  showroomFavorites ShowroomFavorite[]
+  showroomRequests  ShowroomRequest[]
 
   // Colonne filtrate in listProducts()/listProduction() (products/service.ts, production/service.ts).
   @@index([stato])
@@ -520,8 +529,8 @@ model ProductVariant {
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  inventory  InventoryRecord?
-  orderItems OrderItem[]
+  inventory     InventoryRecord?
+  orderItems    OrderItem[]
   balances      InventoryBalance[]
   movements     InventoryMovement[]
   snapshotItems InventorySnapshotItem[]
@@ -555,13 +564,13 @@ model Material {
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  products        ProductMaterial[]
-  tsPrincipale    TechnicalSheet[]         @relation("TessutoPrincipale")
-  tsSecondari     TechnicalSheetMaterial[]
-  invoiceLinks    InvoiceMaterial[]
-  supplierReqs    SupplierRequest[]
-  orderItems      OrderItem[]
-  righeSchede     SheetMaterialUsage[]
+  products         ProductMaterial[]
+  tsPrincipale     TechnicalSheet[]         @relation("TessutoPrincipale")
+  tsSecondari      TechnicalSheetMaterial[]
+  invoiceLinks     InvoiceMaterial[]
+  supplierReqs     SupplierRequest[]
+  orderItems       OrderItem[]
+  righeSchede      SheetMaterialUsage[]
   listiniFornitori SupplierMaterial[]
 
   @@index([supplierId])
@@ -588,10 +597,10 @@ model Accessory {
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  products     ProductAccessory[]
-  tsAccessori  TechnicalSheetAccessory[]
-  supplierReqs SupplierRequest[]
-  righeSchede  SheetMaterialUsage[]
+  products         ProductAccessory[]
+  tsAccessori      TechnicalSheetAccessory[]
+  supplierReqs     SupplierRequest[]
+  righeSchede      SheetMaterialUsage[]
   listiniFornitori SupplierAccessory[]
 
   @@index([supplierId])
@@ -650,35 +659,35 @@ model TechnicalSheet {
   // --- Scheda tecnica strutturata (estensione 2026-07-30, chiude OQ-18) ---
   // Prima questi campi vivevano solo nel browser (localStorage): non erano condivisi
   // tra utenti né inclusi nei backup. Ora sono nel database.
-  statoScheda               StatoScheda @default(bozza) @map("stato_scheda")
+  statoScheda                StatoScheda   @default(bozza) @map("stato_scheda")
   // Anagrafica denormalizzata: precompilata dal prodotto ma editabile per versione.
-  nomeProdotto              String?   @map("nome_prodotto")
-  codiceProdotto            String?   @map("codice_prodotto")
-  collezione                String?
-  categoria                 String?
-  descrizioneTecnica        String?   @map("descrizione_tecnica")
-  taglieDisponibili         String[]  @default([]) @map("taglie_disponibili")
-  misureVestibilita         String?   @map("misure_vestibilita")
-  istruzioniConfezione      String?   @map("istruzioni_confezione")
-  noteTecniche              String?   @map("note_tecniche")
-  fornitoreLaboratorioId    String?   @map("fornitore_laboratorio_id") @db.Uuid
-  fornitoreLaboratorio      Supplier? @relation("LaboratorioConfezione", fields: [fornitoreLaboratorioId], references: [id], onDelete: SetNull)
+  nomeProdotto               String?       @map("nome_prodotto")
+  codiceProdotto             String?       @map("codice_prodotto")
+  collezione                 String?
+  categoria                  String?
+  descrizioneTecnica         String?       @map("descrizione_tecnica")
+  taglieDisponibili          String[]      @default([]) @map("taglie_disponibili")
+  misureVestibilita          String?       @map("misure_vestibilita")
+  istruzioniConfezione       String?       @map("istruzioni_confezione")
+  noteTecniche               String?       @map("note_tecniche")
+  fornitoreLaboratorioId     String?       @map("fornitore_laboratorio_id") @db.Uuid
+  fornitoreLaboratorio       Supplier?     @relation("LaboratorioConfezione", fields: [fornitoreLaboratorioId], references: [id], onDelete: SetNull)
   // Divisore per l'ammortamento dei costi di sviluppo sui capi previsti.
-  quantitaPrevistaProduzione Int      @default(50) @map("quantita_prevista_produzione")
-  noteVersione              String?   @map("note_versione")
+  quantitaPrevistaProduzione Int           @default(50) @map("quantita_prevista_produzione")
+  noteVersione               String?       @map("note_versione")
   // PDF caricato dal dispositivo (data URL base64). Vedi nota dimensioni in Database_Schema.
-  pdfFileNome               String?   @map("pdf_file_nome")
-  pdfFileDataUrl            String?   @map("pdf_file_data_url")
-  pdfFileCaricatoIl         DateTime? @map("pdf_file_caricato_il") @db.Timestamptz(6)
+  pdfFileNome                String?       @map("pdf_file_nome")
+  pdfFileDataUrl             String?       @map("pdf_file_data_url")
+  pdfFileCaricatoIl          DateTime?     @map("pdf_file_caricato_il") @db.Timestamptz(6)
   // Esito dell'ultima scansione AI del PDF (FR-14).
-  scanAiAnalizzatoIl        DateTime? @map("scan_ai_analizzato_il") @db.Timestamptz(6)
-  scanAiNomeFile            String?   @map("scan_ai_nome_file")
-  scanAiNote                String?   @map("scan_ai_note")
-  scanAiAffidabilita        Affidabilita? @map("scan_ai_affidabilita")
-  scanAiVociEstratte        Int?      @map("scan_ai_voci_estratte")
+  scanAiAnalizzatoIl         DateTime?     @map("scan_ai_analizzato_il") @db.Timestamptz(6)
+  scanAiNomeFile             String?       @map("scan_ai_nome_file")
+  scanAiNote                 String?       @map("scan_ai_note")
+  scanAiAffidabilita         Affidabilita? @map("scan_ai_affidabilita")
+  scanAiVociEstratte         Int?          @map("scan_ai_voci_estratte")
 
-  materiali   TechnicalSheetMaterial[]
-  accessori   TechnicalSheetAccessory[]
+  materiali      TechnicalSheetMaterial[]
+  accessori      TechnicalSheetAccessory[]
   righeMateriali SheetMaterialUsage[]
   righeCosti     SheetCostLine[]
   foto           TechnicalSheetPhoto[]
@@ -694,17 +703,17 @@ model TechnicalSheet {
 // proposto dall'AI o compilato a mano, e resta modificabile, riordinabile ed eliminabile.
 // I valori numerici li inserisce il modellista, l'AI indica solo QUALI misure servono.
 model SheetMeasurement {
-  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  technicalSheetId String         @map("technical_sheet_id") @db.Uuid
-  technicalSheet   TechnicalSheet @relation(fields: [technicalSheetId], references: [id], onDelete: Cascade)
-  nome             String
-  valore           Decimal?       @db.Decimal(8, 2)
-  unita            String         @default("cm")
-  tagliaRiferimento String?       @map("taglia_riferimento")
-  tolleranza       String?
-  nota             String?
-  fonte            CostSource     @default(manuale)
-  ordine           Int            @default(0)
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  technicalSheetId  String         @map("technical_sheet_id") @db.Uuid
+  technicalSheet    TechnicalSheet @relation(fields: [technicalSheetId], references: [id], onDelete: Cascade)
+  nome              String
+  valore            Decimal?       @db.Decimal(8, 2)
+  unita             String         @default("cm")
+  tagliaRiferimento String?        @map("taglia_riferimento")
+  tolleranza        String?
+  nota              String?
+  fonte             CostSource     @default(manuale)
+  ordine            Int            @default(0)
 
   @@index([technicalSheetId])
   @@map("sheet_measurements")
@@ -730,19 +739,19 @@ model MeasurementTemplate {
 // perché uno stesso piazzamento può valere per più versioni. La versione è testo libero
 // e NON è unica: caricare una V2 non sovrascrive mai la V1.
 model PatternDocument {
-  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  productId         String                @map("product_id") @db.Uuid
-  product           Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
-  fileName          String                @map("file_name")
-  dataUrl           String                @map("data_url")
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId         String               @map("product_id") @db.Uuid
+  product           Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fileName          String               @map("file_name")
+  dataUrl           String               @map("data_url")
   tipologia         PatternDocumentTipo
-  versione          String                @default("V1")
+  versione          String               @default("V1")
   autore            String?
-  statoApprovazione PatternDocumentStato  @default(in_attesa) @map("stato_approvazione")
-  createdBy         String?               @map("created_by") @db.Uuid
-  caricatoDa        User?                 @relation(fields: [createdBy], references: [id], onDelete: SetNull)
-  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  statoApprovazione PatternDocumentStato @default(in_attesa) @map("stato_approvazione")
+  createdBy         String?              @map("created_by") @db.Uuid
+  caricatoDa        User?                @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   note PatternDocumentNote[]
 
@@ -887,6 +896,9 @@ model ProductionStep {
 model Customer {
   id                     String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nome                   String
+  // Il cliente showroom si registra con nome e cognome separati (spec §4). Per gli altri
+  // canali (Shopify, fatture) resta null: là il nominativo arriva già come stringa unica.
+  cognome                String?
   email                  String?
   paese                  String           @default("IT")
   tipologia              TipologiaCliente @default(ecommerce)
@@ -894,11 +906,19 @@ model Customer {
   numeroOrdini           Int              @default(0) @map("numero_ordini")
   sconto                 Decimal?         @db.Decimal(5, 2)
   note                   String?
+  // Consensi raccolti nella vista cliente (spec §4). Il consenso al trattamento è il
+  // presupposto dell'accesso — si registra quando è stato dato; quello marketing è separato
+  // e facoltativo, quindi è un semplice sì/no revocabile.
+  consensoPrivacyIl      DateTime?        @map("consenso_privacy_il") @db.Timestamptz(6)
+  consensoMarketing      Boolean          @default(false) @map("consenso_marketing")
   createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  invoices Invoice[]
-  orders   Order[]
+  invoices          Invoice[]
+  orders            Order[]
+  showroomVisits    ShowroomVisit[]
+  showroomFavorites ShowroomFavorite[]
+  showroomRequests  ShowroomRequest[]
 
   @@map("customers")
 }
@@ -1028,30 +1048,30 @@ model CashClosure {
 }
 
 model SupplierRequest {
-  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  supplierId           String           @map("supplier_id") @db.Uuid
-  supplier             Supplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  materialId           String?          @map("material_id") @db.Uuid
-  material             Material?        @relation(fields: [materialId], references: [id], onDelete: SetNull)
-  accessoryId          String?          @map("accessory_id") @db.Uuid
-  accessory            Accessory?       @relation(fields: [accessoryId], references: [id], onDelete: SetNull)
-  productId            String?          @map("product_id") @db.Uuid
-  product              Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
-  oggetto              String
-  testo                String
-  quantitaRichiesta    Decimal          @default(0) @map("quantita_richiesta") @db.Decimal(10, 2)
-  quantitaDisponibile  Decimal          @default(0) @map("quantita_disponibile") @db.Decimal(10, 2)
-  quantitaMancante     Decimal          @default(0) @map("quantita_mancante") @db.Decimal(10, 2)
-  urgenza              Urgenza          @default(media)
-  deadlineIdeale       DateTime?        @map("deadline_ideale") @db.Date
-  stato                SupplierReqStato @default(bozza_generata)
-  noteTecniche         String?          @map("note_tecniche")
-  rispostaFornitore    String?          @map("risposta_fornitore")
-  approvataDa          String?          @map("approvata_da") @db.Uuid
-  approver             User?            @relation("ApprovedBy", fields: [approvataDa], references: [id], onDelete: SetNull)
-  inviataIl            DateTime?        @map("inviata_il") @db.Timestamptz(6)
-  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplierId          String           @map("supplier_id") @db.Uuid
+  supplier            Supplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  materialId          String?          @map("material_id") @db.Uuid
+  material            Material?        @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  accessoryId         String?          @map("accessory_id") @db.Uuid
+  accessory           Accessory?       @relation(fields: [accessoryId], references: [id], onDelete: SetNull)
+  productId           String?          @map("product_id") @db.Uuid
+  product             Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  oggetto             String
+  testo               String
+  quantitaRichiesta   Decimal          @default(0) @map("quantita_richiesta") @db.Decimal(10, 2)
+  quantitaDisponibile Decimal          @default(0) @map("quantita_disponibile") @db.Decimal(10, 2)
+  quantitaMancante    Decimal          @default(0) @map("quantita_mancante") @db.Decimal(10, 2)
+  urgenza             Urgenza          @default(media)
+  deadlineIdeale      DateTime?        @map("deadline_ideale") @db.Date
+  stato               SupplierReqStato @default(bozza_generata)
+  noteTecniche        String?          @map("note_tecniche")
+  rispostaFornitore   String?          @map("risposta_fornitore")
+  approvataDa         String?          @map("approvata_da") @db.Uuid
+  approver            User?            @relation("ApprovedBy", fields: [approvataDa], references: [id], onDelete: SetNull)
+  inviataIl           DateTime?        @map("inviata_il") @db.Timestamptz(6)
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([supplierId])
   @@map("supplier_requests")
@@ -1070,7 +1090,9 @@ model Order {
   createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  items OrderItem[]
+  items           OrderItem[]
+  /// Presente solo sugli ordini nati da una richiesta showroom confermata (DEC-044).
+  showroomRequest ShowroomRequest?
 
   @@index([customerId])
   @@map("orders")
@@ -1098,21 +1120,36 @@ model OrderItem {
 }
 
 model InventoryRecord {
-  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  variantId         String         @unique @map("variant_id") @db.Uuid
-  variant           ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  qtaMagazzino      Int            @default(0) @map("qta_magazzino")
-  qtaLaboratorio    Int            @default(0) @map("qta_laboratorio")
-  qtaRiservata      Int            @default(0) @map("qta_riservata")
-  qtaVenduta        Int            @default(0) @map("qta_venduta")
-  sogliaMinima      Int            @default(0) @map("soglia_minima")
+  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  variantId               String         @unique @map("variant_id") @db.Uuid
+  variant                 ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  qtaMagazzino            Int            @default(0) @map("qta_magazzino")
+  qtaLaboratorio          Int            @default(0) @map("qta_laboratorio")
+  qtaRiservata            Int            @default(0) @map("qta_riservata")
+  qtaVenduta              Int            @default(0) @map("qta_venduta")
+  sogliaMinima            Int            @default(0) @map("soglia_minima")
   // Soglia della sola giacenza di laboratorio: sotto questa quantità scatta l'alert di
   // reintegro dal magazzino. È distinta da `sogliaMinima`, che riguarda il totale.
-  sogliaMinimaLaboratorio Int      @default(0) @map("soglia_minima_laboratorio")
-  stato             InventoryStato @default(disponibile)
-  stockShopify      Int            @default(0) @map("stock_shopify")
-  divergenzaShopify Boolean        @default(false) @map("divergenza_shopify")
-  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sogliaMinimaLaboratorio Int            @default(0) @map("soglia_minima_laboratorio")
+  stato                   InventoryStato @default(disponibile)
+  stockShopify            Int            @default(0) @map("stock_shopify")
+  divergenzaShopify       Boolean        @default(false) @map("divergenza_shopify")
+  updatedAt               DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // --- Migrazione iniziale delle giacenze (DEC-045) ---
+  // All'import il sistema conosce solo il totale: entra tutto in laboratorio e la
+  // distribuzione reale la corregge una persona, capo per capo.
+  //
+  // `totaleMigrazione` è il totale dichiarato per questa variante: serve a distinguere
+  // "questi 3 capi erano già nel totale, spostali" da "questi 3 capi non li avevamo
+  // contati, aggiungili", e a validare la distribuzione prima della conferma.
+  // Finché `migrazioneCompletata` è false la variante è in migrazione: niente alert
+  // operativi (i numeri sono provvisori) e ogni modifica di ubicazione passa dalla
+  // domanda esplicita. Dopo la conferma vale la gestione ordinaria.
+  totaleMigrazione       Int?      @map("totale_migrazione")
+  migrazioneCompletata   Boolean   @default(false) @map("migrazione_completata")
+  migrazioneConfermataIl DateTime? @map("migrazione_confermata_il") @db.Timestamptz(6)
+  migrazioneConfermataDa String?   @map("migrazione_confermata_da") @db.Uuid
 
   @@map("inventory_records")
 }
@@ -1124,22 +1161,22 @@ model InventoryRecord {
 // Ciclo di vita: in_produzione → consumato (scarico definitivo dal laboratorio)
 //                             → rilasciato (la lavorazione decade, i capi tornano disponibili)
 model StockCommitment {
-  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  variantId    String            @map("variant_id") @db.Uuid
-  variant      ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  variantId String          @map("variant_id") @db.Uuid
+  variant   ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
   // Lavorazione per cui il capo è impegnato: il prodotto in produzione e, quando c'è,
   // la fase specifica della pipeline.
-  productId    String?           @map("product_id") @db.Uuid
-  product      Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
-  stepId       String?           @map("step_id") @db.Uuid
-  step         ProductionStep?   @relation(fields: [stepId], references: [id], onDelete: SetNull)
-  quantita     Int
-  stato        CommitmentStato   @default(in_produzione)
-  note         String?
-  createdBy    String?           @map("created_by") @db.Uuid
-  creatoDa     User?             @relation(fields: [createdBy], references: [id], onDelete: SetNull)
-  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  chiusoIl     DateTime?         @map("chiuso_il") @db.Timestamptz(6)
+  productId String?         @map("product_id") @db.Uuid
+  product   Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  stepId    String?         @map("step_id") @db.Uuid
+  step      ProductionStep? @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  quantita  Int
+  stato     CommitmentStato @default(in_produzione)
+  note      String?
+  createdBy String?         @map("created_by") @db.Uuid
+  creatoDa  User?           @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  chiusoIl  DateTime?       @map("chiuso_il") @db.Timestamptz(6)
 
   @@index([variantId])
   @@index([stato])
@@ -1166,8 +1203,8 @@ model InventoryLocation {
   updatedAt DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   balances      InventoryBalance[]
-  movementiDa    InventoryMovement[] @relation("MovimentoOrigine")
-  movementiA     InventoryMovement[] @relation("MovimentoDestinazione")
+  movementiDa   InventoryMovement[]     @relation("MovimentoOrigine")
+  movementiA    InventoryMovement[]     @relation("MovimentoDestinazione")
   snapshotItems InventorySnapshotItem[]
 
   @@map("inventory_locations")
@@ -1190,21 +1227,26 @@ model InventoryBalance {
 }
 
 model InventoryMovement {
-  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  variantId       String                 @map("variant_id") @db.Uuid
-  variant         ProductVariant         @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  locationFromId  String?                @map("location_from_id") @db.Uuid
-  locationFrom    InventoryLocation?     @relation("MovimentoOrigine", fields: [locationFromId], references: [id], onDelete: SetNull)
-  locationToId    String?                @map("location_to_id") @db.Uuid
-  locationTo      InventoryLocation?     @relation("MovimentoDestinazione", fields: [locationToId], references: [id], onDelete: SetNull)
-  createdBy       String?                @map("created_by") @db.Uuid
-  creatoDa        User?                  @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  variantId       String                @map("variant_id") @db.Uuid
+  variant         ProductVariant        @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  locationFromId  String?               @map("location_from_id") @db.Uuid
+  locationFrom    InventoryLocation?    @relation("MovimentoOrigine", fields: [locationFromId], references: [id], onDelete: SetNull)
+  locationToId    String?               @map("location_to_id") @db.Uuid
+  locationTo      InventoryLocation?    @relation("MovimentoDestinazione", fields: [locationToId], references: [id], onDelete: SetNull)
+  createdBy       String?               @map("created_by") @db.Uuid
+  creatoDa        User?                 @relation(fields: [createdBy], references: [id], onDelete: SetNull)
   tipo            InventoryMovementType
   quantita        Int
-  riferimentoTipo String?                @map("riferimento_tipo")
-  riferimentoId   String?                @map("riferimento_id") @db.Uuid
+  riferimentoTipo String?               @map("riferimento_tipo")
+  riferimentoId   String?               @map("riferimento_id") @db.Uuid
+  // Perché il movimento è avvenuto (reintegro, rientro, correzione, migrazione…):
+  // il `tipo` dice *cosa* è successo, il motivo dice *perché*. Testo controllato dal
+  // client (MOTIVI_MOVIMENTO), non enum: i motivi cambiano con l'uso e non vale una
+  // migrazione ogni volta.
+  motivo          String?
   note            String?
-  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([variantId])
   @@map("inventory_movements")
@@ -1348,4 +1390,145 @@ model ImportError {
 
   @@index([importBatchId])
   @@map("import_errors")
+}
+
+// =====================================================================
+// VISTA CLIENTE SHOWROOM (richiesta di Giulia 2026-08-06, DEC-044).
+// Il catalogo mostrato al cliente non è una seconda anagrafica: è la
+// stessa tabella `products` filtrata dai due attributi commerciali
+// `visibile_showroom` (capo appeso allo stand) e
+// `personalizzabile_su_misura`. Qui vive solo ciò che nasce dal lato
+// cliente e non esiste nel gestionale: l'accesso con i consensi, cosa ha
+// guardato, cosa ha messo tra i preferiti, cosa ha chiesto.
+// =====================================================================
+
+enum ShowroomRequestTipo {
+  personalizzazione
+  informazioni
+}
+
+// Stati elencati nella specifica §7. `confermato` è il punto in cui la
+// richiesta genera l'ordine SM-* nel gestionale.
+enum StatoRichiestaShowroom {
+  nuova_richiesta
+  da_contattare
+  appuntamento_fissato
+  misure_raccolte
+  preventivo_inviato
+  confermato
+  in_produzione
+  pronto
+  consegnato
+  annullato
+}
+
+/// Un accesso alla vista cliente: nome, cognome, email e i consensi raccolti
+/// prima di entrare. Il contatto confluisce in `customers` (tipologia
+/// `showroom`, dedup per email) — questa tabella tiene la traccia temporale
+/// dell'accesso, che in `customers` andrebbe persa a ogni nuova visita.
+model ShowroomVisit {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId          String   @map("customer_id") @db.Uuid
+  customer            Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  nome                String
+  cognome             String
+  email               String
+  consensoPrivacy     Boolean  @default(false) @map("consenso_privacy")
+  consensoMarketing   Boolean  @default(false) @map("consenso_marketing")
+  informativaVersione String   @map("informativa_versione")
+  iniziataIl          DateTime @default(now()) @map("iniziata_il") @db.Timestamptz(6)
+  ultimaAttivitaIl    DateTime @updatedAt @map("ultima_attivita_il") @db.Timestamptz(6)
+
+  views     ShowroomProductView[]
+  favorites ShowroomFavorite[]
+  requests  ShowroomRequest[]
+
+  @@index([customerId])
+  @@index([iniziataIl])
+  @@map("showroom_visits")
+}
+
+/// Prodotti aperti dal cliente durante una visita. Una riga per capo, con
+/// contatore: interessa quante volte è stato guardato, non ogni singolo click.
+model ShowroomProductView {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  visitId         String        @map("visit_id") @db.Uuid
+  visit           ShowroomVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  productId       String        @map("product_id") @db.Uuid
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  visualizzazioni Int           @default(1)
+  ultimaVistaIl   DateTime      @default(now()) @map("ultima_vista_il") @db.Timestamptz(6)
+
+  @@unique([visitId, productId])
+  @@index([productId])
+  @@map("showroom_product_views")
+}
+
+/// Preferiti del cliente: legati al contatto (restano fra una visita e l'altra),
+/// con il riferimento alla visita in cui sono stati aggiunti.
+model ShowroomFavorite {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId String         @map("customer_id") @db.Uuid
+  customer   Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId  String         @map("product_id") @db.Uuid
+  product    Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  visitId    String?        @map("visit_id") @db.Uuid
+  visit      ShowroomVisit? @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([customerId, productId])
+  @@index([productId])
+  @@map("showroom_favorites")
+}
+
+/// La "scheda" creata nel gestionale da una richiesta del cliente (spec §7):
+/// personalizzazione su misura o semplice richiesta di informazioni. I campi
+/// prima di `noteInterne` arrivano dal cliente, quelli dopo li compila l'atelier.
+model ShowroomRequest {
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero              String                 @unique
+  tipo                ShowroomRequestTipo    @default(personalizzazione)
+  stato               StatoRichiestaShowroom @default(nuova_richiesta)
+  customerId          String                 @map("customer_id") @db.Uuid
+  customer            Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId           String?                @map("product_id") @db.Uuid
+  product             Product?               @relation(fields: [productId], references: [id], onDelete: SetNull)
+  visitId             String?                @map("visit_id") @db.Uuid
+  visit               ShowroomVisit?         @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  tagliaBase          String?                @map("taglia_base")
+  coloreDesiderato    String?                @map("colore_desiderato")
+  lunghezza           String?
+  modifiche           String?
+  note                String?
+  misure              Json?
+  dataDesiderata      DateTime?              @map("data_desiderata") @db.Date
+  noteInterne         String?                @map("note_interne")
+  preventivoImporto   Decimal?               @map("preventivo_importo") @db.Decimal(12, 2)
+  preventivoInviatoIl DateTime?              @map("preventivo_inviato_il") @db.Timestamptz(6)
+  appuntamentoIl      DateTime?              @map("appuntamento_il") @db.Timestamptz(6)
+  orderId             String?                @unique @map("order_id") @db.Uuid
+  order               Order?                 @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  immagini ShowroomRequestImage[]
+
+  @@index([customerId])
+  @@index([productId])
+  @@index([stato])
+  @@map("showroom_requests")
+}
+
+/// Immagini di riferimento allegate dal cliente (facoltative, spec §7):
+/// stesso schema delle foto scheda tecnica — data URL, limite lato API.
+model ShowroomRequestImage {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId  String          @map("request_id") @db.Uuid
+  request    ShowroomRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  nome       String
+  dataUrl    String          @map("data_url")
+  caricataIl DateTime        @default(now()) @map("caricata_il") @db.Timestamptz(6)
+
+  @@index([requestId])
+  @@map("showroom_request_images")
 }

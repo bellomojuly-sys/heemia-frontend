@@ -4,8 +4,8 @@ import { z } from 'zod'
 import { authenticate, requireModule, requireEdit } from '../../core/guards.js'
 import { badRequest } from '../../core/errors.js'
 import {
-  chiudiLavorazione, getLabDetail, listInventory, listStockMovements,
-  mandaInProduzione, transferStock, updateInventoryRecord,
+  chiudiLavorazione, confirmMigration, getLabDetail, listInventory, listStockMovements,
+  mandaInProduzione, migrationAdjust, transferStock, updateInventoryRecord,
 } from './service.js'
 
 const listQuerySchema = z.object({
@@ -25,6 +25,16 @@ const patchSchema = z.object({
 const transferSchema = z.object({
   direzione: z.enum(['to_lab', 'to_warehouse']),
   quantita: z.number().int().positive(),
+  motivo: z.string().max(120).optional(),
+  note: z.string().max(500).optional(),
+})
+
+// Migrazione iniziale: `modalita` è il significato dell'operazione, dichiarato dalla
+// persona nella domanda della capretta. Il server non lo deduce (FR-49).
+const migrazioneSchema = z.object({
+  ubicazione: z.enum(['magazzino', 'laboratorio']),
+  quantita: z.number().int().nonnegative(),
+  modalita: z.enum(['redistribuisci', 'aggiungi', 'colma']),
   note: z.string().max(500).optional(),
 })
 
@@ -67,7 +77,21 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.post('/inventory/:variantId/transfer', write, async (req) => {
     const { variantId } = req.params as { variantId: string }
     const d = parse(transferSchema, req.body)
-    return transferStock(variantId, d.direzione, d.quantita, req.user!.id, d.note)
+    return transferStock(variantId, d.direzione, d.quantita, req.user!.id, d.note, d.motivo)
+  })
+
+  // Distribuzione iniziale (FR-49): correzione di un'ubicazione con il significato
+  // dichiarato — capi già compresi nel totale oppure quantità mai registrata.
+  app.post('/inventory/:variantId/migration', write, async (req) => {
+    const { variantId } = req.params as { variantId: string }
+    return migrationAdjust(variantId, parse(migrazioneSchema, req.body), req.user!.id)
+  })
+
+  // Conferma della distribuzione iniziale: rifiutata se la somma delle ubicazioni non
+  // coincide col totale registrato.
+  app.post('/inventory/:variantId/migration/confirm', write, async (req) => {
+    const { variantId } = req.params as { variantId: string }
+    return confirmMigration(variantId, req.user!.id)
   })
 
   app.get('/inventory/:variantId/movements', read, async (req) => {

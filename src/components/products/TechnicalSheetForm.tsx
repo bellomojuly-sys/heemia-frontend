@@ -10,6 +10,7 @@ import { formatCurrency, formatDateIt } from '../../lib/format'
 import { estimateConsumption, weightedAverageUnitCost } from '../../lib/materialCosting'
 import { VOCE_LABEL } from '../../lib/sheetCost'
 import { api, ApiError } from '../../lib/api'
+import { fileToDownscaledDataUrl } from '../../lib/images'
 import { useMockStore, type TechnicalSheetInput } from '../../context/MockStore'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import type {
@@ -46,33 +47,8 @@ function localId(prefix: string): string {
 
 const TODAY_ISO = () => new Date().toISOString().slice(0, 10)
 
-/** Ridimensiona l'immagine caricata prima di salvarla come data URL: le foto a piena
- *  risoluzione saturerebbero la quota di localStorage. Lato lungo max 1000px, JPEG 0.8. */
-function fileToDownscaledDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onerror = () => reject(new Error('lettura fallita'))
-    reader.onload = () => {
-      const img = new Image()
-      img.onerror = () => reject(new Error('immagine non valida'))
-      img.onload = () => {
-        const max = 1000
-        const scala = Math.min(1, max / Math.max(img.width, img.height))
-        const w = Math.round(img.width * scala)
-        const h = Math.round(img.height * scala)
-        const canvas = document.createElement('canvas')
-        canvas.width = w
-        canvas.height = h
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return reject(new Error('canvas non disponibile'))
-        ctx.drawImage(img, 0, 0, w, h)
-        resolve(canvas.toDataURL('image/jpeg', 0.8))
-      }
-      img.src = String(reader.result ?? '')
-    }
-    reader.readAsDataURL(file)
-  })
-}
+// Il ridimensionamento delle foto vive in lib/images.ts: lo usano sia le foto della scheda
+// tecnica sia le immagini di riferimento delle richieste showroom.
 
 /** Legge un file dal dispositivo come data URL (usato per il PDF della scheda). */
 function fileToDataUrl(file: File): Promise<string> {

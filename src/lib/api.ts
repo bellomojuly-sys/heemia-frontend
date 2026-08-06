@@ -82,6 +82,7 @@ export const api = {
   showroom: {
     get: <T>(path: string) => request<T>('GET', path, undefined, SHOWROOM_PREFIX),
     post: <T>(path: string, body?: unknown) => request<T>('POST', path, body, SHOWROOM_PREFIX),
+    del: <T>(path: string) => request<T>('DELETE', path, undefined, SHOWROOM_PREFIX),
   },
 }
 

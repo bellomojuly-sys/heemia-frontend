@@ -136,6 +136,9 @@ export interface NewProductInput {
   collezione: string
   stagione: string
   linea: Linea
+  /** Attributi commerciali della vista cliente (DEC-044): si scelgono già alla creazione. */
+  visibileShowroom: boolean
+  personalizzabileSuMisura: boolean
 }
 
 export interface NewMaterialInput {
@@ -363,7 +366,18 @@ interface MockStoreValue {
   deleteProduct: (id: string) => Promise<void>
   addVariant: (input: NewVariantInput) => Promise<ProductVariant>
   updateVariantQuantities: (variantId: string, patch: VariantQuantitiesPatch) => Promise<void>
-  transferStock: (variantId: string, direzione: 'to_lab' | 'to_warehouse', quantita: number, note?: string) => Promise<void>
+  transferStock: (variantId: string, direzione: 'to_lab' | 'to_warehouse', quantita: number, note?: string, motivo?: string) => Promise<void>
+  /**
+   * Distribuzione iniziale (FR-49). `modalita` è la risposta alla domanda della capretta:
+   * `redistribuisci` = erano già compresi nel totale · `aggiungi` = non erano contati ·
+   * `colma` = erano nel totale ma non assegnati a nessuna ubicazione (chiude lo scarto).
+   */
+  sistemaDistribuzione: (
+    variantId: string,
+    input: { ubicazione: 'magazzino' | 'laboratorio'; quantita: number; modalita: 'redistribuisci' | 'aggiungi' | 'colma' },
+  ) => Promise<void>
+  /** Chiude la distribuzione iniziale di una variante: da qui in poi vale la gestione ordinaria. */
+  confermaDistribuzione: (variantId: string) => Promise<void>
   loadStockMovements: (variantId: string) => Promise<StockMovement[]>
   /** Dettaglio del laboratorio: giacenza, reintegri, consumi e capi in produzione. */
   loadLabDetail: (variantId: string) => Promise<LabDetail>
@@ -698,8 +712,19 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
 
       // Il server verifica la disponibilità nell'ubicazione di partenza e rifiuta
       // i trasferimenti che porterebbero la quantità sotto zero.
-      transferStock: async (variantId, direzione, quantita, note) => {
-        await persisti(api.post<Row>(`/inventory/${variantId}/transfer`, { direzione, quantita, note }))
+      transferStock: async (variantId, direzione, quantita, note, motivo) => {
+        await persisti(api.post<Row>(`/inventory/${variantId}/transfer`, { direzione, quantita, note, motivo }))
+      },
+
+      // Il significato dell'operazione lo dichiara chi la fa: il server non lo deduce
+      // dai numeri, altrimenti "3 in magazzino" resterebbe ambiguo (FR-49).
+      sistemaDistribuzione: async (variantId, input) => {
+        await persisti(api.post<Row>(`/inventory/${variantId}/migration`, input))
+      },
+
+      // Il server rifiuta se la somma delle ubicazioni non coincide col totale registrato.
+      confermaDistribuzione: async (variantId) => {
+        await persisti(api.post<Row>(`/inventory/${variantId}/migration/confirm`, {}))
       },
 
       loadStockMovements: async (variantId) => {

@@ -8,18 +8,26 @@ import { Badge } from '../../components/ui/Badge'
 import { StockTransferModal, type TransferDirezione } from '../../components/inventory/StockTransferModal'
 import { StockMovementsModal } from '../../components/inventory/StockMovementsModal'
 import { LabDetailModal } from '../../components/inventory/LabDetailModal'
+import {
+  MigrationDistributionModal, type ModalitaMigrazione, type UbicazioneMigrazione,
+} from '../../components/inventory/MigrationDistributionModal'
+import { RefillSuggestions } from '../../components/inventory/RefillSuggestions'
+import { Button } from '../../components/ui/Button'
 import { getStockOverview } from '../../lib/dashboard'
 import type { InventoryRecord } from '../../types'
 import { useMockStore } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
+import { useGoatAlert } from '../../context/GoatAlertContext'
+import { ApiError } from '../../lib/api'
 import { canEdit } from '../../lib/permissions'
 
 export function FinishedGoodsInventory() {
   const { role } = useRole()
   const {
     inventoryRecords, productVariants, products, updateVariantQuantities,
-    transferStock, loadStockMovements, caricamento,
+    transferStock, loadStockMovements, sistemaDistribuzione, confermaDistribuzione, caricamento,
   } = useMockStore()
+  const { avvisa } = useGoatAlert()
   const userCanEdit = canEdit(role)
   const stock = getStockOverview(inventoryRecords)
 
@@ -37,6 +45,25 @@ export function FinishedGoodsInventory() {
   const [trasferimento, setTrasferimento] = useState<{ record: InventoryRecord; direzione: TransferDirezione } | null>(null)
   const [storico, setStorico] = useState<InventoryRecord | null>(null)
   const [labDetail, setLabDetail] = useState<InventoryRecord | null>(null)
+  // Distribuzione iniziale (FR-49): la quantità appena digitata aspetta qui finché non si
+  // dice cosa significa — capi già compresi nel totale o capi mai contati.
+  const [distribuzione, setDistribuzione] = useState<
+    { record: InventoryRecord; ubicazione: UbicazioneMigrazione; quantita: number } | null
+  >(null)
+
+  const daMigrare = righe.filter((r) => !r.migrazioneCompletata)
+  const daReintegrare = righe.filter((r) => r.reintegro)
+
+  /** La conferma può essere rifiutata dal server (distribuzione che non torna): si dice perché. */
+  const conferma = async (r: InventoryRecord) => {
+    try {
+      await confermaDistribuzione(r.variantId)
+    } catch (e) {
+      avvisa('salvataggio', {
+        testo: e instanceof ApiError ? e.message : 'Non è stato possibile confermare la distribuzione.',
+      })
+    }
+  }
 
   /** Etichetta leggibile della variante, usata nei titoli dei modali. */
   const descrizioneVariante = (r: InventoryRecord) => {
@@ -85,8 +112,12 @@ export function FinishedGoodsInventory() {
       header: 'Magazzino',
       align: 'right',
       // Modificabile: aggiorna anche la variante del prodotto (stessa fonte, updateVariantQuantities).
+      // Finché la distribuzione iniziale non è confermata il numero non si scrive di
+      // filato: si digita e poi si dichiara cosa significa (FR-49).
       accessor: (r) =>
-        userCanEdit ? (
+        !userCanEdit ? (
+          r.qtaMagazzino
+        ) : r.migrazioneCompletata ? (
           <input
             type="number"
             min="0"
@@ -96,7 +127,12 @@ export function FinishedGoodsInventory() {
             aria-label={`Magazzino ${r.variantId}`}
           />
         ) : (
-          r.qtaMagazzino
+          <QuantitaMigrazioneInput
+            valore={r.qtaMagazzino}
+            etichetta={`Magazzino ${r.variantId}`}
+            className={qtyInputClass}
+            onConferma={(quantita) => setDistribuzione({ record: r, ubicazione: 'magazzino', quantita })}
+          />
         ),
     },
     {
@@ -107,6 +143,14 @@ export function FinishedGoodsInventory() {
       accessor: (r) => (
         <div className="flex items-center justify-end gap-2">
           {r.laboratorioSottoSoglia && <Badge variant="warning-outline">Da reintegrare</Badge>}
+          {userCanEdit && !r.migrazioneCompletata && (
+            <QuantitaMigrazioneInput
+              valore={r.qtaLaboratorio}
+              etichetta={`Laboratorio ${r.variantId}`}
+              className={qtyInputClass}
+              onConferma={(quantita) => setDistribuzione({ record: r, ubicazione: 'laboratorio', quantita })}
+            />
+          )}
           <button
             type="button"
             onClick={() => setLabDetail(r)}
@@ -167,6 +211,43 @@ export function FinishedGoodsInventory() {
         ),
     },
     {
+      header: 'Distribuzione',
+      // Stato della migrazione iniziale. A conferma avvenuta la colonna si fa da parte:
+      // resta una riga di testo, non un badge che chiede attenzione ogni volta.
+      accessor: (r) =>
+        r.migrazioneCompletata ? (
+          <span className="text-xs text-heemia-grey">Confermata</span>
+        ) : (
+          <div className="space-y-1">
+            <Badge variant="warning-outline">Da confermare</Badge>
+            <p className="font-mono-heemia text-[11px] text-heemia-grey">
+              {r.totaleDistribuito} distribuiti su {r.totaleDichiarato} registrati
+            </p>
+            {r.differenzaMigrazione !== 0 && (
+              <p className="text-[11px] text-heemia-carmine">
+                {r.differenzaMigrazione > 0
+                  ? `${r.differenzaMigrazione} capi in più del totale registrato.`
+                  : `Mancano ${Math.abs(r.differenzaMigrazione)} capi rispetto al totale registrato.`}
+              </p>
+            )}
+            {userCanEdit && (
+              <Button
+                variant="secondary"
+                disabled={!r.migrazioneConfermabile}
+                title={
+                  r.migrazioneConfermabile
+                    ? 'Chiudi la distribuzione iniziale di questa variante'
+                    : 'La somma delle ubicazioni deve coincidere con il totale registrato'
+                }
+                onClick={() => conferma(r)}
+              >
+                Conferma distribuzione iniziale
+              </Button>
+            )}
+          </div>
+        ),
+    },
+    {
       header: 'Movimenti',
       // Il trasferimento passa da un modale con anteprima: la modifica in linea sposta
       // una quantità senza dire da dove arriva, il movimento invece resta tracciato.
@@ -211,6 +292,31 @@ export function FinishedGoodsInventory() {
         <KpiTile label="Esaurito" value={stock.esaurito} critical={stock.esaurito > 0} />
       </div>
 
+      {daMigrare.length > 0 && (
+        <section className="mb-6 rounded-heemia-lg border border-heemia-border-strong bg-heemia-surface px-4 py-3">
+          <h2 className="font-display text-sm font-medium text-heemia-black">
+            Distribuzione iniziale da completare
+            <span className="font-mono-heemia ml-2 text-[11px] text-heemia-grey">{daMigrare.length}</span>
+          </h2>
+          <p className="mt-1 text-sm text-heemia-grey">
+            Dei capi importati si conosce solo la quantità totale, quindi risultano tutti in laboratorio. Correggi il
+            magazzino variante per variante e conferma: da quel momento parte la gestione ordinaria delle scorte, con
+            soglia di laboratorio e reintegri.
+          </p>
+        </section>
+      )}
+
+      {daReintegrare.length > 0 && (
+        <RefillSuggestions
+          records={daReintegrare}
+          descrizione={descrizioneVariante}
+          onTrasferisci={(r, quantita) =>
+            transferStock(r.variantId, 'to_lab', quantita, undefined, 'Reintegro laboratorio')
+          }
+          onModifica={(r) => setTrasferimento({ record: r, direzione: 'to_lab' })}
+        />
+      )}
+
       {vistaLabel && (
         <div className="mb-3 flex items-center gap-2">
           <span className="text-xs text-heemia-grey">Filtro dalla dashboard:</span>
@@ -236,8 +342,8 @@ export function FinishedGoodsInventory() {
           descrizione={descrizioneVariante(trasferimento.record)}
           direzione={trasferimento.direzione}
           onClose={() => setTrasferimento(null)}
-          onSubmit={(quantita, note) =>
-            transferStock(trasferimento.record.variantId, trasferimento.direzione, quantita, note)
+          onSubmit={(quantita, note, motivo) =>
+            transferStock(trasferimento.record.variantId, trasferimento.direzione, quantita, note, motivo)
           }
         />
       )}
@@ -250,6 +356,23 @@ export function FinishedGoodsInventory() {
         />
       )}
 
+      {distribuzione && (
+        <MigrationDistributionModal
+          record={distribuzione.record}
+          descrizione={descrizioneVariante(distribuzione.record)}
+          ubicazione={distribuzione.ubicazione}
+          quantita={distribuzione.quantita}
+          onClose={() => setDistribuzione(null)}
+          onConferma={(modalita: ModalitaMigrazione) =>
+            sistemaDistribuzione(distribuzione.record.variantId, {
+              ubicazione: distribuzione.ubicazione,
+              quantita: distribuzione.quantita,
+              modalita,
+            })
+          }
+        />
+      )}
+
       {labDetail && (
         <LabDetailModal
           variantId={labDetail.variantId}
@@ -259,6 +382,58 @@ export function FinishedGoodsInventory() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Campo quantità in distribuzione iniziale: tiene il valore digitato in locale e lo
+ * consegna solo alla conferma (Invio o uscita dal campo). Scrivere a ogni tasto premuto
+ * aprirebbe la domanda della capretta dopo la prima cifra — "1" mentre si sta digitando
+ * "12" — e il numero salvato sarebbe quasi sempre quello sbagliato.
+ */
+function QuantitaMigrazioneInput({
+  valore,
+  etichetta,
+  className,
+  onConferma,
+}: {
+  valore: number
+  etichetta: string
+  className: string
+  onConferma: (quantita: number) => void
+}) {
+  const [testo, setTesto] = useState(String(valore))
+
+  // Se il valore arriva dal server (dopo un salvataggio) il campo lo segue.
+  const [valorePrec, setValorePrec] = useState(valore)
+  if (valore !== valorePrec) {
+    setValorePrec(valore)
+    setTesto(String(valore))
+  }
+
+  const consegna = () => {
+    const quantita = Math.max(0, Number(testo) || 0)
+    if (quantita === valore) return
+    onConferma(quantita)
+  }
+
+  return (
+    <input
+      type="number"
+      min="0"
+      value={testo}
+      aria-label={etichetta}
+      className={className}
+      onChange={(e) => setTesto(e.target.value)}
+      onBlur={consegna}
+      onKeyDown={(e) => {
+        // `keyCode` come rete di sicurezza: alcuni ambienti (e gli strumenti di
+        // automazione) recapitano l'evento senza `key` valorizzato, e il campo
+        // resterebbe lì senza confermare niente.
+        if (e.key === 'Enter' || e.keyCode === 13) e.currentTarget.blur()
+        if (e.key === 'Escape' || e.keyCode === 27) setTesto(String(valore))
+      }}
+    />
   )
 }
 

@@ -1,15 +1,17 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Trash2, X } from 'lucide-react'
+import { LayoutGrid, List as ListIcon, Trash2, X } from 'lucide-react'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
-import { ImagePlaceholder } from '../../components/ui/ImagePlaceholder'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { AddProductForm } from '../../components/products/AddProductForm'
 import { DeleteProductModal } from '../../components/products/DeleteProductModal'
+import { ProductGallery } from '../../components/products/ProductGallery'
+import { ProductImage } from '../../components/products/ProductImage'
 import { StatusBadge } from '../../lib/statusBadge'
+import { coverImageUrl } from '../../lib/driveImage'
 import { stageLabel } from '../../lib/production'
 import { formatCurrency, formatPercent } from '../../lib/format'
 import { PRODUCT_STAGES, type Product, type ProductStage } from '../../types'
@@ -46,6 +48,15 @@ export function ProductList() {
   const puoEliminare = canDeleteProducts(role)
 
   const vista = VISTE[searchParams.get('vista') ?? '']
+  // Catalogo interno (galleria) o elenco operativo (tabella). Sta nell'indirizzo insieme
+  // ai filtri, così un catalogo filtrato si può passare a qualcuno con un link.
+  const galleria = searchParams.get('modo') === 'galleria'
+  const cambiaModo = (a: 'lista' | 'galleria') => {
+    const p = new URLSearchParams(searchParams)
+    if (a === 'galleria') p.set('modo', 'galleria')
+    else p.delete('modo')
+    setSearchParams(p, { replace: true })
+  }
 
   const rows = useMemo(() => {
     return products.filter((p) => {
@@ -62,7 +73,12 @@ export function ProductList() {
       header: 'Prodotto',
       accessor: (p) => (
         <div className="flex items-center gap-3">
-          <ImagePlaceholder label={p.nome} className="h-9 w-9 text-sm" />
+          <ProductImage
+            url={coverImageUrl(p.immaginiUrl, 120) ?? undefined}
+            nome={p.nome}
+            className="h-9 w-9 shrink-0 rounded-heemia"
+            larghezza={120}
+          />
           <div>
             <p className="font-display font-medium text-heemia-black">{p.nome}</p>
             <p className="font-mono-heemia text-[11px] text-heemia-grey">{p.codiceProdotto}</p>
@@ -172,15 +188,33 @@ export function ProductList() {
         ]}
       />
 
-      <DataTable
-        loading={caricamento}
-        columns={columns}
-        rows={rows}
-        keyExtractor={(p) => p.id}
-        onRowClick={(p) => navigate(`/prodotti/${p.id}`)}
-        emptyTitle="Nessun prodotto trovato"
-        emptyDescription="Nessun capo corrisponde ai filtri selezionati. Prova a modificare fase o linea."
-      />
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-xs text-heemia-grey">
+          {rows.length} {rows.length === 1 ? 'capo' : 'capi'}
+        </p>
+        <div className="flex rounded-heemia-sm border border-heemia-border bg-white p-0.5">
+          <SelettoreModo attivo={!galleria} onClick={() => cambiaModo('lista')} titolo="Vista elenco">
+            <ListIcon className="h-3.5 w-3.5" /> Elenco
+          </SelettoreModo>
+          <SelettoreModo attivo={galleria} onClick={() => cambiaModo('galleria')} titolo="Vista galleria: catalogo interno con le foto">
+            <LayoutGrid className="h-3.5 w-3.5" /> Galleria
+          </SelettoreModo>
+        </div>
+      </div>
+
+      {galleria ? (
+        <ProductGallery products={rows} caricamento={caricamento} onOpen={(p) => navigate(`/prodotti/${p.id}`)} />
+      ) : (
+        <DataTable
+          loading={caricamento}
+          columns={columns}
+          rows={rows}
+          keyExtractor={(p) => p.id}
+          onRowClick={(p) => navigate(`/prodotti/${p.id}`)}
+          emptyTitle="Nessun prodotto trovato"
+          emptyDescription="Nessun capo corrisponde ai filtri selezionati. Prova a modificare fase o linea."
+        />
+      )}
 
       {daEliminare && (
         <DeleteProductModal product={daEliminare} onClose={() => setDaEliminare(null)} />
@@ -197,5 +231,32 @@ export function ProductList() {
         />
       )}
     </div>
+  )
+}
+
+/** Pulsante del selettore elenco/galleria: l'attivo si legge a colpo d'occhio. */
+function SelettoreModo({
+  attivo,
+  onClick,
+  titolo,
+  children,
+}: {
+  attivo: boolean
+  onClick: () => void
+  titolo: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={titolo}
+      aria-pressed={attivo}
+      className={`inline-flex items-center gap-1.5 rounded-heemia-xs px-2.5 py-1 text-xs font-medium transition-all duration-200 ease-heemia ${
+        attivo ? 'bg-heemia-black text-white' : 'text-heemia-grey hover:text-heemia-black'
+      }`}
+    >
+      {children}
+    </button>
   )
 }

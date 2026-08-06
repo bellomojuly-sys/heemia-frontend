@@ -61,6 +61,16 @@ const STATUS_META: Record<string, StatusMeta> = {
   spedito: { label: 'Spedito', variant: 'success' },
   consegnato: { label: 'Consegnato', variant: 'success' },
   annullato: { label: 'Annullato', variant: 'neutral' },
+
+  // richieste dalla vista cliente showroom (spec 2026-08-06 §7)
+  nuova_richiesta: { label: 'Nuova richiesta', variant: 'warning' },
+  da_contattare: { label: 'Da contattare', variant: 'warning' },
+  appuntamento_fissato: { label: 'Appuntamento fissato', variant: 'info' },
+  misure_raccolte: { label: 'Misure raccolte', variant: 'info' },
+  preventivo_inviato: { label: 'Preventivo inviato', variant: 'info' },
+  confermato: { label: 'Confermato', variant: 'success' },
+  in_produzione: { label: 'In produzione', variant: 'info' },
+  pronto: { label: 'Pronto', variant: 'success' },
 }
 
 export function statusMeta(status: string): StatusMeta {

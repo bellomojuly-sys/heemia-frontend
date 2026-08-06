@@ -12,6 +12,7 @@ export type ModuleKey =
   | 'produzione'
   | 'inventario'
   | 'ordini'
+  | 'richieste-showroom'
   | 'fatture'
   | 'scadenze'
   | 'costi-margini'
@@ -38,6 +39,9 @@ const MODULE_ACCESS: Record<ModuleKey, Role[]> = {
   // La matrice assegna esplicitamente "ordini" al Team interno; pagina dedicata separata
   // da Clienti (che resta Admin/CEO perché include dati commerciali e sconti).
   ordini: ADMIN_CEO_TEAM_VIEWER,
+  // Richieste dalla vista cliente (spec 2026-08-06): lavoro operativo di chi segue il
+  // cliente in showroom, stessa apertura di "ordini". L'autorità resta il server.
+  'richieste-showroom': ADMIN_CEO_TEAM_VIEWER,
   fatture: ADMIN_CEO,
   scadenze: ADMIN_CEO,
   'costi-margini': ADMIN_CEO,

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '../ui/Button'
-import { Modal, Field, FormActions, campoClass, fieldClass } from '../ui/Modal'
+import { Modal, Field, FormActions, SiNoField, campoClass, fieldClass } from '../ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Linea } from '../../types'
 import type { NewProductInput } from '../../context/MockStore'
@@ -12,6 +12,10 @@ const emptyForm = {
   collezione: '',
   stagione: '',
   linea: 'tessile' as Linea,
+  // Attributi commerciali della vista cliente (DEC-044). Partono da "No": un capo appena
+  // creato non è ancora appeso in showroom né confermato come su misura.
+  visibileShowroom: false,
+  personalizzabileSuMisura: false,
 }
 
 // Form condiviso tra Anagrafica prodotti e Pipeline produzione: il prodotto creato parte
@@ -40,6 +44,8 @@ export function AddProductForm({
         collezione: form.collezione.trim(),
         stagione: form.stagione.trim(),
         linea: form.linea,
+        visibileShowroom: form.visibileShowroom,
+        personalizzabileSuMisura: form.personalizzabileSuMisura,
       })
       onClose()
     },
@@ -85,6 +91,23 @@ export function AddProductForm({
             <option value="maglieria">Maglieria</option>
           </select>
         </Field>
+        <div className="col-span-full grid grid-cols-1 gap-3 border-t border-heemia-border pt-3 sm:grid-cols-2">
+          <p className="font-mono-heemia col-span-full text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
+            Vista cliente showroom
+          </p>
+          <SiNoField
+            label="Visibile in showroom"
+            value={form.visibileShowroom}
+            onChange={(v) => setForm({ ...form, visibileShowroom: v })}
+            hint="Capo esposto e appeso allo stand: compare fra i capi presenti."
+          />
+          <SiNoField
+            label="Personalizzabile su misura"
+            value={form.personalizzabileSuMisura}
+            onChange={(v) => setForm({ ...form, personalizzabileSuMisura: v })}
+            hint="Compare fra i modelli su misura anche se non è appeso."
+          />
+        </div>
       </div>
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>

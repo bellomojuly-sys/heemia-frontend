@@ -66,6 +66,9 @@ export function StockMovementsModal({
                     ? ` · ${m.destinazione}`
                     : ''}
               </p>
+              {/* Motivo e note sono due cose diverse (FR-49 §5): il primo dice perché il
+                  movimento è avvenuto, le seconde aggiungono il dettaglio libero. */}
+              {m.motivo && <p className="mt-0.5 text-[12px] font-medium text-heemia-black">{m.motivo}</p>}
               {m.note && <p className="mt-0.5 text-[12px] text-heemia-grey">{m.note}</p>}
               {m.utente && <p className="mt-0.5 text-[11px] text-heemia-grey-light">{m.utente}</p>}
             </li>

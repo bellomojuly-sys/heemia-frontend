@@ -66,8 +66,261 @@ export async function listInventory(filters: { stato?: string; divergenza?: bool
       qtaInProduzione: inProduzione,
       // Quantità su cui si può contare davvero: il totale meno i capi già in lavorazione.
       disponibileReale: Math.max(0, r.qtaMagazzino + r.qtaLaboratorio - inProduzione),
-      laboratorioSottoSoglia: r.qtaLaboratorio <= r.sogliaMinimaLaboratorio && r.sogliaMinimaLaboratorio > 0,
+      // La soglia di laboratorio vale solo a migrazione conclusa: durante la
+      // distribuzione iniziale i numeri sono provvisori e un alert sarebbe rumore.
+      laboratorioSottoSoglia:
+        r.migrazioneCompletata && r.sogliaMinimaLaboratorio > 0 && r.qtaLaboratorio <= r.sogliaMinimaLaboratorio,
+      ...statoMigrazione(r),
+      reintegro: calcolaReintegro(r),
     }
+  })
+}
+
+// --- Migrazione iniziale delle giacenze (FR-49, DEC-045) ---
+//
+// All'import il sistema conosce **solo il totale** di ogni variante: entra tutto in
+// laboratorio, e la distribuzione reale fra le ubicazioni la sistema una persona.
+// Il punto delicato è che scrivere "3" nel magazzino è ambiguo: possono essere 3 capi
+// già compresi nel totale (da spostare dal laboratorio) oppure 3 capi mai contati (da
+// aggiungere). Il server non indovina: espone due operazioni distinte e il client fa la
+// domanda. Vedi `migrationAdjust`.
+
+export type UbicazioneMigrazione = 'magazzino' | 'laboratorio'
+/**
+ * Le tre risposte possibili alla domanda "cosa significa questo numero":
+ * - `redistribuisci` — capi già compresi nel totale: arrivano dall'altra ubicazione, il totale non cambia;
+ * - `aggiungi` — capi mai registrati: il totale si muove con loro;
+ * - `colma` — capi che il totale già contava ma che non erano stati assegnati a nessuna
+ *   ubicazione: il totale non cambia e lo scarto si chiude. Esiste solo quando uno scarto
+ *   c'è: senza, sarebbe identica a `redistribuisci` con un'altra etichetta.
+ */
+export type ModalitaMigrazione = 'redistribuisci' | 'aggiungi' | 'colma'
+
+interface RecordQuantita {
+  qtaMagazzino: number
+  qtaLaboratorio: number
+  totaleMigrazione: number | null
+  migrazioneCompletata: boolean
+}
+
+/**
+ * Stato della distribuzione iniziale: quanto è stato assegnato, quanto è stato
+ * dichiarato e la differenza. La migrazione si può confermare solo quando la somma
+ * delle ubicazioni coincide col totale dichiarato (differenza zero).
+ */
+export function statoMigrazione(r: RecordQuantita) {
+  const totaleDichiarato = r.totaleMigrazione ?? r.qtaMagazzino + r.qtaLaboratorio
+  const totaleDistribuito = r.qtaMagazzino + r.qtaLaboratorio
+  const differenza = totaleDistribuito - totaleDichiarato
+  return {
+    totaleDichiarato,
+    totaleDistribuito,
+    // Positiva = distribuiti più capi di quanti dichiarati; negativa = ne mancano.
+    differenzaMigrazione: differenza,
+    migrazioneConfermabile: !r.migrazioneCompletata && differenza === 0,
+  }
+}
+
+/**
+ * Reintegro suggerito del laboratorio: quanti capi servono per tornare alla soglia e
+ * quanti se ne possono davvero spostare col magazzino di oggi. Se il magazzino non
+ * basta, `quantitaSuggerita` è quel che c'è e `copreLaSoglia` resta falso: si trasferisce
+ * comunque il possibile, ma la criticità non si spegne.
+ */
+export function calcolaReintegro(r: {
+  qtaMagazzino: number
+  qtaLaboratorio: number
+  sogliaMinimaLaboratorio: number
+  migrazioneCompletata: boolean
+}) {
+  if (!r.migrazioneCompletata || r.sogliaMinimaLaboratorio <= 0) return null
+
+  // Soglia **superata verso il basso**, non "raggiunta": a quantità esattamente uguale
+  // alla soglia non manca niente, e proporre un trasferimento da zero capi sarebbe un
+  // avviso senza azione. Il badge "Da reintegrare" resta su `<=`: avvisa che si è al
+  // limite, questo riquadro compare quando c'è davvero qualcosa da spostare.
+  const mancanti = r.sogliaMinimaLaboratorio - r.qtaLaboratorio
+  if (mancanti <= 0) return null
+  const quantitaSuggerita = Math.min(mancanti, r.qtaMagazzino)
+  return {
+    mancanti,
+    quantitaSuggerita,
+    inMagazzino: r.qtaMagazzino,
+    copreLaSoglia: quantitaSuggerita >= mancanti,
+  }
+}
+
+/**
+ * Corregge la distribuzione durante la migrazione, con il significato dichiarato dal
+ * chiamante (non dedotto).
+ *
+ * - `redistribuisci`: i capi erano già nel totale → si spostano dall'altra ubicazione.
+ *   Il totale non cambia. Rifiutata se l'altra ubicazione non ne ha abbastanza.
+ * - `aggiungi`: i capi non erano mai stati contati → si sommano all'ubicazione **e** al
+ *   totale dichiarato, così la distribuzione resta valida.
+ */
+export async function migrationAdjust(
+  variantId: string,
+  input: { ubicazione: UbicazioneMigrazione; quantita: number; modalita: ModalitaMigrazione; note?: string },
+  userId: string,
+) {
+  if (input.quantita < 0) throw badRequest('La quantità non può essere negativa')
+
+  const record = await prisma.inventoryRecord.findUnique({ where: { variantId } })
+  if (!record) throw notFound('Record di inventario non trovato per questa variante')
+  if (record.migrazioneCompletata) {
+    throw badRequest(
+      'La distribuzione iniziale di questa variante è già stata confermata: usa i trasferimenti fra magazzino e laboratorio.',
+    )
+  }
+
+  const versoMagazzino = input.ubicazione === 'magazzino'
+  const totaleDichiarato = record.totaleMigrazione ?? record.qtaMagazzino + record.qtaLaboratorio
+
+  let qtaMagazzino = record.qtaMagazzino
+  let qtaLaboratorio = record.qtaLaboratorio
+  let nuovoTotale = totaleDichiarato
+  let quantitaMossa = 0
+
+  if (input.modalita === 'redistribuisci') {
+    // "Già compresi nel totale": l'ubicazione indicata arriva alla quantità richiesta e
+    // la differenza esce dall'altra. Il totale resta quello.
+    const attuale = versoMagazzino ? record.qtaMagazzino : record.qtaLaboratorio
+    const altra = versoMagazzino ? record.qtaLaboratorio : record.qtaMagazzino
+    const delta = input.quantita - attuale
+    if (delta > altra) {
+      throw badRequest(
+        versoMagazzino
+          ? `In laboratorio ci sono ${altra} pezzi: non se ne possono spostare ${delta} in magazzino.`
+          : `In magazzino ci sono ${altra} pezzi: non se ne possono spostare ${delta} in laboratorio.`,
+      )
+    }
+    quantitaMossa = Math.abs(delta)
+    qtaMagazzino = versoMagazzino ? input.quantita : record.qtaMagazzino - delta
+    qtaLaboratorio = versoMagazzino ? record.qtaLaboratorio - delta : input.quantita
+  } else if (input.modalita === 'colma') {
+    // "Erano nel totale ma non assegnati": l'ubicazione arriva alla quantità richiesta e
+    // il totale resta com'è, così lo scarto si chiude. Ha senso solo se lo scarto si
+    // riduce davvero: altrimenti si starebbe solo spostando il problema.
+    const attuale = versoMagazzino ? record.qtaMagazzino : record.qtaLaboratorio
+    const delta = input.quantita - attuale
+    if (delta === 0) throw badRequest('La quantità è già questa: non cambia niente')
+    const scartoPrima = record.qtaMagazzino + record.qtaLaboratorio - totaleDichiarato
+    const scartoDopo = scartoPrima + delta
+    if (Math.abs(scartoDopo) >= Math.abs(scartoPrima)) {
+      throw badRequest(
+        `Con questa quantità lo scarto rispetto al totale registrato non si riduce ` +
+          `(da ${scartoPrima} a ${scartoDopo}). Se sono capi nuovi usa "Da aggiungere al totale".`,
+      )
+    }
+    quantitaMossa = Math.abs(delta)
+    qtaMagazzino = versoMagazzino ? input.quantita : record.qtaMagazzino
+    qtaLaboratorio = versoMagazzino ? record.qtaLaboratorio : input.quantita
+    // `nuovoTotale` resta `totaleDichiarato`: è tutto il senso di questa risposta.
+  } else {
+    // "Da aggiungere al totale": la differenza non viene dall'altra ubicazione, viene da
+    // fuori — capi mai contati. L'ubicazione arriva comunque alla quantità richiesta (il
+    // numero digitato ha **un solo significato**: "qui ce ne sono tanti"), e il totale
+    // dichiarato si muove della stessa differenza, così la distribuzione resta quadrata.
+    // Una differenza negativa è il caso simmetrico: capi contati per errore, si tolgono.
+    const attuale = versoMagazzino ? record.qtaMagazzino : record.qtaLaboratorio
+    const delta = input.quantita - attuale
+    if (delta === 0) throw badRequest('La quantità è già questa: non c\'è niente da aggiungere')
+    quantitaMossa = Math.abs(delta)
+    qtaMagazzino = versoMagazzino ? input.quantita : record.qtaMagazzino
+    qtaLaboratorio = versoMagazzino ? record.qtaLaboratorio : input.quantita
+    nuovoTotale = totaleDichiarato + delta
+  }
+
+  const calcolo = calcolaDisponibilita({ ...record, qtaMagazzino, qtaLaboratorio })
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.inventoryRecord.update({
+      where: { variantId },
+      data: {
+        qtaMagazzino,
+        qtaLaboratorio,
+        totaleMigrazione: nuovoTotale,
+        stato: calcolo.stato,
+        divergenzaShopify: calcolo.divergenzaShopify,
+      },
+    })
+    await tx.productVariant.update({
+      where: { id: variantId },
+      data: { stockDisponibile: calcolo.disponibileTotale, statoDisponibilita: calcolo.stato },
+    })
+    if (quantitaMossa > 0) {
+      await logStockMovement(tx, {
+        variantId,
+        // Uno spostamento interno è un trasferimento; una quantità mai contata è un carico.
+        tipo:
+          input.modalita === 'redistribuisci'
+            ? 'trasferimento'
+            : input.modalita === 'colma'
+              ? 'rettifica'
+              : (versoMagazzino ? qtaMagazzino > record.qtaMagazzino : qtaLaboratorio > record.qtaLaboratorio)
+                ? 'carico'
+                : 'scarico',
+        quantita: quantitaMossa,
+        // `daMagazzino` indica l'origine del movimento: redistribuire verso il magazzino
+        // significa prelevare dal laboratorio.
+        daMagazzino: input.modalita === 'redistribuisci' ? !versoMagazzino : versoMagazzino,
+        userId,
+        motivo: 'Distribuzione iniziale',
+        note:
+          input.note ??
+          (input.modalita === 'redistribuisci'
+            ? `Migrazione: ${input.ubicazione} portato a ${input.quantita} (capi già compresi nel totale)`
+            : input.modalita === 'colma'
+              ? `Migrazione: ${input.ubicazione} portato a ${input.quantita} (capi del totale non ancora assegnati)`
+              : `Migrazione: ${input.ubicazione} portato a ${input.quantita} con capi non compresi nel totale`),
+      })
+    }
+    await logActivity(tx, {
+      userId,
+      azione: 'migrazione_giacenze',
+      entita: 'inventory_record',
+      entitaId: record.id,
+      valorePrecedente: `magazzino ${record.qtaMagazzino} · laboratorio ${record.qtaLaboratorio} · totale ${totaleDichiarato}`,
+      valoreNuovo: `magazzino ${qtaMagazzino} · laboratorio ${qtaLaboratorio} · totale ${nuovoTotale}`,
+    })
+    return { ...updated, ...statoMigrazione(updated) }
+  })
+}
+
+/**
+ * Chiude la migrazione di una variante. Rifiuta finché la somma delle ubicazioni non
+ * coincide col totale dichiarato: confermare una distribuzione che non torna
+ * significherebbe congelare un errore e non accorgersene più.
+ */
+export async function confirmMigration(variantId: string, userId: string) {
+  const record = await prisma.inventoryRecord.findUnique({ where: { variantId } })
+  if (!record) throw notFound('Record di inventario non trovato per questa variante')
+  if (record.migrazioneCompletata) throw badRequest('La distribuzione iniziale è già stata confermata')
+
+  const stato = statoMigrazione(record)
+  if (stato.differenzaMigrazione !== 0) {
+    const d = stato.differenzaMigrazione
+    throw badRequest(
+      `La distribuzione non torna: magazzino ${record.qtaMagazzino} + laboratorio ${record.qtaLaboratorio} = ` +
+        `${stato.totaleDistribuito}, ma il totale registrato è ${stato.totaleDichiarato} ` +
+        `(${d > 0 ? `${d} in più` : `${Math.abs(d)} mancanti`}). Sistema le quantità prima di confermare.`,
+    )
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.inventoryRecord.update({
+      where: { variantId },
+      data: { migrazioneCompletata: true, migrazioneConfermataIl: new Date(), migrazioneConfermataDa: userId },
+    })
+    await logActivity(tx, {
+      userId,
+      azione: 'conferma_migrazione',
+      entita: 'inventory_record',
+      entitaId: record.id,
+      valoreNuovo: `distribuzione iniziale confermata: magazzino ${record.qtaMagazzino} · laboratorio ${record.qtaLaboratorio}`,
+    })
+    return { ...updated, ...statoMigrazione(updated) }
   })
 }
 
@@ -104,6 +357,7 @@ export async function logStockMovement(
     quantita: number
     daMagazzino: boolean
     userId: string
+    motivo?: string
     note?: string
   },
 ) {
@@ -118,6 +372,7 @@ export async function logStockMovement(
       locationFromId: input.tipo === 'trasferimento' ? origine.id : null,
       locationToId: input.tipo === 'trasferimento' ? destinazione.id : origine.id,
       createdBy: input.userId,
+      motivo: input.motivo,
       note: input.note,
     },
   })
@@ -136,6 +391,7 @@ export async function transferStock(
   quantita: number,
   userId: string,
   note?: string,
+  motivo?: string,
 ) {
   if (quantita <= 0) throw badRequest('La quantità da trasferire deve essere maggiore di zero')
 
@@ -171,6 +427,7 @@ export async function transferStock(
     })
     await logStockMovement(tx, {
       variantId, tipo: 'trasferimento', quantita, daMagazzino: versoLaboratorio, userId, note,
+      motivo: motivo ?? (versoLaboratorio ? 'Reintegro laboratorio' : 'Rientro in magazzino'),
     })
     await logActivity(tx, {
       userId,
@@ -330,7 +587,13 @@ export async function getLabDetail(variantId: string) {
     // Quello su cui si può contare in laboratorio, tolti i capi già in lavorazione.
     disponibileInLaboratorio: Math.max(0, record.qtaLaboratorio - qtaInProduzione),
     sogliaMinimaLaboratorio: record.sogliaMinimaLaboratorio,
-    sottoSoglia: record.sogliaMinimaLaboratorio > 0 && record.qtaLaboratorio <= record.sogliaMinimaLaboratorio,
+    sottoSoglia:
+      record.migrazioneCompletata &&
+      record.sogliaMinimaLaboratorio > 0 &&
+      record.qtaLaboratorio <= record.sogliaMinimaLaboratorio,
+    ...statoMigrazione(record),
+    migrazioneCompletata: record.migrazioneCompletata,
+    reintegro: calcolaReintegro(record),
     movimenti,
     // Reintegri = arrivi dal magazzino; consumi = scarichi per lavorazione.
     reintegri: movimenti.filter((m) => m.tipo === 'trasferimento' && m.locationTo?.codice === LOCATION_LABORATORIO),
@@ -352,6 +615,19 @@ export interface InventoryPatch {
 export async function updateInventoryRecord(id: string, patch: InventoryPatch, userId: string) {
   const before = await prisma.inventoryRecord.findUnique({ where: { id } })
   if (!before) throw notFound('Record di inventario non trovato')
+
+  // Finché la distribuzione iniziale non è confermata, scrivere una quantità in
+  // un'ubicazione è ambiguo (capi già nel totale o capi mai contati?): deve passare da
+  // `migrationAdjust`, dove il significato è dichiarato. Soglie e riservato restano
+  // modificabili: non spostano capi.
+  const cambiaQuantita =
+    (patch.qtaMagazzino !== undefined && patch.qtaMagazzino !== before.qtaMagazzino) ||
+    (patch.qtaLaboratorio !== undefined && patch.qtaLaboratorio !== before.qtaLaboratorio)
+  if (!before.migrazioneCompletata && cambiaQuantita) {
+    throw badRequest(
+      'Questa variante è ancora in distribuzione iniziale: usa "Sistema la distribuzione" per dire se i capi erano già compresi nel totale o vanno aggiunti.',
+    )
+  }
 
   const qtaMagazzino = patch.qtaMagazzino ?? before.qtaMagazzino
   const qtaLaboratorio = patch.qtaLaboratorio ?? before.qtaLaboratorio

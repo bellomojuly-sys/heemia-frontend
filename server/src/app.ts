@@ -23,6 +23,7 @@ import { dashboardRoutes } from './modules/dashboard/routes.js'
 import { reportRoutes } from './modules/reports/routes.js'
 import { integrationRoutes } from './modules/integrations/routes.js'
 import { showroomRoutes } from './modules/showroom/routes.js'
+import { showroomRequestRoutes } from './modules/showroomRequests/routes.js'
 import { aiRoutes } from './modules/ai/routes.js'
 import { analyticsRoutes } from './modules/analytics/routes.js'
 
@@ -100,6 +101,7 @@ export async function buildApp() {
   await app.register(integrationRoutes, { prefix: API_PREFIX })
   await app.register(aiRoutes, { prefix: API_PREFIX })
   await app.register(analyticsRoutes, { prefix: API_PREFIX })
+  await app.register(showroomRequestRoutes, { prefix: API_PREFIX })
 
   // Sub-app cliente: scope separato, non eredita nulla dell'API interna (A5).
   await app.register(showroomRoutes, { prefix: SHOWROOM_PREFIX })

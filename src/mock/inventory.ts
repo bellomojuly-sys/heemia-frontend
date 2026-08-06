@@ -6,12 +6,31 @@ import type { InventoryRecord } from '../types'
 // `disponibileTotale`, `qtaInProduzione`, `disponibileReale` e `laboratorioSottoSoglia` li calcola
 // il server (inventory/service.ts): qui sono scritti a mano solo per coerenza col tipo.
 const record = (
-  r: Omit<InventoryRecord, 'disponibileTotale' | 'disponibileReale' | 'laboratorioSottoSoglia'>,
+  r: Omit<
+    InventoryRecord,
+    | 'disponibileTotale'
+    | 'disponibileReale'
+    | 'laboratorioSottoSoglia'
+    | 'totaleDichiarato'
+    | 'totaleDistribuito'
+    | 'differenzaMigrazione'
+    | 'migrazioneCompletata'
+    | 'migrazioneConfermabile'
+    | 'reintegro'
+  >,
 ): InventoryRecord => ({
   ...r,
   disponibileTotale: r.qtaMagazzino + r.qtaLaboratorio,
   disponibileReale: Math.max(0, r.qtaMagazzino + r.qtaLaboratorio - r.qtaInProduzione),
   laboratorioSottoSoglia: r.sogliaMinimaLaboratorio > 0 && r.qtaLaboratorio <= r.sogliaMinimaLaboratorio,
+  // Righe di riferimento: distribuzione iniziale già chiusa, come per le varianti create
+  // dall'app (FR-49). La migrazione riguarda solo i dati che arrivano dall'import.
+  totaleDichiarato: r.qtaMagazzino + r.qtaLaboratorio,
+  totaleDistribuito: r.qtaMagazzino + r.qtaLaboratorio,
+  differenzaMigrazione: 0,
+  migrazioneCompletata: true,
+  migrazioneConfermabile: false,
+  reintegro: null,
 })
 
 export const inventoryRecords: InventoryRecord[] = [

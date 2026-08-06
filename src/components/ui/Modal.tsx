@@ -101,6 +101,32 @@ export function Field({
   )
 }
 
+/**
+ * Selettore Sì/No (spec 2026-08-06 §1-2). Una casella di spunta lascia ambiguo se "non
+ * spuntato" significhi "no" o "non ancora deciso"; qui la risposta è sempre esplicita e
+ * si legge uguale in creazione e in modifica.
+ */
+export function SiNoField({
+  label,
+  value,
+  onChange,
+  hint,
+}: {
+  label: string
+  value: boolean
+  onChange: (v: boolean) => void
+  hint?: string
+}) {
+  return (
+    <Field label={label} hint={hint}>
+      <select className={fieldClass} value={value ? 'si' : 'no'} onChange={(e) => onChange(e.target.value === 'si')}>
+        <option value="si">Sì</option>
+        <option value="no">No</option>
+      </select>
+    </Field>
+  )
+}
+
 export function FormActions({ children }: { children: ReactNode }) {
   return <div className="mt-5 flex justify-end gap-2 border-t border-heemia-border pt-4">{children}</div>
 }

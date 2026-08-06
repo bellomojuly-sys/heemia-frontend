@@ -83,10 +83,17 @@ export interface Product {
   prezzoConsigliato: number
   statoPubblicazioneShopify: 'non_pubblicato' | 'bozza' | 'pubblicato'
   disponibilitaOnline: boolean
-  disponibilitaShowroom: boolean
+  /**
+   * DEC-044: il capo è fisicamente esposto e appeso nello stand dello showroom. È uno stato
+   * commerciale, non si deduce dalle giacenze di magazzino/laboratorio. Decide la sezione
+   * "Presenti in showroom" della vista cliente.
+   */
   visibileShowroom: boolean
-  /** DEC-023: il capo è proposto anche nel catalogo su misura della sub-app showroom. */
+  /** DEC-023/044: realizzabile o adattabile su misura, anche se non è appeso in showroom. */
   personalizzabileSuMisura?: boolean
+  /** Tempi indicativi di realizzazione mostrati al cliente sul su misura (spec §6). */
+  tempiRealizzazione?: string
+  disponibilitaShowroom: boolean
   /** Data di approvazione del campione: finché è assente il capo non può entrare in produzione. */
   campioneApprovatoIl?: string
   campioneNote?: string
@@ -395,6 +402,30 @@ export interface InventoryRecord {
   /** Disponibile totale meno i capi in produzione. */
   disponibileReale: number
   laboratorioSottoSoglia: boolean
+
+  // --- Distribuzione iniziale (FR-49) ---
+  /** Totale registrato per questa variante: il dato che arriva dall'import. */
+  totaleDichiarato: number
+  /** Magazzino + laboratorio come sono adesso. */
+  totaleDistribuito: number
+  /** `distribuito - dichiarato`: zero significa che la distribuzione torna. */
+  differenzaMigrazione: number
+  /** Finché è falso la variante è in distribuzione iniziale: niente gestione ordinaria. */
+  migrazioneCompletata: boolean
+  migrazioneConfermabile: boolean
+  /** Reintegro suggerito dal magazzino, calcolato dal server. Null se non serve. */
+  reintegro: ReintegroSuggerito | null
+}
+
+/** Quanto serve al laboratorio per tornare a soglia e quanto se ne può davvero spostare. */
+export interface ReintegroSuggerito {
+  /** Capi che mancano per arrivare alla soglia. */
+  mancanti: number
+  /** Capi realmente trasferibili adesso: il minore fra mancanti e giacenza di magazzino. */
+  quantitaSuggerita: number
+  inMagazzino: number
+  /** Falso se il magazzino non basta: dopo il trasferimento si resta sotto soglia. */
+  copreLaSoglia: boolean
 }
 
 /** Capi mandati in produzione: restano in laboratorio finché non vengono consumati. */
@@ -440,6 +471,8 @@ export interface StockMovement {
   origine?: string
   destinazione?: string
   utente?: string
+  /** Perché il movimento è avvenuto (reintegro, rientro, correzione, distribuzione iniziale…). */
+  motivo?: string
   note?: string
   createdAt: string
 }
@@ -783,4 +816,48 @@ export interface CashClosure {
   /** Riepilogo generato dall'AI assistant sul mese (FR-28). */
   riepilogoAI: string
   note?: string
+}
+
+// ---------------------------------------------------------------------------
+// Richieste dalla vista cliente showroom (spec 2026-08-06 §7, DEC-044)
+// ---------------------------------------------------------------------------
+// Il cliente in showroom apre una richiesta dal catalogo; nel gestionale diventa una
+// scheda che l'atelier lavora fino alla conferma. Alla conferma nasce l'ordine SM-*:
+// prima di quel punto non c'è un impegno commerciale, solo una trattativa.
+
+export type StatoRichiestaShowroom =
+  | 'nuova_richiesta'
+  | 'da_contattare'
+  | 'appuntamento_fissato'
+  | 'misure_raccolte'
+  | 'preventivo_inviato'
+  | 'confermato'
+  | 'in_produzione'
+  | 'pronto'
+  | 'consegnato'
+  | 'annullato'
+
+export interface ShowroomRequest {
+  id: string
+  numero: string
+  tipo: 'personalizzazione' | 'informazioni'
+  stato: StatoRichiestaShowroom
+  createdAt: string
+  cliente: { id: string; nome: string; cognome?: string; email?: string; consensoMarketing: boolean }
+  prodotto?: { id: string; nome: string; codiceProdotto: string; categoria?: string }
+  /** Dati inseriti dal cliente. */
+  tagliaBase?: string
+  coloreDesiderato?: string
+  lunghezza?: string
+  modifiche?: string
+  note?: string
+  misure?: Record<string, string>
+  dataDesiderata?: string
+  immagini: { id: string; nome: string; dataUrl: string }[]
+  /** Dati compilati dall'atelier. */
+  noteInterne?: string
+  preventivoImporto?: number
+  preventivoInviatoIl?: string
+  appuntamentoIl?: string
+  ordine?: { id: string; numero: string; stato: string }
 }
