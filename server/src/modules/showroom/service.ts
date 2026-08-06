@@ -12,8 +12,10 @@ import { logActivity } from '../../core/activityLog.js'
 import { findOrCreateCustomer } from '../customers/service.js'
 
 /** Versione dell'informativa privacy accettata all'accesso: si registra sulla visita, così
- *  un domani si sa quale testo il cliente ha letto. Va alzata quando il testo cambia. */
-export const INFORMATIVA_VERSIONE = 'v1-2026-08'
+ *  un domani si sa quale testo il cliente ha letto. Va alzata quando il testo cambia.
+ *  v2: informativa completa (finalità e basi giuridiche distinte, conservazione, destinatari,
+ *  diritti e reclamo al Garante). Restano da compilare i dati del titolare — OQ-25. */
+export const INFORMATIVA_VERSIONE = 'v2-2026-08'
 
 // Whitelist esplicita dei campi visibili al cliente (spec §6): nome, immagini, descrizione,
 // categoria/collezione, colori, taglie, prezzo showroom, i due flag e i tempi di realizzazione.

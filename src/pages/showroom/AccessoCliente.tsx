@@ -11,10 +11,35 @@ const inputClass =
   'w-full rounded-heemia border border-heemia-border px-3 py-2 text-sm transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10'
 
 /**
- * Informativa mostrata al cliente. I dati identificativi del titolare sono lasciati fra
- * parentesi quadre di proposito: vanno compilati con i dati reali prima di usare l'app
- * con clienti veri (OQ-25). Meglio un testo palesemente da completare che uno che sembra
- * definitivo senza esserlo.
+ * Dati identificativi del titolare del trattamento. **Da compilare** con i dati reali di
+ * Heemia (OQ-25): non stanno da nessuna parte nel progetto e inventarli in un documento
+ * che leggono clienti veri non è un'opzione. Finché un campo resta vuoto, l'informativa
+ * mostra al suo posto un segnaposto evidente invece di un dato falso.
+ *
+ * Quando li compili, alza anche `INFORMATIVA_VERSIONE` sul server
+ * (`server/src/modules/showroom/service.ts`): la versione viene registrata su ogni visita,
+ * così resta scritto quale testo ha letto ciascun cliente.
+ */
+const TITOLARE = {
+  ragioneSociale: 'Omeni S.r.l.s. — marchio Heemia',
+  sedeLegale: 'Via B. Peruzzi 26, Carpi',
+  partitaIva: '04067450363',
+  email: 'heemia.lab@gmail.com',
+}
+
+/** Campo del titolare, o un segnaposto che si vede, se non è ancora stato compilato. */
+function datoTitolare(valore: string, etichetta: string) {
+  return valore.trim() || `[${etichetta} da inserire]`
+}
+
+/**
+ * Informativa mostrata al cliente prima dell'accesso (art. 13 GDPR). Il contenuto descrive
+ * esattamente ciò che l'applicazione fa: i dati elencati sono le colonne che salviamo
+ * davvero (`showroom_visits`, `showroom_product_views`, `showroom_favorites`,
+ * `showroom_requests`, contatto in `customers`), né più né meno. Se un domani si raccoglie
+ * un dato in più, questo testo va aggiornato **insieme** al codice che lo raccoglie.
+ *
+ * I tempi di conservazione sono una **proposta ragionata**, da confermare (OQ-25).
  */
 function InformativaPrivacy({ onClose }: { onClose: () => void }) {
   return (
@@ -25,32 +50,81 @@ function InformativaPrivacy({ onClose }: { onClose: () => void }) {
         aria-label="Informativa privacy"
         className="scroll-smooth-y max-h-full w-full max-w-lg animate-pop overflow-y-auto rounded-heemia-xl border border-heemia-border bg-white p-6 shadow-heemia-lg"
       >
-        <p className="font-display text-lg text-heemia-black">Informativa sul trattamento dei dati</p>
-        <div className="mt-3 space-y-3 text-xs leading-relaxed text-heemia-grey">
+        <p className="font-display text-lg text-heemia-black">Informativa sul trattamento dei dati personali</p>
+        <p className="font-mono-heemia mt-1 text-[10px] uppercase tracking-[0.06em] text-heemia-grey-light">
+          Art. 13 Regolamento UE 2016/679 (GDPR) · aggiornata ad agosto 2026
+        </p>
+        <div className="mt-4 space-y-3 text-xs leading-relaxed text-heemia-grey">
           <p>
-            <strong className="text-heemia-black">Titolare del trattamento:</strong> Heemia —
-            [ragione sociale, sede legale, P.IVA, indirizzo e-mail di contatto].
+            <strong className="text-heemia-black">Titolare del trattamento.</strong>{' '}
+            {datoTitolare(TITOLARE.ragioneSociale, 'ragione sociale')}, con sede in{' '}
+            {datoTitolare(TITOLARE.sedeLegale, 'sede legale')}, P. IVA{' '}
+            {datoTitolare(TITOLARE.partitaIva, 'partita IVA')}. Per qualsiasi richiesta relativa ai
+            tuoi dati puoi scrivere a {datoTitolare(TITOLARE.email, 'indirizzo e-mail')}.
           </p>
+
           <p>
-            <strong className="text-heemia-black">Dati raccolti:</strong> nome, cognome, indirizzo
-            e-mail, data e ora dell'accesso, capi consultati e messi tra i preferiti, richieste di
-            informazioni o di personalizzazione con le misure e le note che ci comunichi.
+            <strong className="text-heemia-black">Quali dati trattiamo.</strong> Per l'accesso al
+            catalogo: <em>nome, cognome e indirizzo e-mail</em>, insieme a data e ora dell'accesso.
+            Durante la visita registriamo i <em>capi che apri</em> e quelli che metti tra i{' '}
+            <em>preferiti</em>. Se ci invii una richiesta di informazioni o di personalizzazione,
+            conserviamo anche ciò che ci comunichi: taglia di partenza, <em>misure personali</em>,
+            colore e lunghezza desiderati, modifiche richieste, note, data desiderata e le eventuali{' '}
+            <em>immagini di riferimento</em> che alleghi. Se la richiesta si trasforma in un ordine,
+            conserviamo i dati dell'ordine (numero, capo, importo, appuntamento).
           </p>
+
           <p>
-            <strong className="text-heemia-black">Finalità e base giuridica:</strong> gestire la tua
-            visita in showroom e dare seguito alle richieste che ci invii (esecuzione di misure
-            precontrattuali e contrattuali). L'invio di comunicazioni promozionali avviene solo con
-            il tuo consenso separato e facoltativo, che puoi revocare in qualsiasi momento.
+            <strong className="text-heemia-black">Perché li trattiamo, e con quale base giuridica.</strong>
           </p>
+          <ul className="ml-4 list-disc space-y-1">
+            <li>
+              Gestire la tua visita, risponderti e preparare l'eventuale capo su misura: esecuzione
+              di misure precontrattuali e del contratto richiesto da te (art. 6.1.b GDPR). Il
+              conferimento di nome, cognome ed e-mail è necessario per accedere; misure, note e
+              immagini sono facoltative e servono solo a lavorare meglio la tua richiesta.
+            </li>
+            <li>
+              Adempiere agli obblighi contabili e fiscali, se l'ordine viene confermato: obbligo di
+              legge (art. 6.1.c GDPR).
+            </li>
+            <li>
+              Inviarti novità e inviti agli eventi: solo con il tuo <em>consenso</em> separato e
+              facoltativo (art. 6.1.a GDPR), che puoi revocare in qualsiasi momento senza
+              conseguenze sul resto del rapporto.
+            </li>
+          </ul>
+
           <p>
-            <strong className="text-heemia-black">Conservazione:</strong> i dati restano
-            nell'anagrafica clienti per il tempo necessario a gestire la richiesta e gli obblighi
-            di legge conseguenti [periodo da definire].
+            <strong className="text-heemia-black">Per quanto tempo li conserviamo.</strong> Contatto,
+            accessi, capi visti e preferiti: 24 mesi dall'ultimo contatto con te. Richieste che non
+            si concludono in un ordine: 24 mesi dalla chiusura della richiesta. Dati legati a ordini
+            e documenti fiscali: 10 anni, come impone la legge. Consenso marketing: fino alla tua
+            revoca. Alla scadenza i dati vengono cancellati o resi anonimi.
           </p>
+
           <p>
-            <strong className="text-heemia-black">Diritti:</strong> puoi chiedere accesso, rettifica,
-            cancellazione, limitazione e portabilità dei tuoi dati, e opporti al trattamento,
-            scrivendo al titolare all'indirizzo indicato sopra.
+            <strong className="text-heemia-black">Chi può accedervi.</strong> Le persone di Heemia
+            che seguono lo showroom e la produzione, ciascuna limitatamente a ciò che le serve. I
+            dati sono conservati su server nell'Unione Europea (Francoforte) del fornitore che
+            ospita l'applicazione, che tratta i dati come responsabile per nostro conto; essendo una
+            società con sede negli Stati Uniti, non si può escludere un accesso dall'estero per
+            sola assistenza tecnica, regolato da clausole contrattuali standard. Non vendiamo né
+            diffondiamo i tuoi dati a nessuno.
+          </p>
+
+          <p>
+            <strong className="text-heemia-black">Nessuna decisione automatica.</strong> Non c'è
+            profilazione né alcuna decisione presa da un sistema automatico: i capi che apri e i
+            preferiti servono soltanto a chi ti segue in showroom per arrivare preparato.
+          </p>
+
+          <p>
+            <strong className="text-heemia-black">I tuoi diritti.</strong> Puoi chiedere in ogni
+            momento accesso, rettifica, cancellazione, limitazione e portabilità dei tuoi dati,
+            opporti al trattamento e revocare il consenso marketing, scrivendo all'indirizzo del
+            titolare indicato sopra. Se ritieni che il trattamento violi la normativa puoi proporre
+            reclamo al Garante per la protezione dei dati personali (www.garanteprivacy.it).
           </p>
         </div>
         <div className="mt-5 flex justify-end">
