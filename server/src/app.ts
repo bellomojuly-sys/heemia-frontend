@@ -82,7 +82,17 @@ export async function buildApp() {
 
   app.get('/health', async () => {
     await prisma.$queryRaw`SELECT 1`
-    return { status: 'ok', env: config.env, time: new Date().toISOString() }
+    return {
+      status: 'ok',
+      env: config.env,
+      time: new Date().toISOString(),
+      // Commit che sta girando davvero. Render lo inietta da sé (RENDER_GIT_COMMIT), in
+      // locale non c'è e resta null. Serve a rispondere dall'esterno alla domanda "il
+      // deploy è andato?": senza, l'unico modo era aprire il pannello Render, e un
+      // backend fermo alla versione precedente è indistinguibile da uno aggiornato.
+      // Solo l'identificativo breve: dice quale versione, non cosa contiene.
+      commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null,
+    }
   })
 
   await app.register(authRoutes, { prefix: API_PREFIX })
