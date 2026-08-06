@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
 import { conflict, notFound } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
-import { calcolaDisponibilita, registraRettifiche } from '../inventory/service.js'
+import { calcolaDisponibilita, registraRettifiche, verificaMigrazione } from '../inventory/service.js'
 
 export function listProducts(filters: { stato?: string; linea?: string; q?: string }) {
   const where: Prisma.ProductWhereInput = {}
@@ -249,6 +249,10 @@ export async function updateVariantQuantities(
   if (!variant) throw notFound('Variante non trovata')
 
   const rec = variant.inventory
+  // Stessa regola di PATCH /inventory/:id: durante la distribuzione iniziale le quantità
+  // si toccano solo dichiarando cosa significa il numero (FR-49). Senza questo controllo
+  // la domanda si aggirava scrivendo dal dettaglio prodotto, che passa da questa rotta.
+  if (rec) verificaMigrazione(rec, patch)
   const qtaMagazzino = patch.qtaMagazzino ?? rec?.qtaMagazzino ?? 0
   const qtaLaboratorio = patch.qtaLaboratorio ?? rec?.qtaLaboratorio ?? 0
   const qtaRiservata = patch.qtaRiservata ?? rec?.qtaRiservata ?? 0

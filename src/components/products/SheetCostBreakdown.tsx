@@ -9,6 +9,8 @@ import { computeSheetCost, type CostRow } from '../../lib/sheetCost'
 import { useMockStore } from '../../context/MockStore'
 import { canEdit } from '../../lib/permissions'
 import { useRole } from '../../context/RoleContext'
+import { useGoatAlert } from '../../context/GoatAlertContext'
+import { ApiError } from '../../lib/api'
 import type { TechnicalSheet } from '../../types'
 
 // Riepilogo costi del capo e prezzo di break-even (spec §4/§5) + tracciabilità e storico (§6).
@@ -36,6 +38,7 @@ function Riga({ label, value, strong = false }: { label: string; value: string; 
 export function SheetCostBreakdown({ sheet }: { sheet: TechnicalSheet }) {
   const { role } = useRole()
   const { materials, accessories, invoices, recordSheetCostSnapshot } = useMockStore()
+  const { avvisa } = useGoatAlert()
   const [motivo, setMotivo] = useState('')
   const [apriRegistra, setApriRegistra] = useState(false)
 
@@ -45,10 +48,18 @@ export function SheetCostBreakdown({ sheet }: { sheet: TechnicalSheet }) {
   // Variazione rispetto all'ultimo calcolo registrato (spec §6).
   const variazione = ultimo ? costo.costoTotaleUnitario - ultimo.costoTotaleUnitario : null
 
-  const registra = () => {
-    recordSheetCostSnapshot(sheet.id, motivo.trim() || 'Ricalcolo manuale')
-    setMotivo('')
-    setApriRegistra(false)
+  // Il riquadro si chiude solo a registrazione avvenuta: lo storico costi è in sola
+  // aggiunta, quindi una riga persa non si recupera scorrendo indietro.
+  const registra = async () => {
+    try {
+      await recordSheetCostSnapshot(sheet.id, motivo.trim() || 'Ricalcolo manuale')
+      setMotivo('')
+      setApriRegistra(false)
+    } catch (e) {
+      avvisa('salvataggio', {
+        testo: e instanceof ApiError ? e.message : 'Non è stato possibile registrare il calcolo.',
+      })
+    }
   }
 
   const fatturaNumero = (id?: string) => (id ? invoices.find((i) => i.id === id)?.numero ?? id : '–')

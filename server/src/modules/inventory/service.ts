@@ -21,9 +21,10 @@ export function stockStato(qta: number, sogliaMinima: number): InventoryStato {
  * questo ha una soglia propria: quando scende sotto, va reintegrato dal magazzino anche
  * se il totale è ancora alto.
  *
- * I capi mandati in produzione restano fisicamente in laboratorio finché non vengono
- * consumati: non si sottraggono dalla giacenza, ma si mostrano separati perché non
- * sono più disponibili per altro.
+ * I capi mandati in lavorazione **non sono qui dentro**: escono dal laboratorio all'avvio
+ * e ci rientrano quando la lavorazione è terminata (DEC-047). Sono una giacenza a sé,
+ * contata nel totale registrato della variante ma non nel disponibile: un capo non finito
+ * non si vende.
  */
 export function calcolaDisponibilita(rec: {
   qtaMagazzino: number
@@ -62,15 +63,19 @@ export async function listInventory(filters: { stato?: string; divergenza?: bool
     const inProduzione = inProduzionePerVariante.get(r.variantId) ?? 0
     return {
       ...r,
+      // Disponibile = capi finiti in casa. I capi in lavorazione **non ci sono già più**:
+      // sono usciti dal laboratorio all'avvio della lavorazione (DEC-047), quindi qui non
+      // c'è niente da sottrarre.
       disponibileTotale: r.qtaMagazzino + r.qtaLaboratorio,
       qtaInProduzione: inProduzione,
-      // Quantità su cui si può contare davvero: il totale meno i capi già in lavorazione.
-      disponibileReale: Math.max(0, r.qtaMagazzino + r.qtaLaboratorio - inProduzione),
       // La soglia di laboratorio vale solo a migrazione conclusa: durante la
       // distribuzione iniziale i numeri sono provvisori e un alert sarebbe rumore.
+      // Sotto soglia = **strettamente** sotto. Con `<=` la variante restava segnalata anche
+      // dopo un reintegro che l'aveva riportata esattamente a soglia: l'avviso diceva
+      // "trasferisci 3 per ripristinare la soglia", si trasferiva, e l'avviso restava lì.
       laboratorioSottoSoglia:
-        r.migrazioneCompletata && r.sogliaMinimaLaboratorio > 0 && r.qtaLaboratorio <= r.sogliaMinimaLaboratorio,
-      ...statoMigrazione(r),
+        r.migrazioneCompletata && r.sogliaMinimaLaboratorio > 0 && r.qtaLaboratorio < r.sogliaMinimaLaboratorio,
+      ...statoMigrazione(r, inProduzione),
       reintegro: calcolaReintegro(r),
     }
   })
@@ -108,9 +113,13 @@ interface RecordQuantita {
  * dichiarato e la differenza. La migrazione si può confermare solo quando la somma
  * delle ubicazioni coincide col totale dichiarato (differenza zero).
  */
-export function statoMigrazione(r: RecordQuantita) {
-  const totaleDichiarato = r.totaleMigrazione ?? r.qtaMagazzino + r.qtaLaboratorio
-  const totaleDistribuito = r.qtaMagazzino + r.qtaLaboratorio
+export function statoMigrazione(r: RecordQuantita, inProduzione = 0) {
+  // Formula di controllo (FR-49 §2, DEC-047):
+  //     totale registrato = magazzino + laboratorio + in produzione
+  // I capi in lavorazione sono una giacenza a sé: non sono vendibili, ma esistono e vanno
+  // contati, altrimenti una variante con lavorazioni aperte non quadrerebbe mai.
+  const totaleDichiarato = r.totaleMigrazione ?? r.qtaMagazzino + r.qtaLaboratorio + inProduzione
+  const totaleDistribuito = r.qtaMagazzino + r.qtaLaboratorio + inProduzione
   const differenza = totaleDistribuito - totaleDichiarato
   return {
     totaleDichiarato,
@@ -137,8 +146,8 @@ export function calcolaReintegro(r: {
 
   // Soglia **superata verso il basso**, non "raggiunta": a quantità esattamente uguale
   // alla soglia non manca niente, e proporre un trasferimento da zero capi sarebbe un
-  // avviso senza azione. Il badge "Da reintegrare" resta su `<=`: avvisa che si è al
-  // limite, questo riquadro compare quando c'è davvero qualcosa da spostare.
+  // avviso senza azione. Stessa regola per il badge "Da reintegrare" (`laboratorioSottoSoglia`),
+  // così segnalazione e azione proposta dicono sempre la stessa cosa.
   const mancanti = r.sogliaMinimaLaboratorio - r.qtaLaboratorio
   if (mancanti <= 0) return null
   const quantitaSuggerita = Math.min(mancanti, r.qtaMagazzino)
@@ -175,7 +184,8 @@ export async function migrationAdjust(
   }
 
   const versoMagazzino = input.ubicazione === 'magazzino'
-  const totaleDichiarato = record.totaleMigrazione ?? record.qtaMagazzino + record.qtaLaboratorio
+  const inProduzione = await sommaInProduzione(variantId)
+  const totaleDichiarato = record.totaleMigrazione ?? record.qtaMagazzino + record.qtaLaboratorio + inProduzione
 
   let qtaMagazzino = record.qtaMagazzino
   let qtaLaboratorio = record.qtaLaboratorio
@@ -205,7 +215,7 @@ export async function migrationAdjust(
     const attuale = versoMagazzino ? record.qtaMagazzino : record.qtaLaboratorio
     const delta = input.quantita - attuale
     if (delta === 0) throw badRequest('La quantità è già questa: non cambia niente')
-    const scartoPrima = record.qtaMagazzino + record.qtaLaboratorio - totaleDichiarato
+    const scartoPrima = record.qtaMagazzino + record.qtaLaboratorio + inProduzione - totaleDichiarato
     const scartoDopo = scartoPrima + delta
     if (Math.abs(scartoDopo) >= Math.abs(scartoPrima)) {
       throw badRequest(
@@ -284,7 +294,7 @@ export async function migrationAdjust(
       valorePrecedente: `magazzino ${record.qtaMagazzino} · laboratorio ${record.qtaLaboratorio} · totale ${totaleDichiarato}`,
       valoreNuovo: `magazzino ${qtaMagazzino} · laboratorio ${qtaLaboratorio} · totale ${nuovoTotale}`,
     })
-    return { ...updated, ...statoMigrazione(updated) }
+    return { ...updated, ...statoMigrazione(updated, inProduzione) }
   })
 }
 
@@ -298,12 +308,14 @@ export async function confirmMigration(variantId: string, userId: string) {
   if (!record) throw notFound('Record di inventario non trovato per questa variante')
   if (record.migrazioneCompletata) throw badRequest('La distribuzione iniziale è già stata confermata')
 
-  const stato = statoMigrazione(record)
+  const inProduzione = await sommaInProduzione(variantId)
+  const stato = statoMigrazione(record, inProduzione)
   if (stato.differenzaMigrazione !== 0) {
     const d = stato.differenzaMigrazione
     throw badRequest(
-      `La distribuzione non torna: magazzino ${record.qtaMagazzino} + laboratorio ${record.qtaLaboratorio} = ` +
-        `${stato.totaleDistribuito}, ma il totale registrato è ${stato.totaleDichiarato} ` +
+      `La distribuzione non torna: magazzino ${record.qtaMagazzino} + laboratorio ${record.qtaLaboratorio}` +
+        (inProduzione > 0 ? ` + in produzione ${inProduzione}` : '') +
+        ` = ${stato.totaleDistribuito}, ma il totale registrato è ${stato.totaleDichiarato} ` +
         `(${d > 0 ? `${d} in più` : `${Math.abs(d)} mancanti`}). Sistema le quantità prima di confermare.`,
     )
   }
@@ -318,9 +330,9 @@ export async function confirmMigration(variantId: string, userId: string) {
       azione: 'conferma_migrazione',
       entita: 'inventory_record',
       entitaId: record.id,
-      valoreNuovo: `distribuzione iniziale confermata: magazzino ${record.qtaMagazzino} · laboratorio ${record.qtaLaboratorio}`,
+      valoreNuovo: `distribuzione iniziale confermata: magazzino ${record.qtaMagazzino} · laboratorio ${record.qtaLaboratorio} · in produzione ${inProduzione}`,
     })
-    return { ...updated, ...statoMigrazione(updated) }
+    return { ...updated, ...statoMigrazione(updated, inProduzione) }
   })
 }
 
@@ -449,12 +461,12 @@ export function listStockMovements(variantId: string) {
   })
 }
 
-// --- Capi in produzione e consumi dal laboratorio ---
+// --- Capi in produzione: giacenza separata dal laboratorio (DEC-047) ---
 
 /**
- * Manda capi in produzione. La giacenza di laboratorio NON cambia: i capi sono ancora
- * lì, ma smettono di essere disponibili per altro. Si consumano (o si rimettono a
- * disposizione) in un momento successivo.
+ * Avvia una lavorazione: i capi **escono dalla giacenza di laboratorio** e passano nella
+ * giacenza "in produzione", che è una posizione a sé (DEC-047). In laboratorio si contano
+ * solo capi finiti, quindi un capo ci rientra quando la lavorazione è terminata.
  */
 export async function mandaInProduzione(
   variantId: string,
@@ -466,72 +478,89 @@ export async function mandaInProduzione(
   const record = await prisma.inventoryRecord.findUnique({ where: { variantId } })
   if (!record) throw notFound('Record di inventario non trovato per questa variante')
 
-  const giaInProduzione = await sommaInProduzione(variantId)
-  const disponibili = record.qtaLaboratorio - giaInProduzione
-  if (input.quantita > disponibili) {
+  if (input.quantita > record.qtaLaboratorio) {
     throw badRequest(
-      `In laboratorio ci sono ${record.qtaLaboratorio} pezzi, di cui ${giaInProduzione} già in produzione: se ne possono mandare in produzione al massimo ${Math.max(0, disponibili)}.`,
+      `In laboratorio ci sono ${record.qtaLaboratorio} pezzi: non se ne possono mandare in lavorazione ${input.quantita}.`,
     )
   }
+
+  const qtaLaboratorio = record.qtaLaboratorio - input.quantita
+  const calcolo = calcolaDisponibilita({ ...record, qtaLaboratorio })
 
   return prisma.$transaction(async (tx) => {
     const creato = await tx.stockCommitment.create({
       data: { variantId, quantita: input.quantita, productId: input.productId, stepId: input.stepId, note: input.note, createdBy: userId },
     })
+    // La giacenza di laboratorio cala: i capi non sono più lì come capi finiti.
+    await tx.inventoryRecord.update({
+      where: { variantId },
+      data: { qtaLaboratorio, stato: calcolo.stato, divergenzaShopify: calcolo.divergenzaShopify },
+    })
+    await tx.productVariant.update({
+      where: { id: variantId },
+      data: { stockDisponibile: calcolo.disponibileTotale, statoDisponibilita: calcolo.stato },
+    })
+    await logStockMovement(tx, {
+      variantId, tipo: 'scarico', quantita: input.quantita, daMagazzino: false, userId,
+      motivo: 'Avvio lavorazione', note: input.note,
+    })
     await logActivity(tx, {
       userId, azione: 'manda_in_produzione', entita: 'stock_commitment', entitaId: creato.id,
-      valoreNuovo: `${input.quantita} pezzi mandati in produzione`,
+      valorePrecedente: `laboratorio ${record.qtaLaboratorio}`,
+      valoreNuovo: `${input.quantita} pezzi in lavorazione · laboratorio ${qtaLaboratorio}`,
     })
     return creato
   })
 }
 
 /**
- * Chiude una lavorazione. `consumato` scarica davvero i capi dal laboratorio (sono stati
- * usati); `rilasciato` la annulla e i capi tornano disponibili.
+ * Chiude una lavorazione. In **entrambi** gli esiti i capi rientrano nella giacenza di
+ * laboratorio, perché da lì erano usciti all'avvio (DEC-047): `terminato` significa che il
+ * capo è finito ed è tornato disponibile, `annullato` che la lavorazione è decaduta e i
+ * capi rientrano com'erano. Cambia il significato, non l'aritmetica — ed è la ragione per
+ * cui i due esiti restano distinti nello storico.
  */
 export async function chiudiLavorazione(
   id: string,
-  esito: 'consumato' | 'rilasciato',
+  esito: 'terminato' | 'annullato',
   userId: string,
 ) {
   const lavorazione = await prisma.stockCommitment.findUnique({ where: { id } })
   if (!lavorazione) throw notFound('Lavorazione non trovata')
   if (lavorazione.stato !== 'in_produzione') {
-    throw badRequest(`Questi capi risultano già ${lavorazione.stato}.`)
+    throw badRequest(`Questa lavorazione risulta già ${lavorazione.stato}.`)
   }
 
   const record = await prisma.inventoryRecord.findUnique({ where: { variantId: lavorazione.variantId } })
   if (!record) throw notFound('Record di inventario non trovato')
+
+  const qtaLaboratorio = record.qtaLaboratorio + lavorazione.quantita
+  const calcolo = calcolaDisponibilita({ ...record, qtaLaboratorio })
 
   return prisma.$transaction(async (tx) => {
     await tx.stockCommitment.update({
       where: { id },
       data: { stato: esito, chiusoIl: new Date() },
     })
-
-    if (esito === 'consumato') {
-      // Il consumo preleva dal laboratorio: è la posizione operativa della produzione.
-      const qtaLaboratorio = Math.max(0, record.qtaLaboratorio - lavorazione.quantita)
-      const calcolo = calcolaDisponibilita({ ...record, qtaLaboratorio })
-      await tx.inventoryRecord.update({
-        where: { variantId: lavorazione.variantId },
-        data: { qtaLaboratorio, stato: calcolo.stato, divergenzaShopify: calcolo.divergenzaShopify },
-      })
-      await tx.productVariant.update({
-        where: { id: lavorazione.variantId },
-        data: { stockDisponibile: calcolo.disponibileTotale, statoDisponibilita: calcolo.stato },
-      })
-      await logStockMovement(tx, {
-        variantId: lavorazione.variantId, tipo: 'scarico', quantita: lavorazione.quantita,
-        daMagazzino: false, userId, note: lavorazione.note ?? 'Consumo in laboratorio',
-      })
-    }
-
+    await tx.inventoryRecord.update({
+      where: { variantId: lavorazione.variantId },
+      data: { qtaLaboratorio, stato: calcolo.stato, divergenzaShopify: calcolo.divergenzaShopify },
+    })
+    await tx.productVariant.update({
+      where: { id: lavorazione.variantId },
+      data: { stockDisponibile: calcolo.disponibileTotale, statoDisponibilita: calcolo.stato },
+    })
+    await logStockMovement(tx, {
+      variantId: lavorazione.variantId, tipo: 'carico', quantita: lavorazione.quantita,
+      daMagazzino: false, userId,
+      motivo: esito === 'terminato' ? 'Lavorazione terminata' : 'Lavorazione annullata',
+      note: lavorazione.note ?? undefined,
+    })
     await logActivity(tx, {
-      userId, azione: esito === 'consumato' ? 'consuma_capi' : 'rimetti_a_disposizione',
+      userId, azione: esito === 'terminato' ? 'termina_lavorazione' : 'annulla_lavorazione',
       entita: 'stock_commitment', entitaId: id,
-      valoreNuovo: `${lavorazione.quantita} pezzi ${esito}`,
+      valorePrecedente: `laboratorio ${record.qtaLaboratorio}`,
+      valoreNuovo: `${lavorazione.quantita} pezzi rientrati in laboratorio (${esito}) · laboratorio ${qtaLaboratorio}`,
     })
     return { id, stato: esito }
   })
@@ -546,8 +575,9 @@ async function sommaInProduzione(variantId: string): Promise<number> {
 }
 
 /**
- * Vista di dettaglio del laboratorio per una variante: quanto c'è, cosa è arrivato,
- * cosa è stato consumato e cosa è in produzione ma non ancora usato.
+ * Vista di dettaglio del laboratorio per una variante: quanto c'è di finito, cosa è
+ * arrivato dal magazzino, cosa è uscito verso una lavorazione e cosa è in lavorazione
+ * adesso (giacenza a sé, DEC-047).
  */
 export async function getLabDetail(variantId: string) {
   const record = await prisma.inventoryRecord.findUnique({
@@ -584,20 +614,21 @@ export async function getLabDetail(variantId: string) {
     qtaMagazzino: record.qtaMagazzino,
     disponibileTotale: record.qtaMagazzino + record.qtaLaboratorio,
     qtaInProduzione,
-    // Quello su cui si può contare in laboratorio, tolti i capi già in lavorazione.
-    disponibileInLaboratorio: Math.max(0, record.qtaLaboratorio - qtaInProduzione),
+    // I capi in lavorazione sono già usciti dalla giacenza (DEC-047): quella di laboratorio
+    // è tutta utilizzabile.
+    disponibileInLaboratorio: record.qtaLaboratorio,
     sogliaMinimaLaboratorio: record.sogliaMinimaLaboratorio,
     sottoSoglia:
       record.migrazioneCompletata &&
       record.sogliaMinimaLaboratorio > 0 &&
-      record.qtaLaboratorio <= record.sogliaMinimaLaboratorio,
+      record.qtaLaboratorio < record.sogliaMinimaLaboratorio,
     ...statoMigrazione(record),
     migrazioneCompletata: record.migrazioneCompletata,
     reintegro: calcolaReintegro(record),
     movimenti,
-    // Reintegri = arrivi dal magazzino; consumi = scarichi per lavorazione.
+    // Reintegri = arrivi dal magazzino; uscite = capi partiti verso una lavorazione.
     reintegri: movimenti.filter((m) => m.tipo === 'trasferimento' && m.locationTo?.codice === LOCATION_LABORATORIO),
-    consumi: movimenti.filter((m) => m.tipo === 'scarico'),
+    usciteLavorazione: movimenti.filter((m) => m.tipo === 'scarico'),
     inProduzione,
     storicoLavorazioni: lavorazioni.filter((i) => i.stato !== 'in_produzione'),
   }
@@ -612,22 +643,35 @@ export interface InventoryPatch {
   sogliaMinimaLaboratorio?: number
 }
 
+/**
+ * Finché la distribuzione iniziale non è confermata, scrivere una quantità in un'ubicazione
+ * è ambiguo (capi già compresi nel totale o capi mai contati?): deve passare da
+ * `migrationAdjust`, dove il significato viene dichiarato. Soglie e riservato restano
+ * modificabili: non spostano capi.
+ *
+ * Vive qui in un posto solo perché le quantità si possono scrivere da **due** rotte —
+ * `PATCH /inventory/:id` e `PATCH /variants/:id/quantities`. Finché il controllo stava
+ * dentro la prima, la seconda lasciava aggirare la domanda scrivendo dal dettaglio prodotto.
+ */
+export function verificaMigrazione(
+  before: { qtaMagazzino: number; qtaLaboratorio: number; migrazioneCompletata: boolean },
+  patch: { qtaMagazzino?: number; qtaLaboratorio?: number },
+) {
+  if (before.migrazioneCompletata) return
+  const cambiaQuantita =
+    (patch.qtaMagazzino !== undefined && patch.qtaMagazzino !== before.qtaMagazzino) ||
+    (patch.qtaLaboratorio !== undefined && patch.qtaLaboratorio !== before.qtaLaboratorio)
+  if (!cambiaQuantita) return
+  throw badRequest(
+    'Questa variante è ancora in distribuzione iniziale: usa "Sistema la distribuzione" per dire se i capi erano già compresi nel totale o vanno aggiunti.',
+  )
+}
+
 export async function updateInventoryRecord(id: string, patch: InventoryPatch, userId: string) {
   const before = await prisma.inventoryRecord.findUnique({ where: { id } })
   if (!before) throw notFound('Record di inventario non trovato')
 
-  // Finché la distribuzione iniziale non è confermata, scrivere una quantità in
-  // un'ubicazione è ambiguo (capi già nel totale o capi mai contati?): deve passare da
-  // `migrationAdjust`, dove il significato è dichiarato. Soglie e riservato restano
-  // modificabili: non spostano capi.
-  const cambiaQuantita =
-    (patch.qtaMagazzino !== undefined && patch.qtaMagazzino !== before.qtaMagazzino) ||
-    (patch.qtaLaboratorio !== undefined && patch.qtaLaboratorio !== before.qtaLaboratorio)
-  if (!before.migrazioneCompletata && cambiaQuantita) {
-    throw badRequest(
-      'Questa variante è ancora in distribuzione iniziale: usa "Sistema la distribuzione" per dire se i capi erano già compresi nel totale o vanno aggiunti.',
-    )
-  }
+  verificaMigrazione(before, patch)
 
   const qtaMagazzino = patch.qtaMagazzino ?? before.qtaMagazzino
   const qtaLaboratorio = patch.qtaLaboratorio ?? before.qtaLaboratorio

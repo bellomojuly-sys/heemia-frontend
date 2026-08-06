@@ -6,7 +6,7 @@ import { ApiError } from '../../lib/api'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 
 export function LoginPage() {
-  const { login } = useAuth()
+  const { login, sessioneScaduta } = useAuth()
   const { avvisa } = useGoatAlert()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -77,6 +77,13 @@ export function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>
+
+          {/* Spiega perché si è tornati qui da soli. Sparisce appena c'è un errore di accesso. */}
+          {!errore && sessioneScaduta && (
+            <p className="mb-4 animate-rise rounded-heemia border-l-2 border-heemia-border bg-heemia-surface px-3 py-2 text-xs text-heemia-black">
+              La sessione è scaduta. Accedi di nuovo per continuare: i dati salvati sono al sicuro.
+            </p>
+          )}
 
           {errore && (
             <p role="alert" className="mb-4 animate-rise rounded-heemia border-l-2 border-heemia-carmine bg-heemia-carmine-light px-3 py-2 text-xs text-heemia-black">

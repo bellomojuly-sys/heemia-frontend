@@ -312,8 +312,8 @@ enum InventoryMovementType {
 // Stato dei capi mandati in lavorazione (stock_commitments).
 enum CommitmentStato {
   in_produzione
-  consumato
-  rilasciato
+  terminato
+  annullato
 }
 
 // --- Import tracking (Database_Schema.md §2) ---
@@ -1154,12 +1154,15 @@ model InventoryRecord {
   @@map("inventory_records")
 }
 
-// Capi in produzione: quantità mandate in lavorazione ma non ancora consumate.
-// Restano fisicamente in laboratorio (la giacenza non cambia finché non si consumano),
-// ma non sono più disponibili per altro: nelle viste si mostrano separati.
+// Capi in produzione: **giacenza a sé**, distinta da magazzino e laboratorio (DEC-047).
+// Avviare una lavorazione toglie i capi dal laboratorio; la giacenza di laboratorio conta
+// solo capi finiti, e i capi in lavorazione ci rientrano quando sono terminati.
 //
-// Ciclo di vita: in_produzione → consumato (scarico definitivo dal laboratorio)
-//                             → rilasciato (la lavorazione decade, i capi tornano disponibili)
+// Ciclo di vita: in_produzione → terminato (il capo è finito: rientra in laboratorio)
+//                             → annullato (la lavorazione decade: i capi rientrano com'erano)
+//
+// Il totale registrato di una variante è magazzino + laboratorio + in produzione; il
+// **disponibile** resta magazzino + laboratorio, perché un capo non finito non si vende.
 model StockCommitment {
   id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   variantId String          @map("variant_id") @db.Uuid

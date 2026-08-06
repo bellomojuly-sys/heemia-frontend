@@ -11,6 +11,8 @@ import { formatDateIt } from '../../lib/format'
 import type { Accessory, Material, Supplier, SupplierCategoria, SupplierRequest } from '../../types'
 import { useMockStore, type NewSupplierInput } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
+import { useGoatAlert } from '../../context/GoatAlertContext'
+import { ApiError } from '../../lib/api'
 import { canApproveEmailDrafts, canEdit } from '../../lib/permissions'
 
 const textareaClass =
@@ -95,6 +97,7 @@ function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 export function SupplierList() {
   const { role } = useRole()
   const { suppliers, materials, accessories, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft, caricamento } = useMockStore()
+  const { avvisa } = useGoatAlert()
   const [openId, setOpenId] = useState<string | null>(supplierRequests[0]?.id ?? null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftText, setDraftText] = useState('')
@@ -119,9 +122,17 @@ export function SupplierList() {
     setDraftText(r.testo)
   }
 
-  const saveEdit = (id: string) => {
-    updateSupplierRequestDraft(id, { testo: draftText })
-    setEditingId(null)
+  // Si chiude solo se il server ha davvero accettato la modifica: chiudere comunque
+  // faceva sembrare salvato un testo che non lo era.
+  const saveEdit = async (id: string) => {
+    try {
+      await updateSupplierRequestDraft(id, { testo: draftText })
+      setEditingId(null)
+    } catch (e) {
+      avvisa('salvataggio', {
+        testo: e instanceof ApiError ? e.message : 'Non è stato possibile salvare la bozza.',
+      })
+    }
   }
 
   const startResponse = (id: string) => {

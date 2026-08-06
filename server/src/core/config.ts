@@ -40,7 +40,10 @@ export const config = {
   sessionSecret: segreto('SESSION_SECRET'),
   appBaseUrl: conSchema(process.env.APP_BASE_URL ?? 'http://localhost:3001'),
   corsOrigin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',').map(conSchema).filter(Boolean),
-  sessionTtlHours: Number(process.env.SESSION_TTL_HOURS ?? 12),
+  // 360 ore = 15 giorni (scelta di Giulia, 2026-08-06). La sessione NON si rinnova con
+  // l'uso: la scadenza è fissata al login, quindi ogni 15 giorni si rientra con le
+  // credenziali. Resta revocabile dal server (le sessioni stanno a database).
+  sessionTtlHours: Number(process.env.SESSION_TTL_HOURS ?? 360),
   isProd: (process.env.NODE_ENV ?? 'development') === 'production',
   // Chiave Claude API per la scansione AI delle schede tecniche (FR-14/FR-28).
   // Volutamente NON obbligatoria: senza chiave il server parte lo stesso e solo

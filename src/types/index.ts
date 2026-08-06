@@ -395,12 +395,10 @@ export interface InventoryRecord {
   stato: 'disponibile' | 'esaurito' | 'low_stock'
   stockShopify: number
   divergenzaShopify: boolean
-  /** Magazzino + laboratorio: entrambe giacenze di capi finiti, quindi entrambe vendibili. */
+  /** Magazzino + laboratorio: i capi finiti in casa, quindi vendibili. Esclude i capi in lavorazione. */
   disponibileTotale: number
-  /** Capi mandati in produzione: fisicamente in laboratorio, ma non più disponibili per altro. */
+  /** Capi in lavorazione: giacenza a sé, già uscita dal laboratorio (DEC-047). */
   qtaInProduzione: number
-  /** Disponibile totale meno i capi in produzione. */
-  disponibileReale: number
   laboratorioSottoSoglia: boolean
 
   // --- Distribuzione iniziale (FR-49) ---
@@ -433,7 +431,7 @@ export interface Lavorazione {
   id: string
   variantId: string
   quantita: number
-  stato: 'in_produzione' | 'consumato' | 'rilasciato'
+  stato: 'in_produzione' | 'terminato' | 'annullato'
   prodotto?: string
   note?: string
   utente?: string
@@ -457,7 +455,8 @@ export interface LabDetail {
   sottoSoglia: boolean
   movimenti: StockMovement[]
   reintegri: StockMovement[]
-  consumi: StockMovement[]
+  /** Capi usciti dal laboratorio verso una lavorazione. */
+  usciteLavorazione: StockMovement[]
   inProduzione: Lavorazione[]
   storicoLavorazioni: Lavorazione[]
 }

@@ -84,10 +84,6 @@ export function toInventoryRecord(r: Row): InventoryRecord {
     // Il server li calcola già; il fallback copre le risposte che non li includono.
     disponibileTotale: r.disponibileTotale === undefined ? qtaMagazzino + qtaLaboratorio : num(r.disponibileTotale),
     qtaInProduzione,
-    disponibileReale:
-      r.disponibileReale === undefined
-        ? Math.max(0, qtaMagazzino + qtaLaboratorio - qtaInProduzione)
-        : num(r.disponibileReale),
     laboratorioSottoSoglia: Boolean(r.laboratorioSottoSoglia),
     // Distribuzione iniziale (FR-49). Il fallback vale per le risposte che non portano
     // questi campi (es. il record restituito da una PATCH): in quel caso il totale
@@ -134,7 +130,7 @@ export function toLabDetail(r: Row): LabDetail {
     sottoSoglia: Boolean(r.sottoSoglia),
     movimenti,
     reintegri: arr<Row>(r.reintegri).map(toStockMovement),
-    consumi: arr<Row>(r.consumi).map(toStockMovement),
+    usciteLavorazione: arr<Row>(r.usciteLavorazione).map(toStockMovement),
     inProduzione: arr<Row>(r.inProduzione).map(toLavorazione),
     storicoLavorazioni: arr<Row>(r.storicoLavorazioni).map(toLavorazione),
   }

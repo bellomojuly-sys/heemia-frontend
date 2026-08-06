@@ -382,7 +382,7 @@ interface MockStoreValue {
   /** Dettaglio del laboratorio: giacenza, reintegri, consumi e capi in produzione. */
   loadLabDetail: (variantId: string) => Promise<LabDetail>
   mandaInProduzione: (variantId: string, quantita: number, note?: string, productId?: string) => Promise<void>
-  chiudiLavorazione: (id: string, esito: 'consumato' | 'rilasciato') => Promise<void>
+  chiudiLavorazione: (id: string, esito: 'terminato' | 'annullato') => Promise<void>
 
   /** Misure suggerite da Claude: propone QUALI misure servono, i valori si compilano a mano. */
   suggerisciMisure: (input: SuggerimentoMisureInput) => Promise<SuggerimentoMisure>
@@ -525,6 +525,9 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
       )
       if (quota.capiProdottiAnnui > 0) setCapiProdottiAnniState(quota.capiProdottiAnnui)
     } catch (e) {
+      // Sessione scaduta: non è un guasto del caricamento. Ci pensa AuthContext a riportare
+      // al login, qui non mostriamo il banner rosso "Dati non caricati".
+      if (e instanceof ApiError && e.isAuthError) return
       setErroreCaricamento(e instanceof Error ? e.message : 'Errore di caricamento dei dati')
     } finally {
       setCaricamento(false)
@@ -734,12 +737,15 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
 
       loadLabDetail: async (variantId) => toLabDetail(await api.get<Row>(`/inventory/${variantId}/lab`)),
 
-      // Mandare capi in produzione non cambia la giacenza: li toglie dal disponibile reale.
+      // Avviare una lavorazione toglie i capi dalla giacenza di laboratorio: diventano
+      // una giacenza a sé, "in produzione" (DEC-047).
       mandaInProduzione: async (variantId, quantita, note, productId) => {
         await persisti(api.post(`/inventory/${variantId}/in-produzione`, { quantita, note, productId }))
       },
 
-      // "consumato" scarica davvero dal laboratorio; "rilasciato" rimette i capi a disposizione.
+      // In entrambi gli esiti i capi rientrano in laboratorio: da lì erano usciti
+      // all'avvio della lavorazione (DEC-047). "terminato" = capo finito, "annullato" =
+      // lavorazione decaduta.
       chiudiLavorazione: async (id, esito) => {
         await persisti(api.patch(`/in-produzione/${id}`, { esito }))
       },

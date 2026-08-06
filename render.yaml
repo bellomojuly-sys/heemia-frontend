@@ -36,8 +36,10 @@ services:
           property: connectionString # connessione interna, non passa da internet
       - key: SESSION_SECRET
         generateValue: true # generato da Render, mai visibile nel repo
+      # Durata della sessione: 360 ore = 15 giorni. Non si rinnova con l'uso, la scadenza
+      # è fissata al momento dell'accesso.
       - key: SESSION_TTL_HOURS
-        value: "12"
+        value: "360"
       # ⚠️ Qui servono gli URL PUBBLICI. `fromService … property: host` restituisce
       # l'hostname interno della rete privata Render (es. "heemia-api"), che il browser
       # non sa risolvere: il frontend chiamerebbe https://heemia-api e ogni richiesta

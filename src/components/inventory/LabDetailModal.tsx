@@ -68,7 +68,7 @@ export function LabDetailModal({
     }
   }
 
-  const chiudi = async (id: string, esito: 'consumato' | 'rilasciato') => {
+  const chiudi = async (id: string, esito: 'terminato' | 'annullato') => {
     setInCorso(true)
     setErrore('')
     try {
@@ -88,14 +88,19 @@ export function LabDetailModal({
       ) : (
         <div className="scroll-smooth-y max-h-[64vh] space-y-5 overflow-y-auto pr-1">
           <div className="grid grid-cols-3 gap-3">
+            {/* Tre giacenze distinte (DEC-047): in laboratorio ci sono solo capi finiti,
+                i capi in lavorazione sono usciti e rientrano da terminati. */}
             <Cifra etichetta="In laboratorio" valore={dettaglio.qtaLaboratorio} />
-            <Cifra etichetta="In produzione" valore={dettaglio.qtaInProduzione} attenuato />
-            <Cifra etichetta="Utilizzabili" valore={dettaglio.disponibileInLaboratorio} />
+            <Cifra etichetta="In lavorazione" valore={dettaglio.qtaInProduzione} attenuato />
+            <Cifra etichetta="In magazzino" valore={dettaglio.qtaMagazzino} attenuato />
           </div>
 
           <p className="text-[12px] text-heemia-grey">
-            Disponibile totale {dettaglio.disponibileTotale} pezzi ({dettaglio.qtaLaboratorio} in
-            laboratorio + {dettaglio.qtaMagazzino} in magazzino).
+            Disponibile {dettaglio.disponibileTotale} pezzi ({dettaglio.qtaLaboratorio} in laboratorio +{' '}
+            {dettaglio.qtaMagazzino} in magazzino)
+            {dettaglio.qtaInProduzione > 0
+              ? `; altri ${dettaglio.qtaInProduzione} sono in lavorazione e rientreranno da terminati.`
+              : '.'}
           </p>
 
           {dettaglio.sottoSoglia && (
@@ -111,7 +116,7 @@ export function LabDetailModal({
 
           {canEdit && (
             <section>
-              <Titolo>Manda capi in produzione</Titolo>
+              <Titolo>Manda capi in lavorazione</Titolo>
               <div className="flex flex-wrap items-end gap-2">
                 <input
                   type="number"
@@ -120,7 +125,7 @@ export function LabDetailModal({
                   value={quantita}
                   onChange={(e) => setQuantita(e.target.value)}
                   placeholder="Pezzi"
-                  aria-label="Pezzi da mandare in produzione"
+                  aria-label="Pezzi da mandare in lavorazione"
                 />
                 <input
                   className={`${fieldClass} flex-1`}
@@ -130,16 +135,16 @@ export function LabDetailModal({
                   aria-label="Nota sulla lavorazione"
                 />
                 <Button variant="secondary" onClick={() => void invia()} disabled={inCorso}>
-                  Manda in produzione
+                  Manda in lavorazione
                 </Button>
               </div>
             </section>
           )}
 
           <section>
-            <Titolo>Capi in produzione</Titolo>
+            <Titolo>Capi in lavorazione</Titolo>
             {dettaglio.inProduzione.length === 0 ? (
-              <Vuoto>Nessun capo attualmente in produzione.</Vuoto>
+              <Vuoto>Nessun capo attualmente in lavorazione.</Vuoto>
             ) : (
               <ul className="space-y-2">
                 {dettaglio.inProduzione.map((a) => (
@@ -148,11 +153,13 @@ export function LabDetailModal({
                       <span className="font-mono-heemia text-sm text-heemia-black">{a.quantita} pezzi</span>
                       {canEdit && (
                         <span className="flex gap-1">
-                          <Button variant="secondary" onClick={() => void chiudi(a.id, 'consumato')} disabled={inCorso}>
-                            Consuma
+                          {/* Entrambi riportano i capi in laboratorio: cambia il perché,
+                              e il perché resta scritto nello storico. */}
+                          <Button variant="secondary" onClick={() => void chiudi(a.id, 'terminato')} disabled={inCorso}>
+                            Terminata
                           </Button>
-                          <Button variant="ghost" onClick={() => void chiudi(a.id, 'rilasciato')} disabled={inCorso}>
-                            Rilascia
+                          <Button variant="ghost" onClick={() => void chiudi(a.id, 'annullato')} disabled={inCorso}>
+                            Annulla
                           </Button>
                         </span>
                       )}
@@ -170,8 +177,8 @@ export function LabDetailModal({
           </section>
 
           <section>
-            <Titolo>Consumi recenti</Titolo>
-            <ListaMovimenti righe={dettaglio.consumi} vuoto="Nessun consumo registrato." />
+            <Titolo>Uscite verso lavorazioni</Titolo>
+            <ListaMovimenti righe={dettaglio.usciteLavorazione} vuoto="Nessuna uscita verso una lavorazione." />
           </section>
 
           <section>
@@ -215,6 +222,19 @@ function Riga({ movimento }: { movimento: Lavorazione }) {
   )
 }
 
+/**
+ * Segno del movimento visto dalla giacenza: uno scarico è un'uscita, e mostrarlo con il
+ * "+" lo rendeva indistinguibile dal rientro (stessa quantità, stessa nota) — è così che
+ * l'avvio e la chiusura di una lavorazione comparivano identici nello storico.
+ * Le rettifiche portano già il segno nella quantità, positiva o negativa che sia.
+ */
+function segnoQuantita(m: StockMovement): string {
+  if (m.tipo === 'scarico') return `−${Math.abs(m.quantita)}`
+  if (m.tipo === 'carico') return `+${Math.abs(m.quantita)}`
+  if (m.tipo === 'trasferimento') return `${Math.abs(m.quantita)}`
+  return m.quantita > 0 ? `+${m.quantita}` : `${m.quantita}`
+}
+
 function ListaMovimenti({ righe, vuoto }: { righe: StockMovement[]; vuoto: string }) {
   if (righe.length === 0) return <Vuoto>{vuoto}</Vuoto>
   return (
@@ -222,8 +242,9 @@ function ListaMovimenti({ righe, vuoto }: { righe: StockMovement[]; vuoto: strin
       {righe.slice(0, 10).map((m) => (
         <li key={m.id} className="flex flex-wrap items-baseline justify-between gap-2 text-[12px]">
           <span className="text-heemia-black">
-            <span className="font-mono-heemia">{m.quantita > 0 ? `+${m.quantita}` : m.quantita}</span>
+            <span className="font-mono-heemia">{segnoQuantita(m)}</span>
             {m.origine && m.destinazione ? ` · ${m.origine} → ${m.destinazione}` : ''}
+            {m.motivo ? ` · ${m.motivo}` : ''}
             {m.note ? ` · ${m.note}` : ''}
           </span>
           <span className="font-mono-heemia text-[11px] text-heemia-grey">

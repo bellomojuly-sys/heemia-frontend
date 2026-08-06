@@ -102,14 +102,17 @@ export function MigrationDistributionModal({
       <div className="mb-4 flex items-start gap-3 rounded-heemia-lg border border-heemia-border-strong bg-heemia-surface px-4 py-3">
         <GoatIcon className="-my-1 -ml-1 h-16 w-16 shrink-0" />
         <p className="text-sm text-heemia-black">
-          Questi <strong>{Math.abs(delta)}</strong> capi in {ubicazione} sono <strong>da aggiungere</strong> alla
-          quantità totale, oppure erano <strong>già compresi nel totale</strong> e vanno spostati dal{' '}
+          {Math.abs(delta) === 1 ? 'Questo ' : 'Questi '}
+          <strong>{Math.abs(delta)}</strong> {Math.abs(delta) === 1 ? 'capo' : 'capi'} in {ubicazione}{' '}
+          {Math.abs(delta) === 1 ? 'è' : 'sono'} <strong>da aggiungere</strong> alla quantità totale, oppure{' '}
+          {Math.abs(delta) === 1 ? 'era' : 'erano'} <strong>già compreso nel totale</strong> e va spostato dal{' '}
           {altraEtichetta}?
         </p>
       </div>
 
       <p className="mb-3 text-xs text-heemia-grey">
-        Oggi: magazzino {record.qtaMagazzino} · laboratorio {record.qtaLaboratorio} · totale registrato{' '}
+        Oggi: magazzino {record.qtaMagazzino} · laboratorio {record.qtaLaboratorio}
+        {record.qtaInProduzione > 0 && <> · in lavorazione {record.qtaInProduzione}</>} · totale registrato{' '}
         {record.totaleDichiarato}.
       </p>
 
@@ -118,6 +121,7 @@ export function MigrationDistributionModal({
           titolo="Già compresi nel totale"
           descrizione={`I capi si spostano dal ${altraEtichetta}: il totale non cambia.`}
           esito={redistribuito}
+          inLavorazione={record.qtaInProduzione}
           disabilitata={ridistribuzioneImpossibile}
           motivoDisabilitata={
             ridistribuzioneImpossibile
@@ -132,10 +136,11 @@ export function MigrationDistributionModal({
           titolo="Da aggiungere al totale"
           descrizione={
             delta >= 0
-              ? 'Capi mai registrati: il laboratorio resta com’è e il totale cresce.'
-              : 'Capi contati per errore: si tolgono dal totale, l’altra ubicazione resta com’è.'
+              ? `Capi mai registrati: il ${altraEtichetta} resta com’è e il totale cresce.`
+              : `Capi contati per errore: si tolgono dal totale, il ${altraEtichetta} resta com’è.`
           }
           esito={aggiunto}
+          inLavorazione={record.qtaInProduzione}
           disabilitata={nienteDaAggiungere}
           motivoDisabilitata={nienteDaAggiungere ? 'La quantità è già questa: non cambia niente.' : undefined}
           inCorso={inCorso === 'aggiungi'}
@@ -147,6 +152,7 @@ export function MigrationDistributionModal({
             titolo="Erano nel totale, ma non ancora assegnati"
             descrizione={`Il totale registrato resta ${record.totaleDichiarato}: si chiude lo scarto fra capi distribuiti e capi registrati.`}
             esito={colmato}
+            inLavorazione={record.qtaInProduzione}
             disabilitata={colmaInutile}
             motivoDisabilitata={
               colmaInutile
@@ -184,6 +190,7 @@ function Scelta({
   titolo,
   descrizione,
   esito,
+  inLavorazione,
   disabilitata,
   motivoDisabilitata,
   inCorso,
@@ -193,6 +200,8 @@ function Scelta({
   titolo: string
   descrizione: string
   esito: { magazzino: number; laboratorio: number; totale: number }
+  /** Capi in lavorazione: non cambiano con la scelta, ma entrano nel totale registrato. */
+  inLavorazione: number
   disabilitata: boolean
   motivoDisabilitata?: string
   inCorso: boolean
@@ -209,7 +218,8 @@ function Scelta({
       <p className="text-sm font-medium text-heemia-black">{inCorso ? 'Salvataggio…' : titolo}</p>
       <p className="mt-0.5 text-sm text-heemia-grey">{descrizione}</p>
       <p className="font-mono-heemia mt-2 text-xs text-heemia-black">
-        magazzino {esito.magazzino} · laboratorio {esito.laboratorio} · totale {esito.totale}
+        magazzino {esito.magazzino} · laboratorio {esito.laboratorio}
+        {inLavorazione > 0 && <> · in lavorazione {inLavorazione}</>} · totale {esito.totale}
       </p>
       {motivoDisabilitata && <p className="mt-1 text-xs text-heemia-carmine">{motivoDisabilitata}</p>}
     </button>

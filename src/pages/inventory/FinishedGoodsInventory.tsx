@@ -13,6 +13,7 @@ import {
 } from '../../components/inventory/MigrationDistributionModal'
 import { RefillSuggestions } from '../../components/inventory/RefillSuggestions'
 import { Button } from '../../components/ui/Button'
+import { QuantitaInput } from '../../components/ui/QuantitaInput'
 import { getStockOverview } from '../../lib/dashboard'
 import type { InventoryRecord } from '../../types'
 import { useMockStore } from '../../context/MockStore'
@@ -65,6 +66,20 @@ export function FinishedGoodsInventory() {
     }
   }
 
+  /**
+   * Ogni modifica di quantità passa di qui: attende il server e, se il salvataggio viene
+   * rifiutato, lo dice. Prima le scritture partivano senza `await` e senza `catch`: un
+   * rifiuto (sessione scaduta, backend irraggiungibile, quantità non ammessa) spariva in
+   * una promise non gestita e il numero tornava indietro da solo, senza spiegazioni.
+   */
+  const salva = async (azione: Promise<unknown>, ricaduta: string) => {
+    try {
+      await azione
+    } catch (e) {
+      avvisa('salvataggio', { testo: e instanceof ApiError ? e.message : ricaduta })
+    }
+  }
+
   /** Etichetta leggibile della variante, usata nei titoli dei modali. */
   const descrizioneVariante = (r: InventoryRecord) => {
     const v = productVariants.find((v) => v.id === r.variantId)
@@ -97,13 +112,14 @@ export function FinishedGoodsInventory() {
     {
       header: 'Disponibile',
       align: 'right',
-      // Magazzino + laboratorio: sono entrambe giacenze di capi finiti, quindi entrambe
-      // vendibili. Non è modificabile perché è la somma delle due colonne accanto.
+      // Magazzino + laboratorio: i capi finiti in casa, quindi vendibili. Non è
+      // modificabile perché è la somma delle due colonne accanto. I capi in lavorazione
+      // non sono qui dentro: sono una giacenza a sé (DEC-047) e si mostrano di fianco.
       accessor: (r) => (
         <div>
           <p className="font-mono-heemia text-sm text-heemia-black">{r.disponibileTotale}</p>
           {r.qtaInProduzione > 0 && (
-            <p className="font-mono-heemia text-[10px] text-heemia-grey">{r.disponibileReale} liberi</p>
+            <p className="font-mono-heemia text-[10px] text-heemia-grey">+{r.qtaInProduzione} in lavorazione</p>
           )}
         </div>
       ),
@@ -118,16 +134,19 @@ export function FinishedGoodsInventory() {
         !userCanEdit ? (
           r.qtaMagazzino
         ) : r.migrazioneCompletata ? (
-          <input
-            type="number"
-            min="0"
-            value={r.qtaMagazzino}
-            onChange={(e) => updateVariantQuantities(r.variantId, { qtaMagazzino: Math.max(0, Number(e.target.value) || 0) })}
+          <QuantitaInput
+            valore={r.qtaMagazzino}
+            etichetta={`Magazzino ${r.variantId}`}
             className={qtyInputClass}
-            aria-label={`Magazzino ${r.variantId}`}
+            onConferma={(qtaMagazzino) =>
+              salva(
+                updateVariantQuantities(r.variantId, { qtaMagazzino }),
+                'Non è stato possibile aggiornare il magazzino.',
+              )
+            }
           />
         ) : (
-          <QuantitaMigrazioneInput
+          <QuantitaInput
             valore={r.qtaMagazzino}
             etichetta={`Magazzino ${r.variantId}`}
             className={qtyInputClass}
@@ -144,7 +163,7 @@ export function FinishedGoodsInventory() {
         <div className="flex items-center justify-end gap-2">
           {r.laboratorioSottoSoglia && <Badge variant="warning-outline">Da reintegrare</Badge>}
           {userCanEdit && !r.migrazioneCompletata && (
-            <QuantitaMigrazioneInput
+            <QuantitaInput
               valore={r.qtaLaboratorio}
               etichetta={`Laboratorio ${r.variantId}`}
               className={qtyInputClass}
@@ -158,7 +177,9 @@ export function FinishedGoodsInventory() {
             className="font-mono-heemia rounded-heemia-sm border border-heemia-border px-2 py-1 text-sm text-heemia-black transition-all duration-200 ease-heemia hover:border-heemia-black hover:shadow-heemia-xs"
           >
             {r.qtaLaboratorio}
-            {r.qtaInProduzione > 0 && <span className="ml-1 text-[10px] text-heemia-grey">({r.qtaInProduzione} in produzione)</span>}
+            {/* I capi in lavorazione non sono dentro questo numero: sono usciti dal
+                laboratorio e ci rientrano da terminati (DEC-047). */}
+            {r.qtaInProduzione > 0 && <span className="ml-1 text-[10px] text-heemia-grey">+{r.qtaInProduzione} in lavorazione</span>}
           </button>
         </div>
       ),
@@ -169,13 +190,16 @@ export function FinishedGoodsInventory() {
       // Sotto questa quantità scatta l'alert di reintegro dal magazzino.
       accessor: (r) =>
         userCanEdit ? (
-          <input
-            type="number"
-            min="0"
-            value={r.sogliaMinimaLaboratorio}
-            onChange={(e) => updateVariantQuantities(r.variantId, { sogliaMinimaLaboratorio: Math.max(0, Number(e.target.value) || 0) })}
+          <QuantitaInput
+            valore={r.sogliaMinimaLaboratorio}
+            etichetta={`Soglia laboratorio ${r.variantId}`}
             className={qtyInputClass}
-            aria-label={`Soglia laboratorio ${r.variantId}`}
+            onConferma={(sogliaMinimaLaboratorio) =>
+              salva(
+                updateVariantQuantities(r.variantId, { sogliaMinimaLaboratorio }),
+                'Non è stato possibile aggiornare la soglia di laboratorio.',
+              )
+            }
           />
         ) : (
           r.sogliaMinimaLaboratorio
@@ -186,13 +210,16 @@ export function FinishedGoodsInventory() {
       align: 'right',
       accessor: (r) =>
         userCanEdit ? (
-          <input
-            type="number"
-            min="0"
-            value={r.qtaRiservata}
-            onChange={(e) => updateVariantQuantities(r.variantId, { qtaRiservata: Math.max(0, Number(e.target.value) || 0) })}
+          <QuantitaInput
+            valore={r.qtaRiservata}
+            etichetta={`Riservato ${r.variantId}`}
             className={qtyInputClass}
-            aria-label={`Riservato ${r.variantId}`}
+            onConferma={(qtaRiservata) =>
+              salva(
+                updateVariantQuantities(r.variantId, { qtaRiservata }),
+                'Non è stato possibile aggiornare i capi riservati.',
+              )
+            }
           />
         ) : (
           r.qtaRiservata
@@ -287,7 +314,7 @@ export function FinishedGoodsInventory() {
         <KpiTile label="Disponibile" value={stock.disponibile} tooltip="Magazzino + laboratorio: tutti i capi finiti in casa." />
         <KpiTile label="In magazzino" value={stock.inMagazzino} />
         <KpiTile label="In laboratorio" value={stock.inLaboratorio} />
-        <KpiTile label="In produzione" value={stock.inProduzione} tooltip="Capi mandati in lavorazione: sono ancora in laboratorio, ma non piu disponibili per altro." />
+        <KpiTile label="In produzione" value={stock.inProduzione} tooltip="Capi mandati in lavorazione: escono dal laboratorio e ci rientrano quando sono terminati." />
         <KpiTile label="Da reintegrare" value={stock.daReintegrare} critical={stock.daReintegrare > 0} tooltip="Varianti con la scorta di laboratorio sotto soglia." />
         <KpiTile label="Esaurito" value={stock.esaurito} critical={stock.esaurito > 0} />
       </div>
@@ -311,7 +338,10 @@ export function FinishedGoodsInventory() {
           records={daReintegrare}
           descrizione={descrizioneVariante}
           onTrasferisci={(r, quantita) =>
-            transferStock(r.variantId, 'to_lab', quantita, undefined, 'Reintegro laboratorio')
+            salva(
+              transferStock(r.variantId, 'to_lab', quantita, undefined, 'Reintegro laboratorio'),
+              'Non è stato possibile reintegrare il laboratorio.',
+            )
           }
           onModifica={(r) => setTrasferimento({ record: r, direzione: 'to_lab' })}
         />
@@ -382,58 +412,6 @@ export function FinishedGoodsInventory() {
         />
       )}
     </div>
-  )
-}
-
-/**
- * Campo quantità in distribuzione iniziale: tiene il valore digitato in locale e lo
- * consegna solo alla conferma (Invio o uscita dal campo). Scrivere a ogni tasto premuto
- * aprirebbe la domanda della capretta dopo la prima cifra — "1" mentre si sta digitando
- * "12" — e il numero salvato sarebbe quasi sempre quello sbagliato.
- */
-function QuantitaMigrazioneInput({
-  valore,
-  etichetta,
-  className,
-  onConferma,
-}: {
-  valore: number
-  etichetta: string
-  className: string
-  onConferma: (quantita: number) => void
-}) {
-  const [testo, setTesto] = useState(String(valore))
-
-  // Se il valore arriva dal server (dopo un salvataggio) il campo lo segue.
-  const [valorePrec, setValorePrec] = useState(valore)
-  if (valore !== valorePrec) {
-    setValorePrec(valore)
-    setTesto(String(valore))
-  }
-
-  const consegna = () => {
-    const quantita = Math.max(0, Number(testo) || 0)
-    if (quantita === valore) return
-    onConferma(quantita)
-  }
-
-  return (
-    <input
-      type="number"
-      min="0"
-      value={testo}
-      aria-label={etichetta}
-      className={className}
-      onChange={(e) => setTesto(e.target.value)}
-      onBlur={consegna}
-      onKeyDown={(e) => {
-        // `keyCode` come rete di sicurezza: alcuni ambienti (e gli strumenti di
-        // automazione) recapitano l'evento senza `key` valorizzato, e il campo
-        // resterebbe lì senza confermare niente.
-        if (e.key === 'Enter' || e.keyCode === 13) e.currentTarget.blur()
-        if (e.key === 'Escape' || e.keyCode === 27) setTesto(String(valore))
-      }}
-    />
   )
 }
 

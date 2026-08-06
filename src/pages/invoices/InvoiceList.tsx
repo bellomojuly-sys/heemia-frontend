@@ -14,6 +14,8 @@ import { useServerCostAllocations } from '../../hooks/useServerCostAllocations'
 import type { Invoice, CategoriaCosto } from '../../types'
 import { useMockStore, meseLabel, type NewInvoiceInput, type NewCashClosureInput } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
+import { useGoatAlert } from '../../context/GoatAlertContext'
+import { ApiError } from '../../lib/api'
 import { canEdit } from '../../lib/permissions'
 
 // FR-41: parsing "best-effort" dell'export scontrini di Billy. Formato non ancora verificato
@@ -274,6 +276,7 @@ function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
 function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const { role } = useRole()
   const { products, materials, updateInvoiceAssociations } = useMockStore()
+  const { avvisa } = useGoatAlert()
   const [prodottiIds, setProdottiIds] = useState<string[]>(invoice.prodottiCollegatiIds)
   const [materialiIds, setMaterialiIds] = useState<string[]>(invoice.materialiCollegatiIds)
 
@@ -320,9 +323,15 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
             <div>
               <Button
                 disabled={!changed}
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation()
-                  updateInvoiceAssociations(invoice.id, prodottiIds, materialiIds)
+                  try {
+                    await updateInvoiceAssociations(invoice.id, prodottiIds, materialiIds)
+                  } catch (err) {
+                    avvisa('salvataggio', {
+                      testo: err instanceof ApiError ? err.message : 'Non è stato possibile salvare le associazioni.',
+                    })
+                  }
                 }}
               >
                 Salva associazioni

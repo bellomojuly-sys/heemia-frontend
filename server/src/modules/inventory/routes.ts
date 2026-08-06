@@ -46,7 +46,7 @@ const produzioneSchema = z.object({
 })
 
 const chiusuraSchema = z.object({
-  esito: z.enum(['consumato', 'rilasciato']),
+  esito: z.enum(['terminato', 'annullato']),
 })
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {

@@ -14,6 +14,9 @@ import { useLiveMargins } from '../../hooks/useLiveMargins'
 import { useServerCostAllocations } from '../../hooks/useServerCostAllocations'
 import type { Margin } from '../../types'
 import { useMockStore } from '../../context/MockStore'
+import { useGoatAlert } from '../../context/GoatAlertContext'
+import { ApiError } from '../../lib/api'
+import { QuantitaInput } from '../../components/ui/QuantitaInput'
 
 const ALLOCATION_LABEL: Record<string, string> = {
   diretto_prodotto: 'Diretto prodotto', per_categoria: 'Per categoria', per_collezione: 'Per collezione',
@@ -22,6 +25,7 @@ const ALLOCATION_LABEL: Record<string, string> = {
 
 function FixedCostsCard() {
   const { fixedCostItems, capiProdottiAnnui, quotaHistory, updateFixedCostItem, addFixedCostItem, removeFixedCostItem, setCapiProdottiAnnui, saveQuotaSnapshot } = useMockStore()
+  const { avvisa } = useGoatAlert()
   const [newNome, setNewNome] = useState('')
   const [newImporto, setNewImporto] = useState('')
   const [periodo, setPeriodo] = useState('')
@@ -29,9 +33,21 @@ function FixedCostsCard() {
   const totaleAnnuo = fixedCostItems.reduce((sum, item) => sum + item.importoAnnuo, 0)
   const quotaPerCapo = computeQuotaPerCapo(fixedCostItems, capiProdottiAnnui)
 
-  const submitNew = () => {
+  /** Attende il server e dice perché, se rifiuta: i costi fissi muovono tutti i margini. */
+  const salva = async (azione: Promise<unknown>, ricaduta: string) => {
+    try {
+      await azione
+    } catch (e) {
+      avvisa('salvataggio', { testo: e instanceof ApiError ? e.message : ricaduta })
+    }
+  }
+
+  const submitNew = async () => {
     if (!newNome.trim() || !newImporto) return
-    addFixedCostItem(newNome.trim(), Number(newImporto))
+    await salva(
+      addFixedCostItem(newNome.trim(), Number(newImporto)),
+      'Non è stato possibile aggiungere la voce di costo.',
+    )
     setNewNome('')
     setNewImporto('')
   }
@@ -50,18 +66,24 @@ function FixedCostsCard() {
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
                   <span className="font-mono-heemia text-xs text-heemia-grey">€</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.importoAnnuo}
-                    onChange={(e) => updateFixedCostItem(item.id, Number(e.target.value))}
+                  <QuantitaInput
+                    valore={item.importoAnnuo}
+                    decimali
+                    etichetta={`Importo annuo ${item.nome}`}
                     className="font-mono-heemia w-28 rounded-heemia border border-heemia-border bg-white px-2 py-1 text-right text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10"
+                    onConferma={(importoAnnuo) =>
+                      salva(
+                        updateFixedCostItem(item.id, importoAnnuo),
+                        'Non è stato possibile aggiornare la voce di costo.',
+                      )
+                    }
                   />
                 </div>
                 <button
                   type="button"
-                  onClick={() => removeFixedCostItem(item.id)}
+                  onClick={() =>
+                    salva(removeFixedCostItem(item.id), 'Non è stato possibile rimuovere la voce di costo.')
+                  }
                   aria-label={`Rimuovi ${item.nome}`}
                   className="text-xs text-heemia-grey transition-colors hover:text-heemia-carmine"
                 >
@@ -140,8 +162,11 @@ function FixedCostsCard() {
             <Button
               variant="secondary"
               disabled={!periodo.trim()}
-              onClick={() => {
-                saveQuotaSnapshot(periodo.trim())
+              onClick={async () => {
+                await salva(
+                  saveQuotaSnapshot(periodo.trim()),
+                  'Non è stato possibile registrare la quota del periodo.',
+                )
                 setPeriodo('')
               }}
             >

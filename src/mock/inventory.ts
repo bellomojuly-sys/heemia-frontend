@@ -3,13 +3,12 @@ import type { InventoryRecord } from '../types'
 // Residuo del prototipo: dalla Fase 13 l'inventario arriva dal database e nessuna pagina
 // importa più questo file. Resta come riferimento della forma dei dati.
 //
-// `disponibileTotale`, `qtaInProduzione`, `disponibileReale` e `laboratorioSottoSoglia` li calcola
+// `disponibileTotale`, `qtaInProduzione` e `laboratorioSottoSoglia` li calcola
 // il server (inventory/service.ts): qui sono scritti a mano solo per coerenza col tipo.
 const record = (
   r: Omit<
     InventoryRecord,
     | 'disponibileTotale'
-    | 'disponibileReale'
     | 'laboratorioSottoSoglia'
     | 'totaleDichiarato'
     | 'totaleDistribuito'
@@ -21,7 +20,6 @@ const record = (
 ): InventoryRecord => ({
   ...r,
   disponibileTotale: r.qtaMagazzino + r.qtaLaboratorio,
-  disponibileReale: Math.max(0, r.qtaMagazzino + r.qtaLaboratorio - r.qtaInProduzione),
   laboratorioSottoSoglia: r.sogliaMinimaLaboratorio > 0 && r.qtaLaboratorio <= r.sogliaMinimaLaboratorio,
   // Righe di riferimento: distribuzione iniziale già chiusa, come per le varianti create
   // dall'app (FR-49). La migrazione riguarda solo i dati che arrivano dall'import.

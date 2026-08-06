@@ -9,6 +9,8 @@ import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency } from '../../lib/format'
 import type { Accessory } from '../../types'
 import { useRole } from '../../context/RoleContext'
+import { useGoatAlert } from '../../context/GoatAlertContext'
+import { ApiError } from '../../lib/api'
 import { canEdit } from '../../lib/permissions'
 import { useMockStore, type NewAccessoryInput } from '../../context/MockStore'
 
@@ -91,6 +93,7 @@ export function AccessoriesInventory() {
   const { role } = useRole()
   const navigate = useNavigate()
   const { accessories, suppliers, products, invoices, addAccessory, addSupplierRequest, caricamento } = useMockStore()
+  const { avvisa } = useGoatAlert()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [addOpen, setAddOpen] = useState(false)
@@ -126,11 +129,19 @@ export function AccessoriesInventory() {
         canEdit(role) && (a.stato === 'sotto_soglia' || a.stato === 'esaurito') ? (
           <button
             type="button"
-            onClick={(e) => {
+            onClick={async (e) => {
               // FR-05: genera una bozza email fornitore precompilata e apre la sezione Fornitori.
+              // Si aspetta l'esito prima di cambiare pagina: se la bozza non viene creata,
+              // portare l'utente in Fornitori a cercare qualcosa che non c'è è peggio che dirlo.
               e.stopPropagation()
-              addSupplierRequest({ accessoryId: a.id })
-              navigate('/fornitori')
+              try {
+                await addSupplierRequest({ accessoryId: a.id })
+                navigate('/fornitori')
+              } catch (err) {
+                avvisa('salvataggio', {
+                  testo: err instanceof ApiError ? err.message : 'Non è stato possibile creare la bozza per il fornitore.',
+                })
+              }
             }}
             className="text-xs font-medium text-heemia-carmine hover:underline"
           >

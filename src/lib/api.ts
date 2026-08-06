@@ -38,6 +38,16 @@ export class ApiError extends Error {
   }
 }
 
+// Un 401 su una chiamata qualsiasi vuol dire che la sessione non è più valida (scaduta o
+// revocata dal server). Senza un punto unico ogni pagina mostrerebbe il proprio errore
+// tecnico ("Non autenticato") restando dentro l'app: qui avvisiamo una volta sola chi
+// gestisce la sessione (AuthContext), che riporta alla schermata di accesso.
+let onSessioneScaduta: (() => void) | null = null
+
+export function setSessioneScadutaHandler(fn: (() => void) | null) {
+  onSessioneScaduta = fn
+}
+
 async function request<T>(method: string, path: string, body?: unknown, prefix = API_PREFIX): Promise<T> {
   let res: Response
   try {
@@ -58,6 +68,10 @@ async function request<T>(method: string, path: string, body?: unknown, prefix =
   const payload = text ? safeJson(text) : null
 
   if (!res.ok) {
+    // Le rotte /auth/* sono escluse: il 401 di /auth/me al primo caricamento e quello di
+    // /auth/login con password sbagliata non sono sessioni scadute. Lo showroom non ha
+    // sessione interna, quindi non deve toccare l'accesso al gestionale.
+    if (res.status === 401 && prefix === API_PREFIX && !path.startsWith('/auth/')) onSessioneScaduta?.()
     const err = (payload as { error?: { code?: string; message?: string } })?.error
     throw new ApiError(res.status, err?.message ?? `Errore ${res.status}`, err?.code ?? 'ERROR')
   }

@@ -28,6 +28,9 @@ import { useLiveMargins } from '../../hooks/useLiveMargins'
 import type { Material, ProductVariant, TechnicalSheet, TechnicalSheetVersion } from '../../types'
 import { useMockStore } from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
+import { useGoatAlert } from '../../context/GoatAlertContext'
+import { ApiError } from '../../lib/api'
+import { QuantitaInput } from '../../components/ui/QuantitaInput'
 import { canAccessModule, canDeleteProducts, canEdit } from '../../lib/permissions'
 import { DeleteProductModal } from '../../components/products/DeleteProductModal'
 
@@ -75,8 +78,9 @@ export function ProductDetail() {
   const {
     productionSteps, products, productVariants, updateProduct, addVariant, updateVariantQuantities,
     fixedCostItems, capiProdottiAnnui, technicalSheets, invoices, suppliers, addTechnicalSheet, persistenzaAvviso,
-    materials, accessories,
+    materials, accessories, inventoryRecords,
   } = useMockStore()
+  const { avvisa } = useGoatAlert()
   // Margini dal server: stessa formula, ma su prodotti e schede reali.
   const liveMargins = useLiveMargins()
   const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
@@ -166,43 +170,93 @@ export function ProductDetail() {
   const qtyInputClass =
     'font-mono-heemia w-20 rounded-heemia border border-heemia-border bg-white px-2 py-1 text-right text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10'
 
-  // Stock e riservato modificabili in linea: la modifica aggiorna anche il record di
-  // inventario prodotti finiti collegato (updateVariantQuantities nel MockStore).
+  /**
+   * Ogni modifica attende il server e, se viene rifiutata, lo dice: senza `await` un
+   * rifiuto spariva in una promise non gestita e il numero tornava indietro da solo.
+   */
+  const salva = async (azione: Promise<unknown>, ricaduta: string) => {
+    try {
+      await azione
+    } catch (e) {
+      avvisa('salvataggio', { testo: e instanceof ApiError ? e.message : ricaduta })
+    }
+  }
+
+  // Le giacenze si modificano **per ubicazione**, non sul totale. Prima qui c'era una sola
+  // colonna "Stock" che mostrava `stockDisponibile` (magazzino + laboratorio) ma scriveva su
+  // `qtaMagazzino`: riscrivendo nel campo lo stesso numero che mostrava, la giacenza cresceva
+  // della quantità in laboratorio (7 + 5 mostrava 12; confermando 12 diventava 17). Colpiva
+  // ogni variante importata, che nasce tutta in laboratorio (FR-49/DEC-045).
   const variantColumns: DataTableColumn<ProductVariant>[] = [
     { header: 'SKU', accessor: (v) => v.sku, className: 'font-mono-heemia text-[12px]' },
     { header: 'Taglia', accessor: (v) => v.taglia },
     { header: 'Colore', accessor: (v) => v.colore },
     {
-      header: 'Stock',
+      header: 'Magazzino',
       align: 'right',
-      accessor: (v) =>
-        userCanEdit ? (
-          <input
-            type="number"
-            min="0"
-            value={v.stockDisponibile}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => updateVariantQuantities(v.id, { qtaMagazzino: Math.max(0, Number(e.target.value) || 0) })}
+      accessor: (v) => {
+        const rec = inventoryRecords.find((r) => r.variantId === v.id)
+        if (!userCanEdit || !rec) return rec?.qtaMagazzino ?? v.stockDisponibile
+        // In distribuzione iniziale il numero è ambiguo (capi già nel totale o mai contati?):
+        // la domanda si fa in Inventario, che è l'unico posto che sa porla. Il server rifiuta
+        // comunque la scrittura, ma qui è meglio non offrire un campo che verrà respinto.
+        if (!rec.migrazioneCompletata) {
+          return (
+            <span
+              className="font-mono-heemia text-heemia-grey"
+              title="Distribuzione iniziale da completare: si sistema da Inventario › Prodotti finiti."
+            >
+              {rec.qtaMagazzino}
+            </span>
+          )
+        }
+        return (
+          <QuantitaInput
+            valore={rec.qtaMagazzino}
+            etichetta={`Magazzino ${v.sku}`}
             className={qtyInputClass}
-            aria-label={`Stock ${v.sku}`}
+            onConferma={(qtaMagazzino) =>
+              salva(
+                updateVariantQuantities(v.id, { qtaMagazzino }),
+                'Non è stato possibile aggiornare il magazzino.',
+              )
+            }
           />
-        ) : (
-          v.stockDisponibile
-        ),
+        )
+      },
+    },
+    {
+      header: 'Laboratorio',
+      align: 'right',
+      accessor: (v) => {
+        const rec = inventoryRecords.find((r) => r.variantId === v.id)
+        return <span className="font-mono-heemia">{rec?.qtaLaboratorio ?? 0}</span>
+      },
+    },
+    {
+      header: 'Disponibile',
+      align: 'right',
+      accessor: (v) => (
+        <span className="font-mono-heemia" title="Magazzino + laboratorio: i capi finiti in casa.">
+          {v.stockDisponibile}
+        </span>
+      ),
     },
     {
       header: 'Riservato',
       align: 'right',
       accessor: (v) =>
         userCanEdit ? (
-          <input
-            type="number"
-            min="0"
-            value={v.stockRiservato}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => updateVariantQuantities(v.id, { qtaRiservata: Math.max(0, Number(e.target.value) || 0) })}
+          <QuantitaInput
+            valore={v.stockRiservato}
+            etichetta={`Riservato ${v.sku}`}
             className={qtyInputClass}
-            aria-label={`Riservato ${v.sku}`}
+            onConferma={(qtaRiservata) =>
+              salva(
+                updateVariantQuantities(v.id, { qtaRiservata }),
+                'Non è stato possibile aggiornare i capi riservati.',
+              )
+            }
           />
         ) : (
           v.stockRiservato
