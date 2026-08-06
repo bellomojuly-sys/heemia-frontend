@@ -84,12 +84,28 @@ services:
     buildCommand: npm ci --include=dev && npm run build
     staticPublishPath: ./dist
     envVars:
-      # Variabile di BUILD: l'URL dell'API finisce dentro il bundle, quindi deve essere
-      # l'indirizzo pubblico raggiungibile dal browser (non l'hostname interno Render).
-      # Cambiandolo va rifatto il deploy del sito statico, non basta salvare la variabile.
+      # Variabile di BUILD: l'URL dell'API finisce dentro il bundle, quindi cambiarla
+      # richiede un nuovo deploy del sito statico, non basta salvare la variabile.
+      #
+      # "/" significa **stessa origine**: il frontend chiama /api/... su heemia-app e ci
+      # pensa la regola qui sotto a inoltrare al backend. Prima c'era l'indirizzo per
+      # esteso di heemia-api, e il cookie di sessione diventava un cookie di terze parti
+      # (per il browser heemia-app e heemia-api sono due siti diversi: onrender.com è un
+      # suffisso pubblico). Safari li blocca di default: login riuscito, cookie scartato,
+      # richiesta successiva senza sessione → "sessione scaduta". Vedi DEC-048.
       - key: VITE_API_BASE_URL
-        value: https://heemia-api.onrender.com
+        value: /
     routes:
+      # ⚠️ L'ordine conta: vince la prima regola che combacia. L'inoltro all'API deve
+      # stare PRIMA del catch-all della SPA, altrimenti /api/... tornerebbe index.html.
+      #
+      # Il browser vede una sola origine (heemia-app.onrender.com), quindi il cookie di
+      # sessione è di prima parte: niente cookie di terze parti da bloccare e niente
+      # preflight CORS. Il backend resta comunque raggiungibile direttamente su
+      # heemia-api.onrender.com (serve al controllo di /health e allo sviluppo).
+      - type: rewrite
+        source: /api/*
+        destination: https://heemia-api.onrender.com/api/*
       # SPA: ogni percorso sconosciuto torna index.html, così i link diretti
       # (es. /prodotti/<id>) funzionano anche al primo caricamento.
       - type: rewrite
