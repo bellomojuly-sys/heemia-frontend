@@ -96,7 +96,7 @@ function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 
 export function SupplierList() {
   const { role } = useRole()
-  const { suppliers, materials, accessories, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft, caricamento } = useMockStore()
+  const { suppliers, materials, accessories, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft, sendSupplierRequest, caricamento } = useMockStore()
   const { avvisa } = useGoatAlert()
   const [openId, setOpenId] = useState<string | null>(supplierRequests[0]?.id ?? null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -138,6 +138,27 @@ export function SupplierList() {
   const startResponse = (id: string) => {
     setRespondingId(id)
     setResponseText('')
+  }
+
+  // Approvare e inviare sono due passi distinti (FR-06). Prima erano un pulsante solo che
+  // portava la richiesta direttamente a "inviata": una transizione che il server rifiuta
+  // (dalla bozza si passa da "approvata") e che, se fosse passata, avrebbe dichiarato
+  // spedita un'email mai partita. L'invio vero lo fa il server, quando l'integrazione
+  // Gmail sarà attiva; fino ad allora il messaggio d'errore dice esattamente cosa manca.
+  const approva = async (id: string) => {
+    try {
+      await setSupplierRequestStatus(id, 'approvata')
+    } catch (e) {
+      avvisa('salvataggio', { testo: e instanceof ApiError ? e.message : 'Non è stato possibile approvare la richiesta.' })
+    }
+  }
+
+  const invia = async (id: string) => {
+    try {
+      await sendSupplierRequest(id)
+    } catch (e) {
+      avvisa('salvataggio', { testo: e instanceof ApiError ? e.message : "Non è stato possibile inviare la richiesta." })
+    }
   }
 
   const saveResponse = (id: string) => {
@@ -234,9 +255,10 @@ export function SupplierList() {
                               <Button variant="secondary" onClick={() => startEdit(r)}>Modifica</Button>
                             )}
                             {canApprove && ['bozza_generata', 'in_attesa_approvazione', 'modificata'].includes(r.stato) && (
-                              <Button onClick={() => setSupplierRequestStatus(r.id, 'inviata', { approvataDa: r.approvataDa ?? 'Utente corrente' })}>
-                                Approva e invia
-                              </Button>
+                              <Button onClick={() => approva(r.id)}>Approva</Button>
+                            )}
+                            {canApprove && r.stato === 'approvata' && (
+                              <Button onClick={() => invia(r.id)}>Invia al fornitore</Button>
                             )}
                             {canModify && r.stato === 'bozza_generata' && (
                               <Button variant="secondary" onClick={() => setSupplierRequestStatus(r.id, 'in_attesa_approvazione')}>Salva per dopo</Button>

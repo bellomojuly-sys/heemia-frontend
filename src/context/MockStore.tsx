@@ -357,6 +357,13 @@ interface MockStoreValue {
 
   setSupplierRequestStatus: (id: string, stato: SupplierRequestStato, extra?: Partial<SupplierRequest>) => Promise<void>
   updateSupplierRequestDraft: (id: string, patch: Partial<Pick<SupplierRequest, 'testo' | 'quantitaRichiesta' | 'deadlineIdeale'>>) => Promise<void>
+  /**
+   * Invio vero della richiesta al fornitore (FR-06). Passa dall'endpoint dedicato, non
+   * dal cambio di stato: lo stato "inviata" lo mette il server **dopo** che l'email è
+   * partita. Finché l'invio non è attivo (Fase 15.1) la chiamata fallisce spiegando cosa
+   * manca, e la richiesta resta "approvata" invece di sembrare spedita.
+   */
+  sendSupplierRequest: (id: string) => Promise<void>
   advanceProductionStep: (id: string) => Promise<{ ok: boolean; reason?: string }>
 
   addProduct: (input: NewProductInput) => Promise<Product>
@@ -664,6 +671,10 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
 
       updateSupplierRequestDraft: async (id, patch) => {
         await persisti(api.patch(`/supplier-requests/${id}`, patch))
+      },
+
+      sendSupplierRequest: async (id) => {
+        await persisti(api.post(`/supplier-requests/${id}/send`, {}))
       },
 
       // Il gate FR-05/FR-07 (scheda tecnica mancante, materiale esaurito) lo applica il

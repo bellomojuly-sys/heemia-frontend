@@ -4,6 +4,7 @@ import { Prisma, type SupplierReqStato } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
 import { badRequest, conflict, notFound } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
+import { daImplementare, richiediConfigurata } from '../../core/integrations.js'
 
 export function listSuppliers(filters: { categoria?: string; q?: string }) {
   const where: Prisma.SupplierWhereInput = {}
@@ -130,18 +131,23 @@ export async function updateSupplierRequestDraft(
 }
 
 // Invio email al fornitore (FR-06, DEC-028): Gmail messages.send, scope gmail.send.
-// Gated su credenziali OAuth non ancora disponibili (Fase 11/P2) — endpoint presente ma
-// non attivo finché non sono configurati i secret Google. Vedi API_Mapping §B2.
+//
+// ⚠️ Il pezzo che compone e spedisce il messaggio NON è ancora scritto (Fase 15.1 punto 2).
+// Prima questa funzione controllava solo le credenziali e poi marcava comunque la
+// richiesta come "inviata": il giorno in cui le credenziali Google fossero comparse
+// nell'ambiente, l'app avrebbe dichiarato inviate email che nessuno spediva, e il
+// fornitore sarebbe rimasto in attesa di una richiesta mai partita. Il secondo controllo
+// esiste per questo, e va tolto **insieme** al codice che invia davvero, non prima.
 export async function sendSupplierRequest(id: string, userId: string) {
   const req = await prisma.supplierRequest.findUnique({ where: { id }, include: { supplier: true } })
   if (!req) throw notFound('Richiesta fornitore non trovata')
-  if (!isGmailConfigured()) {
-    throw conflict('Invio email non ancora attivo: mancano le credenziali Google (OAuth gmail.send). Vedi API_Mapping §B2.')
-  }
-  // TODO(P2): costruire il MIME e chiamare gmail.users.messages.send con il refresh token del server.
-  return setSupplierRequestStatus(id, 'inviata', userId)
-}
-
-function isGmailConfigured(): boolean {
-  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)
+  richiediConfigurata('gmail')
+  // TODO(Fase 15.1 punto 2): costruire il MIME (destinatario req.supplier.email, oggetto,
+  // corpo da req.testo) e chiamare gmail.users.messages.send con il refresh token del
+  // server; solo a invio riuscito passare lo stato a "inviata" e registrarlo nel log.
+  daImplementare(
+    'Invio della richiesta al fornitore via email',
+    'Fase 15.1 punto 2, API_Mapping §B2',
+  )
+  // Riga di arrivo quando l'invio esisterà: setSupplierRequestStatus(id, 'inviata', userId)
 }

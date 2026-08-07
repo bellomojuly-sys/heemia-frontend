@@ -220,7 +220,7 @@ function getClient(): Anthropic {
   if (!config.anthropicApiKey) {
     throw new AppError(
       503,
-      'Funzioni AI non disponibili: manca la chiave Claude API. Imposta ANTHROPIC_API_KEY in server/.env e riavvia il server.',
+      'Funzioni AI non disponibili: manca la chiave Claude API. Imposta ANTHROPIC_API_KEY in server/.env e riavvia il server (procedura: Integrazioni_Setup.md §1).',
       'AI_NOT_CONFIGURED',
     )
   }
