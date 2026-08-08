@@ -15,7 +15,7 @@
 import { config } from './config.js'
 import { conflict } from './errors.js'
 
-export type IntegrazioneKey = 'claude' | 'gmail' | 'shopify' | 'analytics'
+export type IntegrazioneKey = 'openai' | 'gmail' | 'shopify' | 'analytics'
 
 type Definizione = {
   /** Nome leggibile, usato nei messaggi mostrati in app. */
@@ -31,12 +31,14 @@ type Definizione = {
 }
 
 const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
-  claude: {
-    nome: 'Claude API',
+  openai: {
+    nome: 'OpenAI',
     scopo: 'lettura del PDF della scheda tecnica e proposta delle misure (FR-14/FR-28)',
-    variabili: ['ANTHROPIC_API_KEY'],
+    // Il modello ha un default nel codice, quindi non è una variabile "mancante":
+    // qui conta solo la chiave.
+    variabili: ['OPENAI_API_KEY'],
     riferimento: 'Integrazioni_Setup.md §1',
-    valori: () => [config.anthropicApiKey],
+    valori: () => [config.openaiApiKey],
   },
   gmail: {
     nome: 'Gmail',

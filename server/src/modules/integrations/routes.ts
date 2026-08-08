@@ -1,7 +1,7 @@
-// Integrazioni esterne: Shopify (FR-17, DEC-009) e Claude API (FR-12/13/28).
+// Integrazioni esterne: Shopify (FR-17, DEC-009) e OpenAI (FR-12/13/28, DEC-050).
 //
 // ⚠️ Stato reale: NON ancora implementate. Richiedono credenziali che non sono state
-// ancora create (custom app Shopify, ANTHROPIC_API_KEY) — vedi API_Mapping §B1/§B4 e
+// ancora create (custom app Shopify, OPENAI_API_KEY) — vedi API_Mapping §B1/§B4 e
 // Integrazioni_Setup.md. Gli endpoint esistono per non lasciare buchi nel contratto API
 // e rispondono 409 CONFLICT con una ragione leggibile: meglio un errore esplicito che un
 // endpoint che finge di funzionare. Le due ragioni sono distinte apposta — «manca la
@@ -73,19 +73,19 @@ export async function integrationRoutes(app: FastifyInstance) {
 
   app.post('/ai/assistant', aiWrite, async (req) => {
     parse(assistantSchema, req.body)
-    richiediConfigurata('claude')
+    richiediConfigurata('openai')
     daImplementare('Assistente AI', 'Fase 15.1 punto 1b, API_Mapping §B4')
   })
 
   app.post('/ai/product-description', { preHandler: [authenticate, requireModule('prodotti'), requireEdit] }, async (req) => {
     parse(descriptionSchema, req.body)
-    richiediConfigurata('claude')
+    richiediConfigurata('openai')
     daImplementare('Generazione delle descrizioni prodotto', 'Fase 15.1 punto 1b, API_Mapping §B4')
   })
 
   app.post('/ai/cash-closure', { preHandler: [authenticate, requireModule('fatture'), requireEdit] }, async (req) => {
     parse(cashClosureSchema, req.body)
-    richiediConfigurata('claude')
+    richiediConfigurata('openai')
     daImplementare(
       'Riepilogo AI della chiusura di cassa (la chiusura salva già un riepilogo derivato dai dati, DEC-031)',
       'Fase 15.1 punto 1b, API_Mapping §B4',

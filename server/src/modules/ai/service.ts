@@ -1,12 +1,17 @@
 // FR-14 + FR-28: scansione AI della scheda tecnica in PDF.
 // La founder carica il PDF della scheda tecnica (versione Finale o Piazzamento e taglio)
-// e Claude ne estrae i costi del capo, che alimentano il calcolo del break-even.
+// e l'AI ne estrae i costi del capo, che alimentano il calcolo del break-even.
 //
-// Perché lato server e non nel browser: la chiave Claude API non deve mai finire nel
-// frontend. Il PDF arriva qui in base64, viene inoltrato a Claude e torna un oggetto
-// strutturato. I valori estratti restano SEMPRE modificabili a mano nell'interfaccia:
-// l'AI propone, la founder conferma (stessa logica della quantità suggerita dei materiali).
-import Anthropic from '@anthropic-ai/sdk'
+// Fornitore: **OpenAI** (DEC-050, scelta di Giulia il 2026-08-08 — l'azienda usa già
+// ChatGPT). Si parla con la Responses API: il PDF viaggia come `input_file` in base64 e
+// la risposta è vincolata a uno schema JSON (`text.format`), quindi non c'è testo libero
+// da interpretare. Il modello si cambia da variabile d'ambiente senza toccare il codice.
+//
+// Perché lato server e non nel browser: la chiave API non deve mai finire nel frontend.
+// Il PDF arriva qui in base64, viene inoltrato a OpenAI e torna un oggetto strutturato.
+// I valori estratti restano SEMPRE modificabili a mano nell'interfaccia: l'AI propone,
+// la founder conferma (stessa logica della quantità suggerita dei materiali).
+import OpenAI from 'openai'
 import { AppError, badRequest } from '../../core/errors.js'
 import { config } from '../../core/config.js'
 
@@ -192,40 +197,66 @@ export async function suggestMeasurements(input: MeasurementsInput): Promise<Mea
     .filter(Boolean)
     .join('\n')
 
-  const anthropic = getClient()
+  const openai = getClient()
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-opus-5',
-      max_tokens: 4000,
-      system: MEASUREMENTS_PROMPT,
-      output_config: { format: { type: 'json_schema', schema: MEASUREMENTS_SCHEMA } },
-      messages: [{ role: 'user', content: `Quali misure tecniche servono per questo capo?\n\n${contesto}` }],
+    const response = await openai.responses.create({
+      model: config.openaiModel,
+      max_output_tokens: 4000,
+      instructions: MEASUREMENTS_PROMPT,
+      input: `Quali misure tecniche servono per questo capo?\n\n${contesto}`,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'misure_suggerite',
+          schema: MEASUREMENTS_SCHEMA as unknown as Record<string, unknown>,
+          strict: true,
+        },
+      },
     })
 
-    if (response.stop_reason === 'refusal') {
-      throw new AppError(422, 'Claude non ha potuto rispondere. Aggiungi le misure a mano.', 'AI_REFUSAL')
-    }
-    const testo = response.content.find((b) => b.type === 'text')
-    if (!testo || testo.type !== 'text') {
-      throw new AppError(502, 'Risposta AI senza contenuto leggibile. Aggiungi le misure a mano.', 'AI_EMPTY')
-    }
-    return JSON.parse(testo.text) as MeasurementsSuggestion
+    return jsonDallaRisposta<MeasurementsSuggestion>(response, 'Aggiungi le misure a mano.')
   } catch (err) {
     throw tradurreErroreAI(err)
   }
 }
 
-let client: Anthropic | null = null
-function getClient(): Anthropic {
-  if (!config.anthropicApiKey) {
+let client: OpenAI | null = null
+function getClient(): OpenAI {
+  if (!config.openaiApiKey) {
     throw new AppError(
       503,
-      'Funzioni AI non disponibili: manca la chiave Claude API. Imposta ANTHROPIC_API_KEY in server/.env e riavvia il server (procedura: Integrazioni_Setup.md §1).',
+      'Funzioni AI non disponibili: manca la chiave OpenAI. Imposta OPENAI_API_KEY in server/.env e riavvia il server (procedura: Integrazioni_Setup.md §1).',
       'AI_NOT_CONFIGURED',
     )
   }
-  if (!client) client = new Anthropic({ apiKey: config.anthropicApiKey })
+  if (!client) client = new OpenAI({ apiKey: config.openaiApiKey })
   return client
+}
+
+/**
+ * Estrae il JSON dalla risposta, distinguendo i due modi in cui può non esserci.
+ * Un rifiuto e una risposta troncata arrivano come risposte *valide*, non come errori:
+ * senza questo controllo il JSON.parse fallirebbe con un messaggio incomprensibile.
+ */
+function jsonDallaRisposta<T>(response: OpenAI.Responses.Response, fallback: string): T {
+  for (const item of response.output) {
+    if (item.type !== 'message') continue
+    for (const blocco of item.content) {
+      if (blocco.type === 'refusal') {
+        throw new AppError(422, `L'AI non ha potuto rispondere: ${blocco.refusal} ${fallback}`, 'AI_REFUSAL')
+      }
+    }
+  }
+  if (response.status === 'incomplete') {
+    throw new AppError(
+      502,
+      `Risposta AI interrotta (${response.incomplete_details?.reason ?? 'motivo sconosciuto'}). ${fallback}`,
+      'AI_INCOMPLETE',
+    )
+  }
+  const testo = response.output_text
+  if (!testo) throw new AppError(502, `Risposta AI senza contenuto leggibile. ${fallback}`, 'AI_EMPTY')
+  return JSON.parse(testo) as T
 }
 
 /**
@@ -243,40 +274,42 @@ export async function scanTechnicalSheetPdf(pdfBase64: string, nomeFile?: string
     throw badRequest(`Il PDF pesa circa ${Math.round(bytes / 1024 / 1024)} MB: il limite è ${MAX_PDF_BYTES / 1024 / 1024} MB.`)
   }
 
-  const anthropic = getClient()
+  const openai = getClient()
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-opus-5',
-      max_tokens: 16000,
-      system: SYSTEM_PROMPT,
-      thinking: { type: 'adaptive' },
-      output_config: { format: { type: 'json_schema', schema: EXTRACTION_SCHEMA } },
-      messages: [
+    const response = await openai.responses.create({
+      model: config.openaiModel,
+      max_output_tokens: 16000,
+      instructions: SYSTEM_PROMPT,
+      input: [
         {
           role: 'user',
           content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pulito } },
             {
-              type: 'text',
+              type: 'input_file',
+              // Il nome file è obbligatorio quando il PDF viaggia in base64: l'API lo usa
+              // per riconoscere il tipo di documento.
+              filename: nomeFile ?? 'scheda-tecnica.pdf',
+              file_data: `data:application/pdf;base64,${pulito}`,
+            },
+            {
+              type: 'input_text',
               text: `Estrai i costi di produzione del capo da questa scheda tecnica${nomeFile ? ` (file: ${nomeFile})` : ''}.`,
             },
           ],
         },
       ],
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'estrazione_scheda_tecnica',
+          schema: EXTRACTION_SCHEMA as unknown as Record<string, unknown>,
+          strict: true,
+        },
+      },
     })
 
-    // Un rifiuto dei classificatori di sicurezza arriva come risposta valida, non come errore.
-    if (response.stop_reason === 'refusal') {
-      throw new AppError(422, 'Claude non ha potuto elaborare questo documento. Inserisci i costi a mano.', 'AI_REFUSAL')
-    }
-
-    const testo = response.content.find((b) => b.type === 'text')
-    if (!testo || testo.type !== 'text') {
-      throw new AppError(502, 'Risposta AI senza contenuto leggibile. Riprova o inserisci i costi a mano.', 'AI_EMPTY')
-    }
-
-    return JSON.parse(testo.text) as SheetScanResult
+    return jsonDallaRisposta<SheetScanResult>(response, 'Inserisci i costi a mano.')
   } catch (err) {
     throw tradurreErroreAI(err)
   }
@@ -285,16 +318,22 @@ export async function scanTechnicalSheetPdf(pdfBase64: string, nomeFile?: string
 /** Errori tipizzati dell'SDK tradotti in messaggi comprensibili invece di un 500 generico. */
 function tradurreErroreAI(err: unknown): unknown {
   if (err instanceof AppError) return err
-  if (err instanceof Anthropic.AuthenticationError) {
-    return new AppError(503, 'Chiave Claude API non valida. Controlla ANTHROPIC_API_KEY in server/.env.', 'AI_BAD_KEY')
+  if (err instanceof OpenAI.AuthenticationError) {
+    return new AppError(503, 'Chiave OpenAI non valida. Controlla OPENAI_API_KEY in server/.env.', 'AI_BAD_KEY')
   }
-  if (err instanceof Anthropic.RateLimitError) {
-    return new AppError(429, 'Troppe richieste alla AI in questo momento. Riprova tra poco.', 'AI_RATE_LIMIT')
+  if (err instanceof OpenAI.RateLimitError) {
+    // Su OpenAI questo errore copre due casi diversi che l'utente deve poter distinguere:
+    // troppe richieste al minuto, oppure credito esaurito sull'account.
+    return new AppError(
+      429,
+      'Richiesta AI non accettata: troppe richieste in questo momento, oppure il credito OpenAI è esaurito. Controlla il saldo su platform.openai.com.',
+      'AI_RATE_LIMIT',
+    )
   }
-  if (err instanceof Anthropic.APIConnectionError) {
-    return new AppError(503, 'Non riesco a raggiungere Claude API: controlla la connessione.', 'AI_UNREACHABLE')
+  if (err instanceof OpenAI.APIConnectionError) {
+    return new AppError(503, 'Non riesco a raggiungere OpenAI: controlla la connessione.', 'AI_UNREACHABLE')
   }
-  if (err instanceof Anthropic.APIError) {
+  if (err instanceof OpenAI.APIError) {
     return new AppError(502, `Errore della AI (${err.status}): ${err.message}`, 'AI_ERROR')
   }
   return err

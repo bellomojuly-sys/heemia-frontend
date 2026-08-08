@@ -67,11 +67,17 @@ export const config = {
   // credenziali. Resta revocabile dal server (le sessioni stanno a database).
   sessionTtlHours: durataSessione(),
   isProd: (process.env.NODE_ENV ?? 'development') === 'production',
-  // Chiave Claude API per la scansione AI delle schede tecniche (FR-14/FR-28).
-  // Volutamente NON obbligatoria: senza chiave il server parte lo stesso e solo
-  // l'endpoint /ai/* risponde con un errore chiaro, invece di bloccare tutta l'app.
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
-  // Google Analytics 4 (backlog "note" §10-11). Come la chiave Claude: NON obbligatorie.
+  // Chiave OpenAI per la scansione AI delle schede tecniche (FR-14/FR-28), fornitore
+  // scelto in DEC-050 perché l'azienda usa già ChatGPT. Volutamente NON obbligatoria:
+  // senza chiave il server parte lo stesso e solo l'endpoint /ai/* risponde con un
+  // errore chiaro, invece di bloccare tutta l'app.
+  openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+  // Il modello è una variabile e non una costante nel codice: OpenAI ne pubblica di
+  // nuovi spesso, e cambiarlo (o tornare indietro se un aggiornamento peggiora le
+  // estrazioni) deve essere una riga in Render, non una modifica da ricompilare.
+  // Default: il modello intermedio, il rapporto qualità/prezzo giusto per leggere un PDF.
+  openaiModel: process.env.OPENAI_MODEL ?? 'gpt-5.6-terra',
+  // Google Analytics 4 (backlog "note" §10-11). Come la chiave OpenAI: NON obbligatorie.
   // Senza credenziali il server parte lo stesso e solo /analytics/* risponde che manca la
   // configurazione. `gaCredentialsJson` è il JSON del service account su una riga; in
   // alternativa vale GOOGLE_APPLICATION_CREDENTIALS (percorso del file), che la libreria
