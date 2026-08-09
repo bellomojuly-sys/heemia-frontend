@@ -12,11 +12,15 @@ import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import { useServerCostAllocations } from '../../hooks/useServerCostAllocations'
 import type { Invoice, CategoriaCosto } from '../../types'
-import { useMockStore, meseLabel, type NewInvoiceInput, type NewCashClosureInput } from '../../context/MockStore'
+import {
+  useMockStore, meseLabel,
+  type NewInvoiceInput, type NewCashClosureInput, type EsitoImportFatture,
+} from '../../context/MockStore'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
 import { canEdit } from '../../lib/permissions'
+import { AZIENDA } from '../../lib/azienda'
 
 // FR-41: parsing "best-effort" dell'export scontrini di Billy. Formato non ancora verificato
 // sul file reale (Billy non ha API): si accetta un CSV con una colonna importo/totale e si
@@ -439,6 +443,127 @@ function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit
   )
 }
 
+/**
+ * Import delle fatture elettroniche ricevute (FR-19/20).
+ *
+ * Le fatture dei fornitori arrivano da sole all'Agenzia quando il fornitore le emette:
+ * qui si porta in Heemia quello che è già arrivato là. Si carica lo ZIP scaricato
+ * dall'area riservata (o un singolo XML, anche firmato) e il server lo legge.
+ *
+ * L'esito è mostrato file per file di proposito: un caricamento che dicesse solo
+ * "importate 12" nasconderebbe le due scartate, che sono quelle su cui bisogna intervenire.
+ */
+function ImportFattureSection() {
+  const { role } = useRole()
+  const { invoices, importaFattureElettroniche } = useMockStore()
+  const { avvisa } = useGoatAlert()
+  const [inCorso, setInCorso] = useState(false)
+  const [esito, setEsito] = useState<EsitoImportFatture | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const importate = useMemo(() => invoices.filter((f) => f.origineXml), [invoices])
+
+  const onFile = async (file: File) => {
+    setInCorso(true)
+    setEsito(null)
+    try {
+      const buffer = await file.arrayBuffer()
+      // Il file viaggia in base64 dentro il JSON: nessun upload multipart nel backend.
+      let binario = ''
+      const bytes = new Uint8Array(buffer)
+      for (let i = 0; i < bytes.length; i += 8192) {
+        binario += String.fromCharCode(...bytes.subarray(i, i + 8192))
+      }
+      const risultato = await importaFattureElettroniche({
+        nomeFile: file.name,
+        contenutoBase64: btoa(binario),
+        partitaIvaHeemia: AZIENDA.partitaIva,
+      })
+      setEsito(risultato)
+    } catch (e) {
+      avvisa('salvataggio', {
+        testo: e instanceof ApiError ? e.message : 'Non è stato possibile leggere il file delle fatture.',
+      })
+    } finally {
+      setInCorso(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  return (
+    <Card className="mb-6">
+      <CardHeader
+        title="Fatture dei fornitori dall'Agenzia delle Entrate"
+        subtitle="Le fatture arrivano già da sole all'Agenzia quando il fornitore le emette. Qui le porti dentro Heemia: scarica lo ZIP dall'area riservata (Fatture e Corrispettivi) e caricalo."
+        action={
+          canEdit(role) ? (
+            <>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".zip,.xml,.p7m,application/zip,text/xml"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+              />
+              <Button onClick={() => fileRef.current?.click()} disabled={inCorso}>
+                <Upload aria-hidden className="mr-1.5 inline h-3.5 w-3.5" />
+                {inCorso ? 'Leggo le fatture…' : 'Carica ZIP o XML'}
+              </Button>
+            </>
+          ) : undefined
+        }
+      />
+      <div className="space-y-4 p-4">
+        {esito && (
+          <div className="space-y-3">
+            <p className="text-sm text-heemia-black">
+              <strong>{esito.importate}</strong> {esito.importate === 1 ? 'fattura importata' : 'fatture importate'}
+              {esito.giaPresenti > 0 && <> · {esito.giaPresenti} già presenti, lasciate com'erano</>}
+              {esito.scartate > 0 && <> · {esito.scartate} scartate</>}
+            </p>
+
+            {esito.fornitoriCreati.length > 0 && (
+              <div className="rounded-heemia border-l-2 border-heemia-carmine bg-heemia-surface px-3 py-2 text-sm text-heemia-black">
+                Fornitori nuovi creati dall'import: <strong>{esito.fornitoriCreati.join(', ')}</strong>. Hanno la
+                categoria da sistemare in anagrafica: dalla fattura non si può dedurre.
+              </div>
+            )}
+
+            {esito.righe.length > 0 && (
+              <ul className="space-y-1 text-sm">
+                {esito.righe.map((r, i) => (
+                  <li key={`${r.file}-${i}`} className="flex flex-wrap items-baseline gap-x-2 border-b border-heemia-border/60 py-1">
+                    <span className="font-mono-heemia text-[11px] text-heemia-grey">{r.file}</span>
+                    {r.esito === 'importata' && (
+                      <span className="text-heemia-black">
+                        {r.fornitore} · {r.numero} · {formatCurrency(r.totale)}
+                      </span>
+                    )}
+                    {r.esito === 'gia_presente' && (
+                      <span className="text-heemia-grey">
+                        già presente — {r.fornitore} {r.numero}
+                      </span>
+                    )}
+                    {r.esito === 'scartata' && <span className="text-heemia-carmine">scartata: {r.motivo}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {!esito && (
+          <p className="text-sm text-heemia-grey">
+            {importate.length > 0
+              ? `${importate.length} fatture in elenco arrivano dal canale fiscale. Carica un nuovo ZIP per aggiornare: quelle già presenti non vengono duplicate.`
+              : 'Nessuna fattura importata finora. Il primo caricamento porta dentro tutto lo storico che l’Agenzia conserva (fino al 31 dicembre del secondo anno successivo).'}
+          </p>
+        )}
+      </div>
+    </Card>
+  )
+}
+
 function CashClosureSection() {
   const { role } = useRole()
   const { cashClosures, addCashClosure } = useMockStore()
@@ -584,6 +709,7 @@ export function InvoiceList() {
         action={canEdit(role) ? <Button onClick={() => setModalOpen(true)}>Aggiungi fattura</Button> : undefined}
       />
 
+      <ImportFattureSection />
       <CashClosureSection />
 
       <Toolbar

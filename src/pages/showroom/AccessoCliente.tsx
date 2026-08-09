@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { apriVisita, type VisitaCliente } from './showroomClient'
+import { TITOLARE } from '../../lib/azienda'
 
 // Accesso alla vista cliente (spec §4): nome, cognome, email, consenso al trattamento
 // (obbligatorio) e consenso marketing (separato e facoltativo), con l'informativa
@@ -20,12 +21,8 @@ const inputClass =
  * (`server/src/modules/showroom/service.ts`): la versione viene registrata su ogni visita,
  * così resta scritto quale testo ha letto ciascun cliente.
  */
-const TITOLARE = {
-  ragioneSociale: 'Omeni S.r.l.s. — marchio Heemia',
-  sedeLegale: 'Via B. Peruzzi 26, Carpi',
-  partitaIva: '04067450363',
-  email: 'heemia.lab@gmail.com',
-}
+// I dati del titolare vivono in lib/azienda.ts: servono anche all'import delle fatture
+// elettroniche, e due copie della stessa partita IVA prima o poi divergono.
 
 /** Campo del titolare, o un segnaposto che si vede, se non è ancora stato compilato. */
 function datoTitolare(valore: string, etichetta: string) {

@@ -189,6 +189,21 @@ export interface NewInvoiceInput {
   noteAmministrative?: string
 }
 
+/** Esito dell'import fatture elettroniche, riga per riga (FR-19/20). */
+export type EsitoRigaImport =
+  | { file: string; esito: 'importata'; invoiceId: string; fornitore: string; numero: string; totale: number }
+  | { file: string; esito: 'gia_presente'; fornitore: string; numero: string }
+  | { file: string; esito: 'scartata'; motivo: string }
+
+export interface EsitoImportFatture {
+  importate: number
+  giaPresenti: number
+  scartate: number
+  /** Fornitori che non erano in anagrafica e sono stati creati: hanno la categoria da sistemare. */
+  fornitoriCreati: string[]
+  righe: EsitoRigaImport[]
+}
+
 export interface NewSupplierInput {
   nome: string
   categoria: SupplierCategoria
@@ -364,6 +379,18 @@ interface MockStoreValue {
    * manca, e la richiesta resta "approvata" invece di sembrare spedita.
    */
   sendSupplierRequest: (id: string) => Promise<void>
+
+  /**
+   * Import delle fatture elettroniche ricevute (FR-19/20): accetta lo ZIP scaricato
+   * dall'area riservata dell'Agenzia o un singolo XML, anche firmato. Restituisce l'esito
+   * file per file — non solleva errore se qualche file è illeggibile: quelli si vedono
+   * come "scartati" con il motivo, e il resto entra lo stesso.
+   */
+  importaFattureElettroniche: (input: {
+    nomeFile: string
+    contenutoBase64: string
+    partitaIvaHeemia?: string
+  }) => Promise<EsitoImportFatture>
   advanceProductionStep: (id: string) => Promise<{ ok: boolean; reason?: string }>
 
   addProduct: (input: NewProductInput) => Promise<Product>
@@ -676,6 +703,9 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
       sendSupplierRequest: async (id) => {
         await persisti(api.post(`/supplier-requests/${id}/send`, {}))
       },
+
+      importaFattureElettroniche: async (input) =>
+        persisti(api.post<EsitoImportFatture>('/invoices/import-fatture-elettroniche', input)),
 
       // Il gate FR-05/FR-07 (scheda tecnica mancante, materiale esaurito) lo applica il
       // server e risponde 409 con la ragione: qui diventa il messaggio mostrato all'utente.

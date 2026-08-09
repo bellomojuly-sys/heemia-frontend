@@ -411,6 +411,9 @@ model AiMessage {
 model Supplier {
   id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nome                String
+  /// Partita IVA: è la chiave con cui si riconosce il fornitore nelle fatture elettroniche,
+  /// dove il nome può essere scritto in modi diversi (FR-19, import FatturaPA).
+  partitaIva          String?           @map("partita_iva")
   categoria           SupplierCategoria
   citta               String?
   paese               String            @default("IT")
@@ -947,6 +950,9 @@ model Invoice {
   documentoUrl              String?          @map("documento_url")
   noteAmministrative        String?          @map("note_amministrative")
   associata                 Boolean          @default(false)
+  /// Nome del file da cui la fattura è stata importata (fattura elettronica): dice a colpo
+  /// d'occhio quali righe arrivano dal canale fiscale e quali sono state scritte a mano.
+  origineXml                String?          @map("origine_xml")
   reverseCharge             Boolean          @default(false) @map("reverse_charge")
   createdAt                 DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -961,6 +967,12 @@ model Invoice {
   @@index([fornitoreId])
   @@index([clienteId])
   @@index([dataScadenza])
+  // Riconoscere una fattura già importata: stesso fornitore, stesso numero, stessa data.
+  // Indice e non vincolo di unicità: le fatture inserite a mano prima dell'import
+  // potrebbero contenere doppioni legittimi o incompleti, e un vincolo li renderebbe
+  // impossibili da migrare. Il controllo di duplicazione lo fa l'import, che cerca qui
+  // prima di scrivere (importFatture.ts).
+  @@index([fornitoreId, numero, data])
   @@map("invoices")
 }
 

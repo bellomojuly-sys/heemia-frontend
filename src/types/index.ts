@@ -597,6 +597,8 @@ export interface Invoice {
   noteAmministrative?: string
   associata: boolean
   reverseCharge?: boolean
+  /** Nome del file da cui la fattura è stata importata (canale fiscale, FR-19/20): assente se inserita a mano. */
+  origineXml?: string
 }
 
 // ---------------------------------------------------------------------------

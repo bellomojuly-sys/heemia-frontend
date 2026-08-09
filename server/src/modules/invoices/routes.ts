@@ -9,6 +9,13 @@ import {
   createInvoice, getInvoice, listCashClosures, listCostAllocations, listDeadlines, listInvoices,
   parseScontriniCsv, updateInvoice, updateInvoiceAssociations, upsertCashClosure,
 } from './service.js'
+import { importaFattureElettroniche } from './importFatture.js'
+
+const importFattureSchema = z.object({
+  nomeFile: z.string().min(1),
+  contenutoBase64: z.string().min(1, 'File mancante'),
+  partitaIvaHeemia: z.string().max(20).optional(),
+})
 
 const pagamentoEnum = z.enum(['da_pagare', 'pagata', 'scaduta'])
 // Nomi del client Prisma ("Extra_EU"), mappati da Prisma sul valore reale in tabella ("Extra-EU").
@@ -106,6 +113,19 @@ export async function invoiceRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string }
     const d = parse(associationsSchema, req.body)
     return updateInvoiceAssociations(id, d.prodottiIds, d.materialiIds, req.user!.id)
+  })
+
+  // Import delle fatture elettroniche ricevute (FR-19/FR-20, API_Mapping §B6).
+  // Accetta lo ZIP scaricato dall'area riservata dell'Agenzia oppure un singolo XML,
+  // firmato o no. Nessuna credenziale in gioco: i file li porta la persona.
+  // `partitaIvaHeemia` è facoltativa e serve a scartare due cose che nello ZIP capitano
+  // spesso: le fatture emesse (vendite) e quelle intestate a qualcun altro.
+  app.post('/invoices/import-fatture-elettroniche', write, async (req) => {
+    const d = parse(importFattureSchema, req.body)
+    return importaFattureElettroniche(
+      { nomeFile: d.nomeFile, contenutoBase64: d.contenutoBase64, partitaIvaHeemia: d.partitaIvaHeemia },
+      req.user!.id,
+    )
   })
 
   // Ripartizione costi indiretti (FR-23), legata alle fatture.

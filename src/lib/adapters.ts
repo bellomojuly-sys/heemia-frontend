@@ -268,6 +268,7 @@ export function toInvoice(r: Row): Invoice {
     noteAmministrative: r.noteAmministrative ? s(r.noteAmministrative) : undefined,
     associata: Boolean(r.associata),
     reverseCharge: Boolean(r.reverseCharge),
+    origineXml: r.origineXml ? s(r.origineXml) : undefined,
     // Righe di join → array di id, la forma che usano le pagine.
     prodottiCollegatiIds: arr<Row>(r.products).map((p) => s(p.productId)),
     materialiCollegatiIds: arr<Row>(r.materialiLinks).map((m) => s(m.materialId)),
