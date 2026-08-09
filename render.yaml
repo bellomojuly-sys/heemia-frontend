@@ -48,20 +48,43 @@ services:
         value: https://heemia-api.onrender.com
       - key: CORS_ORIGIN
         value: https://heemia-app.onrender.com
-      # Segreti delle integrazioni: si aggiungono nel dashboard quando le
-      # rispettive integrazioni entrano in servizio (oggi gli endpoint
-      # rispondono 409 finché mancano — API_Mapping §B1/§B2/§B4).
-      - key: ANTHROPIC_API_KEY
+      # Segreti delle integrazioni: dichiarati qui senza valore (`sync: false`), si
+      # compilano nel pannello Render quando l'integrazione entra in servizio. Finché
+      # mancano, l'app funziona e ogni funzione dice quale variabile le serve
+      # (Integrazioni_Setup.md, `GET /api/v1/integrations/status`).
+      # AI: fornitore OpenAI dal 2026-08-08 (DEC-050). OPENAI_MODEL è facoltativa.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
         sync: false
       - key: SHOPIFY_STORE_DOMAIN
         sync: false
       - key: SHOPIFY_ADMIN_API_TOKEN
         sync: false
+      - key: SHOPIFY_API_VERSION
+        sync: false
       - key: SHOPIFY_WEBHOOK_SECRET
         sync: false
+      # Gmail, invio richieste ai fornitori (DEC-028): servono tutte e quattro.
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
+      - key: GMAIL_MITTENTE
+        sync: false
+      # Fatture elettroniche via provider accreditato SDI (DEC-051): senza queste resta
+      # l'import manuale dello ZIP dell'area riservata, che funziona già.
+      - key: SDI_PROVIDER
+        sync: false
+      - key: SDI_API_KEY
+        sync: false
+      - key: SDI_WEBHOOK_SECRET
+        sync: false
+      # Service account per leggere le cartelle Drive con le foto dei capi (DEC-052).
+      # Può essere lo stesso di Analytics: in quel caso basta GA_CREDENTIALS_JSON.
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
         sync: false
       # Google Analytics 4 (pagina Analytics): identificativo numerico della proprietà e
       # JSON del service account su una riga. Finché mancano, /analytics/* risponde che
