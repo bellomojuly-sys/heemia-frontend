@@ -26,6 +26,7 @@ import { showroomRoutes } from './modules/showroom/routes.js'
 import { showroomRequestRoutes } from './modules/showroomRequests/routes.js'
 import { aiRoutes } from './modules/ai/routes.js'
 import { analyticsRoutes } from './modules/analytics/routes.js'
+import { driveRoutes } from './modules/drive/routes.js'
 
 // Prefisso versionato deciso in DEC-036 (allineamento codice <-> API_Mapping).
 // La sub-app showroom usa /api/showroom, fuori dal versionamento interno.
@@ -111,6 +112,7 @@ export async function buildApp() {
   await app.register(integrationRoutes, { prefix: API_PREFIX })
   await app.register(aiRoutes, { prefix: API_PREFIX })
   await app.register(analyticsRoutes, { prefix: API_PREFIX })
+  await app.register(driveRoutes, { prefix: API_PREFIX })
   await app.register(showroomRequestRoutes, { prefix: API_PREFIX })
 
   // Sub-app cliente: scope separato, non eredita nulla dell'API interna (A5).

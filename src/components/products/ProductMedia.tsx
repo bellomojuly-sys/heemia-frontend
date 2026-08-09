@@ -6,6 +6,7 @@ import { Badge } from '../ui/Badge'
 import { fieldClass } from '../ui/Modal'
 import { ApiError } from '../../lib/api'
 import { driveFileId, isDriveFolder } from '../../lib/driveImage'
+import { importaImmaginiDaCartella } from '../../lib/driveApi'
 import { ProductImage } from './ProductImage'
 import type { Product } from '../../types'
 
@@ -27,6 +28,7 @@ export function ProductMedia({
 }) {
   const [nuovo, setNuovo] = useState('')
   const [errore, setErrore] = useState('')
+  const [avviso, setAvviso] = useState('')
   const [inCorso, setInCorso] = useState(false)
   const immagini = product.immaginiUrl ?? []
 
@@ -42,11 +44,49 @@ export function ProductMedia({
     }
   }
 
+  /**
+   * Cartella Drive: si collegano tutte le foto che contiene, in ordine di nome.
+   *
+   * Prima questo caso era un errore («serve il link del singolo file»), e con 93 capi da
+   * caricare avrebbe significato incollare centinaia di link a mano. Elencare il contenuto
+   * di una cartella però Drive lo concede solo a chi è autenticato: se la credenziale non
+   * c'è, il server lo dice e resta la strada del file singolo, che funziona sempre.
+   */
+  const importaCartella = async (url: string) => {
+    setInCorso(true)
+    setErrore('')
+    try {
+      const { immagini: trovate, nonPubbliche } = await importaImmaginiDaCartella(url)
+      if (trovate.length === 0) {
+        setErrore('Nella cartella non ci sono immagini.')
+        return
+      }
+      const nuove = trovate.map((i) => i.url).filter((u) => !immagini.includes(u))
+      if (nuove.length === 0) {
+        setErrore('Le immagini di questa cartella sono già collegate al capo.')
+        return
+      }
+      await onSave([...immagini, ...nuove])
+      setNuovo('')
+      setAvviso(
+        `Collegate ${nuove.length} foto dalla cartella.` +
+          (nonPubbliche > 0
+            ? ` Attenzione: ${nonPubbliche} non sono condivise con «Chiunque abbia il link», quindi resteranno un riquadro vuoto finché non lo sono.`
+            : ''),
+      )
+    } catch (e) {
+      setErrore(e instanceof ApiError ? e.message : 'Non è stato possibile leggere la cartella su Drive.')
+    } finally {
+      setInCorso(false)
+    }
+  }
+
   const aggiungi = async () => {
     const url = nuovo.trim()
     if (!url) return
+    setAvviso('')
     if (isDriveFolder(url)) {
-      setErrore('Questo è il link a una cartella Drive: serve il link del singolo file immagine.')
+      await importaCartella(url)
       return
     }
     if (!/^https?:\/\//i.test(url)) {
@@ -80,17 +120,20 @@ export function ProductMedia({
                 value={nuovo}
                 onChange={(e) => setNuovo(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && void aggiungi()}
-                placeholder="https://drive.google.com/file/d/…"
+                placeholder="Link del file, o della cartella con tutte le foto del capo"
                 aria-label="Collegamento all'immagine su Drive"
               />
               <Button variant="secondary" onClick={() => void aggiungi()} disabled={inCorso || !nuovo.trim()}>
-                {inCorso ? 'Salvataggio…' : 'Collega immagine'}
+                {inCorso ? 'Salvataggio…' : isDriveFolder(nuovo) ? 'Collega tutte le foto' : 'Collega immagine'}
               </Button>
             </div>
             <p className="mt-2 text-[11px] text-heemia-grey">
-              Su Drive il file dev'essere condiviso con <strong>«Chiunque abbia il link»</strong>, altrimenti
+              Puoi incollare il link di una <strong>singola foto</strong> o quello della{' '}
+              <strong>cartella del capo</strong>: in quel caso vengono collegate tutte le foto che contiene.
+              Su Drive i file devono essere condivisi con <strong>«Chiunque abbia il link»</strong>, altrimenti
               l'immagine non si vede: Drive la mostra solo a chi ha già l'accesso.
             </p>
+            {avviso && <p className="mt-2 text-[12px] text-heemia-black">{avviso}</p>}
             {errore && <p className="mt-2 text-[12px] text-heemia-carmine">{errore}</p>}
           </div>
         )}

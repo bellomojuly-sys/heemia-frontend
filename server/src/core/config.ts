@@ -77,6 +77,10 @@ export const config = {
   // estrazioni) deve essere una riga in Render, non una modifica da ricompilare.
   // Default: il modello intermedio, il rapporto qualità/prezzo giusto per leggere un PDF.
   openaiModel: process.env.OPENAI_MODEL ?? 'gpt-5.6-terra',
+  // Service account Google, usato per leggere le cartelle Drive con le foto dei capi
+  // (FR-16). È lo stesso tipo di credenziale di Analytics e una sola può servire a
+  // entrambe le cose: per questo `GA_CREDENTIALS_JSON` vale anche qui come ripiego.
+  googleServiceAccountJson: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? '',
   // Google Analytics 4 (backlog "note" §10-11). Come la chiave OpenAI: NON obbligatorie.
   // Senza credenziali il server parte lo stesso e solo /analytics/* risponde che manca la
   // configurazione. `gaCredentialsJson` è il JSON del service account su una riga; in

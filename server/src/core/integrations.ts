@@ -15,7 +15,7 @@
 import { config } from './config.js'
 import { conflict } from './errors.js'
 
-export type IntegrazioneKey = 'openai' | 'gmail' | 'shopify' | 'analytics' | 'fatture-sdi'
+export type IntegrazioneKey = 'openai' | 'gmail' | 'shopify' | 'analytics' | 'fatture-sdi' | 'drive'
 
 type Definizione = {
   /** Nome leggibile, usato nei messaggi mostrati in app. */
@@ -67,6 +67,15 @@ const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
     variabili: ['SDI_PROVIDER', 'SDI_API_KEY', 'SDI_WEBHOOK_SECRET'],
     riferimento: 'Integrazioni_Setup.md §5',
     valori: () => [config.sdiProvider, config.sdiApiKey, config.sdiWebhookSecret],
+  },
+  drive: {
+    nome: 'Google Drive (foto dei capi)',
+    scopo: 'leggere le cartelle Drive per collegare tutte le foto di un capo in una volta (FR-16)',
+    // Una sola variabile, con due nomi possibili: il service account di Analytics va bene
+    // anche per Drive, basta condividergli la cartella.
+    variabili: ['GOOGLE_SERVICE_ACCOUNT_JSON'],
+    riferimento: 'Integrazioni_Setup.md §6',
+    valori: () => [config.googleServiceAccountJson || config.gaCredentialsJson || config.gaCredentialsFile],
   },
   analytics: {
     nome: 'Google Analytics 4',
