@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Badge } from '../../components/ui/Badge'
@@ -45,7 +44,6 @@ export function OrdersPage() {
 
   return (
     <div>
-      <PageHeader title="Ordini" subtitle="Ordini e-commerce e punto vendita, per la gestione operativa." />
       <Toolbar
         search={search}
         onSearchChange={setSearch}

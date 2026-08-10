@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { StatusBadge } from '../../lib/statusBadge'
@@ -13,11 +12,10 @@ export function ShopifyPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Integrazione Shopify"
-        subtitle="Predisposizione dati per la sincronizzazione: nessuna sincronizzazione live in questa fase."
-        action={<Badge variant="info">Predisposizione, implementazione in fase successiva</Badge>}
-      />
+      <div className="mb-6 flex flex-col gap-2 rounded-heemia-lg border border-heemia-border bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-heemia-grey">Stato dei prodotti, divergenze di stock e ordini provenienti dal canale Shopify.</p>
+        <Badge variant="info">Predisposizione, implementazione in fase successiva</Badge>
+      </div>
 
       <Card className="mb-6">
         <CardHeader title="Stato pubblicazione prodotti" />

@@ -18,6 +18,7 @@ import { FinishedGoodsInventory } from './pages/inventory/FinishedGoodsInventory
 import { LavorazioniPage } from './pages/lavorazioni/LavorazioniPage'
 import { BollaDetail } from './pages/lavorazioni/BollaDetail'
 import { OrdersPage } from './pages/orders/OrdersPage'
+import { SalesChannelsPage } from './pages/orders/SalesChannelsPage'
 import { RichiesteShowroomPage } from './pages/richieste/RichiesteShowroomPage'
 import { InvoicesDeadlinesPage } from './pages/invoices/InvoicesDeadlinesPage'
 import { InvoiceList } from './pages/invoices/InvoiceList'
@@ -85,8 +86,14 @@ export function AppRouter() {
             {/* Bolle di lavorazione esterna: elenco e scheda del singolo documento. */}
             <Route path="/lavorazioni" element={<RoleGuard moduleKey="lavorazioni"><LavorazioniPage /></RoleGuard>} />
             <Route path="/lavorazioni/:id" element={<RoleGuard moduleKey="lavorazioni"><BollaDetail /></RoleGuard>} />
-            <Route path="/ordini" element={<RoleGuard moduleKey="ordini"><OrdersPage /></RoleGuard>} />
-            <Route path="/richieste-showroom" element={<RoleGuard moduleKey="richieste-showroom"><RichiesteShowroomPage /></RoleGuard>} />
+            {/* Vista unica del flusso commerciale: richieste showroom, ordini e Shopify. */}
+            <Route path="/ordini" element={<RoleGuard moduleKey="ordini"><SalesChannelsPage /></RoleGuard>}>
+              <Route index element={<Navigate to="elenco" replace />} />
+              <Route path="elenco" element={<OrdersPage />} />
+              <Route path="showroom" element={<RoleGuard moduleKey="richieste-showroom"><RichiesteShowroomPage /></RoleGuard>} />
+              <Route path="shopify" element={<RoleGuard moduleKey="shopify"><ShopifyPage /></RoleGuard>} />
+            </Route>
+            <Route path="/richieste-showroom" element={<Navigate to="/ordini/showroom" replace />} />
             {/* Vista unica Fatture e scadenze: una voce di menu, due schede interne. */}
             <Route path="/fatture" element={<RoleGuard moduleKey="fatture"><InvoicesDeadlinesPage /></RoleGuard>}>
               <Route index element={<Navigate to="elenco" replace />} />
@@ -103,7 +110,7 @@ export function AppRouter() {
             </Route>
             <Route path="/fornitori" element={<RoleGuard moduleKey="fornitori"><SupplierList /></RoleGuard>} />
             <Route path="/clienti" element={<RoleGuard moduleKey="clienti"><CustomerList /></RoleGuard>} />
-            <Route path="/shopify" element={<RoleGuard moduleKey="shopify"><ShopifyPage /></RoleGuard>} />
+            <Route path="/shopify" element={<Navigate to="/ordini/shopify" replace />} />
             {/* Vecchio indirizzo dei Report economici: i link salvati continuano a funzionare. */}
             <Route path="/report" element={<Navigate to="/margini/report" replace />} />
             <Route path="/analytics" element={<RoleGuard moduleKey="analytics"><AnalyticsPage /></RoleGuard>} />

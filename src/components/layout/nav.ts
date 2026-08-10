@@ -30,10 +30,9 @@ export const NAV_GROUPS: NavGroup[] = [
       // dell'inventario — è il posto dove finisce il materiale che esce dal magazzino
       // senza essere venduto.
       { label: 'Bolle / Lavorazioni esterne', path: '/lavorazioni', moduleKey: 'lavorazioni' },
-      { label: 'Ordini', path: '/ordini', moduleKey: 'ordini' },
-      // Richieste dalla vista cliente showroom: stanno accanto agli ordini perché è lì che
-      // finiscono una volta confermate (DEC-044).
-      { label: 'Richieste showroom', path: '/richieste-showroom', moduleKey: 'richieste-showroom' },
+      // Una richiesta showroom confermata diventa un ordine; Shopify è l'altro canale da
+      // cui arrivano ordini. Le tre viste sono quindi schede della stessa pagina.
+      { label: 'Ordini e canali di vendita', path: '/ordini', moduleKey: 'ordini' },
     ],
   },
   {
@@ -52,7 +51,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Fornitori', path: '/fornitori', moduleKey: 'fornitori' },
       { label: 'Clienti', path: '/clienti', moduleKey: 'clienti' },
-      { label: 'Shopify', path: '/shopify', moduleKey: 'shopify' },
       { label: 'Analytics', path: '/analytics', moduleKey: 'analytics' },
     ],
   },

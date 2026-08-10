@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Badge } from '../../components/ui/Badge'
@@ -9,8 +8,9 @@ import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt, formatDateTimeIt } from '../../lib/format'
 import { useRole } from '../../context/RoleContext'
 import { canEdit } from '../../lib/permissions'
-import { useServerShowroomRequests, type PatchRichiesta } from '../../hooks/useServerShowroomRequests'
+import type { PatchRichiesta } from '../../hooks/useServerShowroomRequests'
 import type { ShowroomRequest, StatoRichiestaShowroom } from '../../types'
+import { useSalesChannelsOutlet } from '../orders/salesChannelsOutlet'
 
 // Spec 2026-08-06 §7 — le richieste aperte dal cliente nella vista showroom, lavorate qui
 // dall'atelier. Alla conferma il server crea l'ordine SM-* collegato (DEC-044): è il punto
@@ -224,7 +224,7 @@ function DettaglioRichiesta({
 
 export function RichiesteShowroomPage() {
   const { role } = useRole()
-  const { richieste, caricamento, errore, aggiorna } = useServerShowroomRequests()
+  const { showroom: { richieste, caricamento, errore, aggiorna } } = useSalesChannelsOutlet()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [tipo, setTipo] = useState('')
@@ -276,10 +276,9 @@ export function RichiesteShowroomPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Richieste showroom"
-        subtitle="Personalizzazioni su misura e richieste di informazioni arrivate dalla vista cliente. Confermando una richiesta si crea l'ordine su misura collegato."
-      />
+      <p className="mb-5 text-sm text-heemia-grey">
+        Personalizzazioni e richieste arrivate dalla vista cliente. Confermando una richiesta si crea l'ordine su misura collegato.
+      </p>
       {errore && (
         <p role="alert" className="mb-4 rounded-heemia border-l-2 border-heemia-carmine bg-heemia-carmine-light px-3 py-2 text-sm text-heemia-black">
           {errore}
