@@ -6,7 +6,7 @@ export type ModuleKey =
   | 'dashboard' | 'prodotti' | 'produzione' | 'inventario' | 'ordini' | 'fatture'
   | 'scadenze' | 'costi-margini' | 'fornitori' | 'clienti' | 'shopify' | 'report'
   | 'analytics' | 'alert' | 'ai-assistant' | 'activity-log' | 'impostazioni'
-  | 'richieste-showroom'
+  | 'richieste-showroom' | 'lavorazioni'
 
 const ADMIN_CEO: Role[] = ['admin', 'ceo']
 const ALL_INTERNAL: Role[] = ['admin', 'ceo', 'team', 'viewer']
@@ -21,6 +21,11 @@ const MODULE_ACCESS: Record<ModuleKey, Role[]> = {
   // cliente in showroom, quindi stessa apertura di "ordini". Contiene contatto e misure,
   // non dati economici aziendali.
   'richieste-showroom': ALL_INTERNAL,
+  // Bolle di lavorazione esterna (2026-08-10): è lavoro di magazzino — chi prepara la
+  // consegna al lavorante e chi registra il rientro. Stessa apertura di "inventario", di
+  // cui è la continuazione naturale; nessun dato economico. La chiusura con differenza
+  // resta però riservata ad admin/CEO (controllo in lavorazioni/service.ts).
+  lavorazioni: ALL_INTERNAL,
   fatture: ADMIN_CEO,
   scadenze: ADMIN_CEO,
   'costi-margini': ADMIN_CEO,

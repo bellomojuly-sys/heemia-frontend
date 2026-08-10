@@ -1,12 +1,10 @@
 import { useMemo } from 'react'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { formatCurrency, formatPercent, formatDateIt } from '../../lib/format'
 import { EmptyState } from '../../components/ui/States'
 import { useMockStore } from '../../context/MockStore'
-import { useLiveMargins } from '../../hooks/useLiveMargins'
-import { useServerReports } from '../../hooks/useServerReports'
+import { useEconomicsOutlet } from '../margins/economicsOutlet'
 
 function StatRow({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
@@ -19,9 +17,10 @@ function StatRow({ label, value, accent = false }: { label: string; value: strin
 
 export function ReportsPage() {
   const { products, materials, accessories, invoices, orders, suppliers, inventoryRecords, productVariants } = useMockStore()
-  const liveMargins = useLiveMargins()
-  // Report calcolati dal server sui dati correnti (non una fotografia salvata).
-  const monthlyReports = useServerReports()
+  // Margini e report li carica il contenitore "Costi, margini e report": è la stessa lista
+  // che alimenta la scheda Costi e margini, quindi i due numeri non possono divergere.
+  // I report restano calcolati dal server sui dati correnti, non una fotografia salvata.
+  const { margins: liveMargins, reports: monthlyReports } = useEconomicsOutlet()
 
   // FR-26: margine per categoria/collezione, costi per fornitore/materiale, valore magazzini
   // e andamento mensile, derivati dai dati correnti (stato di sessione incluso).
@@ -83,7 +82,8 @@ export function ReportsPage() {
 
   return (
     <div>
-      <PageHeader title="Report economici" subtitle="Report mensili generati automaticamente, con notifica alla data di generazione." />
+      {/* Scheda dentro "Costi, margini e report": l'intestazione la mette il contenitore. */}
+      <p className="mb-4 text-sm text-heemia-grey">Report mensili generati automaticamente, con notifica alla data di generazione.</p>
 
       {monthlyReports.length === 0 ? (
         <EmptyState title="Nessun report generato" description="I report si generano dai movimenti registrati: appena ci sono ordini o fatture, qui compare il mese corrispondente." />

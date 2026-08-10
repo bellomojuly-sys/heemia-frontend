@@ -137,7 +137,13 @@ export function FabricsInventory() {
     { header: 'Fornitore', accessor: (m) => suppliers.find((s) => s.id === m.supplierId)?.nome ?? '–' },
     { header: 'Colore', accessor: (m) => m.colore },
     { header: 'Prezzo/m', accessor: (m) => formatCurrency(m.prezzoAlMetro), align: 'right' },
-    { header: 'Residui', accessor: (m) => `${(m.metriAcquistati - m.metriUtilizzati).toFixed(1)} ${m.unitaMisura}`, align: 'right' },
+    {
+      header: 'Integro',
+      accessor: (m) => `${Math.max(m.metriAcquistati - m.metriUtilizzati - m.metriPressoTerzisti - m.metriScampoli, 0).toFixed(1)} ${m.unitaMisura}`,
+      align: 'right',
+    },
+    { header: 'Scampoli', accessor: (m) => `${m.metriScampoli.toFixed(1)} ${m.unitaMisura}`, align: 'right' },
+    { header: 'Presso lavoranti', accessor: (m) => `${m.metriPressoTerzisti.toFixed(1)} ${m.unitaMisura}`, align: 'right' },
     { header: 'Stato', accessor: (m) => <StatusBadge status={m.stato} /> },
     {
       header: '',
@@ -208,6 +214,8 @@ export function FabricsInventory() {
               <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Data acquisto</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{formatDateIt(m.dataAcquisto)}</p></div>
               <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Stagione</p><p className="mt-0.5 text-heemia-black">{m.stagione}</p></div>
               <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Acquistati / utilizzati</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{m.metriAcquistati} / {m.metriUtilizzati} {m.unitaMisura}</p></div>
+              <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Scampoli riutilizzabili</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{m.metriScampoli} {m.unitaMisura}</p></div>
+              <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Presso lavoranti</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{m.metriPressoTerzisti} {m.unitaMisura}</p></div>
               <div>
                 <p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Fattura collegata</p>
                 <p className="mt-0.5 text-heemia-black">

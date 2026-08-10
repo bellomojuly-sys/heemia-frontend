@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
 import { FileText, ExternalLink, Upload, Sparkles } from 'lucide-react'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Badge } from '../../components/ui/Badge'
@@ -703,11 +702,13 @@ export function InvoiceList() {
 
   return (
     <div>
-      <PageHeader
-        title="Fatture"
-        subtitle="Fatture fornitori, clienti, materiali e costi aziendali centralizzati. Apri una riga per allegato e associazioni."
-        action={canEdit(role) ? <Button onClick={() => setModalOpen(true)}>Aggiungi fattura</Button> : undefined}
-      />
+      {/* Scheda dentro "Fatture e scadenze": l'intestazione della pagina la mette il contenitore. */}
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <p className="text-sm text-heemia-grey">
+          Fatture fornitori, clienti, materiali e costi aziendali centralizzati. Apri una riga per allegato e associazioni.
+        </p>
+        {canEdit(role) && <Button onClick={() => setModalOpen(true)}>Aggiungi fattura</Button>}
+      </div>
 
       <ImportFattureSection />
       <CashClosureSection />

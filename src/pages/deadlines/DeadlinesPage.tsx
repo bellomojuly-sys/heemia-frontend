@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { KpiTile } from '../../components/dashboard/KpiTile'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { StatusBadge } from '../../lib/statusBadge'
@@ -8,7 +7,7 @@ import { formatCurrency, formatDateIt } from '../../lib/format'
 import { daysBetween } from '../../lib/alerts'
 import type { Deadline } from '../../types'
 import { useMockStore } from '../../context/MockStore'
-import { useServerDeadlines } from '../../hooks/useServerDeadlines'
+import { useAmministrazioneOutlet } from '../invoices/amministrazioneOutlet'
 
 const TIPO_LABEL: Record<string, string> = {
   fattura_da_pagare: 'Fattura da pagare', fattura_da_incassare: 'Fattura da incassare', iva: 'IVA',
@@ -17,8 +16,9 @@ const TIPO_LABEL: Record<string, string> = {
 
 export function DeadlinesPage() {
   const { invoices, caricamento } = useMockStore()
-  // Scadenze dal database: registrate + derivate dalle fatture da pagare.
-  const deadlines = useServerDeadlines()
+  // Scadenze dal database (registrate + derivate dalle fatture da pagare): le carica
+  // il contenitore "Fatture e scadenze", che le usa anche per il contatore della scheda.
+  const { deadlines } = useAmministrazioneOutlet()
   const stats = useMemo(() => {
     const in7 = deadlines.filter((d) => { const g = daysBetween(d.data); return g >= 0 && g <= 7 })
     const in30 = deadlines.filter((d) => { const g = daysBetween(d.data); return g > 7 && g <= 30 })
@@ -39,7 +39,7 @@ export function DeadlinesPage() {
       header: 'Collegata a',
       accessor: (d) => {
         const inv = invoices.find((i) => i.id === d.collegatoA)
-        return inv ? <Link to="/fatture" className="font-mono-heemia text-xs text-heemia-black hover:underline">{inv.numero}</Link> : '–'
+        return inv ? <Link to="/fatture/elenco" className="font-mono-heemia text-xs text-heemia-black hover:underline">{inv.numero}</Link> : '–'
       },
     },
   ]
@@ -48,7 +48,8 @@ export function DeadlinesPage() {
 
   return (
     <div>
-      <PageHeader title="Scadenze" subtitle="Fatture, adempimenti fiscali e reminder amministrativi." />
+      {/* Scheda dentro "Fatture e scadenze": l'intestazione della pagina la mette il contenitore. */}
+      <p className="mb-4 text-sm text-heemia-grey">Fatture, adempimenti fiscali e reminder amministrativi.</p>
 
       <div className="mb-6 flex flex-wrap gap-3">
         <KpiTile label="Entro 7 giorni" value={stats.in7} critical={stats.in7 > 0} />

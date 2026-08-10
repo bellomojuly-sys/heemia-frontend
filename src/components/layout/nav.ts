@@ -26,6 +26,10 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Inventario',
     items: [
       { label: 'Inventario', path: '/inventario', moduleKey: 'inventario' },
+      // Bolle di lavorazione esterna (2026-08-10): sta qui perché è la continuazione
+      // dell'inventario — è il posto dove finisce il materiale che esce dal magazzino
+      // senza essere venduto.
+      { label: 'Bolle / Lavorazioni esterne', path: '/lavorazioni', moduleKey: 'lavorazioni' },
       { label: 'Ordini', path: '/ordini', moduleKey: 'ordini' },
       // Richieste dalla vista cliente showroom: stanno accanto agli ordini perché è lì che
       // finiscono una volta confermate (DEC-044).
@@ -33,12 +37,14 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    // Due viste uniche invece di quattro voci (2026-08-10), stesso schema di FR-36 per
+    // l'Inventario: le scadenze nascono dalle fatture da pagare e i report economici sono
+    // la lettura mensile degli stessi margini, quindi le schede stanno dentro la pagina.
+    // Nessun cambio di permessi: le quattro chiavi sono tutte Admin/CEO.
     label: 'Economico',
     items: [
-      { label: 'Fatture', path: '/fatture', moduleKey: 'fatture' },
-      { label: 'Scadenze', path: '/scadenze', moduleKey: 'scadenze' },
-      { label: 'Costi e margini', path: '/margini', moduleKey: 'costi-margini' },
-      { label: 'Report economici', path: '/report', moduleKey: 'report' },
+      { label: 'Fatture e scadenze', path: '/fatture', moduleKey: 'fatture' },
+      { label: 'Costi, margini e report', path: '/margini', moduleKey: 'costi-margini' },
     ],
   },
   {

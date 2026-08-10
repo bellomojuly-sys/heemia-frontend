@@ -350,6 +350,8 @@ export interface Material {
   prezzoAlMetro: number
   metriAcquistati: number
   metriUtilizzati: number
+  metriPressoTerzisti: number
+  metriScampoli: number
   fatturaId?: string
   dataAcquisto: string
   stagione: string
@@ -370,6 +372,8 @@ export interface Accessory {
   supplierId: string
   quantitaAcquistata: number
   quantitaUtilizzata: number
+  quantitaPressoTerzisti: number
+  quantitaScampoli: number
   costoUnitario: number
   fatturaId?: string
   prodottiCollegatiIds: string[]
@@ -861,4 +865,146 @@ export interface ShowroomRequest {
   preventivoInviatoIl?: string
   appuntamentoIl?: string
   ordine?: { id: string; numero: string; stato: string }
+}
+
+// ---------------------------------------------------------------------------
+// Bolle / DDT di lavorazione esterna (richiesta di Giulia 2026-08-10)
+// ---------------------------------------------------------------------------
+// La merce consegnata a un lavorante resta di proprietà dell'azienda: non è venduta
+// e non è consumata, è solo altrove. Da qui i due residui che compaiono ovunque in
+// questa sezione — il patrimonio (quanto possediamo) e il disponibile in casa
+// (quanto possiamo consegnare o tagliare oggi).
+
+export type StatoBolla = 'bozza' | 'emessa' | 'parzialmente_rientrata' | 'chiusa' | 'annullata'
+
+export type CausaleBolla =
+  | 'conto_lavorazione'
+  | 'conto_visione'
+  | 'riparazione'
+  | 'campionatura'
+  | 'reso_a_fornitore'
+  | 'altro'
+
+export type TipoArticoloBolla = 'materiale' | 'accessorio' | 'variante'
+export type ProvenienzaRigaBolla = 'magazzino' | 'scampoli'
+
+/** Un articolo dell'inventario visto dal selettore di riga, con la disponibilità vera. */
+export interface ArticoloDisponibile {
+  tipo: TipoArticoloBolla
+  id: string
+  descrizione: string
+  sku?: string
+  unitaMisura: string
+  /** Quanto se ne può consegnare adesso: patrimonio meno ciò che è già presso altri. */
+  disponibile: number
+  /** Recuperi riutilizzabili, selezionabili esplicitamente ma separati dal materiale integro. */
+  scampoli: number
+  pressoTerzisti: number
+  patrimonio: number
+}
+
+export interface RigaBolla {
+  id: string
+  materialId?: string
+  accessoryId?: string
+  variantId?: string
+  /** Copie storiche prese quando la riga è stata creata: la bolla resta leggibile per sempre. */
+  descrizione: string
+  sku?: string
+  unitaMisura: string
+  lotto?: string
+  colore?: string
+  variante?: string
+  note?: string
+  provenienza: ProvenienzaRigaBolla
+  costoUnitario: number
+  fonteCosto: CostSource
+  quantitaInviata: number
+  quantitaUtilizzata: number
+  quantitaRestituita: number
+  quantitaScartoRecuperato: number
+  quantitaScartoPerso: number
+  costoConsumato: number
+  costoPerso: number
+  /** inviata − utilizzata − restituita − recuperata − persa. */
+  quantitaPressoLavorante: number
+}
+
+export interface RientroBolla {
+  id: string
+  data: string
+  numeroDocumentoLavorante?: string
+  note?: string
+  createdAt: string
+  registratoDa?: { id: string; nome: string }
+  righe: {
+    id: string
+    rigaId: string
+    quantitaUtilizzata: number
+    quantitaRestituita: number
+    quantitaScartoRecuperato: number
+    quantitaScartoPerso: number
+    note?: string
+  }[]
+  capi: { id: string; variantId: string; sku: string; taglia: string; colore: string; quantita: number; note?: string }[]
+  allegati: { id: string; nome: string; caricatoIl: string }[]
+}
+
+export interface MovimentoLavorazione {
+  id: string
+  rigaId?: string
+  rientroId?: string
+  tipo: 'uscita_materiale' | 'rientro_inutilizzato' | 'consumo' | 'scarto_recuperato' | 'scarto' | 'carico_finiti' | 'storno_uscita'
+  /** `consumato` e `scarto` non sono luoghi: sono i due modi in cui la merce esce dal patrimonio. */
+  da: 'magazzino' | 'produzione_esterna' | 'scampoli' | 'consumato' | 'scarto'
+  a: 'magazzino' | 'produzione_esterna' | 'scampoli' | 'consumato' | 'scarto'
+  quantita: number
+  costoUnitario: number
+  valore: number
+  descrizione: string
+  unitaMisura: string
+  motivo?: string
+  note?: string
+  createdAt: string
+  eseguitoDa?: { id: string; nome: string }
+}
+
+export interface BollaLavorazione {
+  id: string
+  /** Null finché è bozza: il progressivo si assegna all'emissione, per non lasciare buchi. */
+  numero?: string
+  /** Numero se c'è, altrimenti "Bozza · <id breve>". */
+  etichetta: string
+  data: string
+  causale: CausaleBolla
+  stato: StatoBolla
+  supplierId: string
+  lavorante: { id: string; nome: string; partitaIva?: string; citta?: string; email?: string }
+  /** Ragione sociale congelata all'emissione, quando c'è. */
+  lavoranteNome?: string
+  lavorantePartitaIva?: string
+  prodotto?: { id: string; nome: string; codiceProdotto: string }
+  schedaTecnica?: { id: string; versione: string; statoScheda: string }
+  commessa?: string
+  ordine?: { id: string; numero: string }
+  quantitaAttesa: number
+  note?: string
+  differenzaNote?: string
+  chiusaConDifferenza: boolean
+  righe: RigaBolla[]
+  rientri: RientroBolla[]
+  allegati: { id: string; nome: string; caricatoIl: string }[]
+  capiRientrati: number
+  tuttoRiconciliato: boolean
+  materialeAncoraFuori: number
+  costoConsumato: number
+  costoPerso: number
+  costoLavorazione: number
+  creataDa?: { id: string; nome: string }
+  emittente?: { id: string; nome: string }
+  chiuditore?: { id: string; nome: string }
+  emessaIl?: string
+  chiusaIl?: string
+  annullataIl?: string
+  createdAt: string
 }

@@ -15,10 +15,14 @@ import { InventoryPage } from './pages/inventory/InventoryPage'
 import { FabricsInventory } from './pages/inventory/FabricsInventory'
 import { AccessoriesInventory } from './pages/inventory/AccessoriesInventory'
 import { FinishedGoodsInventory } from './pages/inventory/FinishedGoodsInventory'
+import { LavorazioniPage } from './pages/lavorazioni/LavorazioniPage'
+import { BollaDetail } from './pages/lavorazioni/BollaDetail'
 import { OrdersPage } from './pages/orders/OrdersPage'
 import { RichiesteShowroomPage } from './pages/richieste/RichiesteShowroomPage'
+import { InvoicesDeadlinesPage } from './pages/invoices/InvoicesDeadlinesPage'
 import { InvoiceList } from './pages/invoices/InvoiceList'
 import { DeadlinesPage } from './pages/deadlines/DeadlinesPage'
+import { EconomicsPage } from './pages/margins/EconomicsPage'
 import { MarginsPage } from './pages/margins/MarginsPage'
 import { SupplierList } from './pages/suppliers/SupplierList'
 import { CustomerList } from './pages/customers/CustomerList'
@@ -78,15 +82,30 @@ export function AppRouter() {
               <Route path="accessori" element={<AccessoriesInventory />} />
               <Route path="prodotti-finiti" element={<FinishedGoodsInventory />} />
             </Route>
+            {/* Bolle di lavorazione esterna: elenco e scheda del singolo documento. */}
+            <Route path="/lavorazioni" element={<RoleGuard moduleKey="lavorazioni"><LavorazioniPage /></RoleGuard>} />
+            <Route path="/lavorazioni/:id" element={<RoleGuard moduleKey="lavorazioni"><BollaDetail /></RoleGuard>} />
             <Route path="/ordini" element={<RoleGuard moduleKey="ordini"><OrdersPage /></RoleGuard>} />
             <Route path="/richieste-showroom" element={<RoleGuard moduleKey="richieste-showroom"><RichiesteShowroomPage /></RoleGuard>} />
-            <Route path="/fatture" element={<RoleGuard moduleKey="fatture"><InvoiceList /></RoleGuard>} />
-            <Route path="/scadenze" element={<RoleGuard moduleKey="scadenze"><DeadlinesPage /></RoleGuard>} />
-            <Route path="/margini" element={<RoleGuard moduleKey="costi-margini"><MarginsPage /></RoleGuard>} />
+            {/* Vista unica Fatture e scadenze: una voce di menu, due schede interne. */}
+            <Route path="/fatture" element={<RoleGuard moduleKey="fatture"><InvoicesDeadlinesPage /></RoleGuard>}>
+              <Route index element={<Navigate to="elenco" replace />} />
+              <Route path="elenco" element={<InvoiceList />} />
+              <Route path="scadenze" element={<RoleGuard moduleKey="scadenze"><DeadlinesPage /></RoleGuard>} />
+            </Route>
+            {/* Vecchio indirizzo delle Scadenze: i link salvati continuano a funzionare. */}
+            <Route path="/scadenze" element={<Navigate to="/fatture/scadenze" replace />} />
+            {/* Vista unica Costi, margini e report. */}
+            <Route path="/margini" element={<RoleGuard moduleKey="costi-margini"><EconomicsPage /></RoleGuard>}>
+              <Route index element={<Navigate to="costi" replace />} />
+              <Route path="costi" element={<MarginsPage />} />
+              <Route path="report" element={<RoleGuard moduleKey="report"><ReportsPage /></RoleGuard>} />
+            </Route>
             <Route path="/fornitori" element={<RoleGuard moduleKey="fornitori"><SupplierList /></RoleGuard>} />
             <Route path="/clienti" element={<RoleGuard moduleKey="clienti"><CustomerList /></RoleGuard>} />
             <Route path="/shopify" element={<RoleGuard moduleKey="shopify"><ShopifyPage /></RoleGuard>} />
-            <Route path="/report" element={<RoleGuard moduleKey="report"><ReportsPage /></RoleGuard>} />
+            {/* Vecchio indirizzo dei Report economici: i link salvati continuano a funzionare. */}
+            <Route path="/report" element={<Navigate to="/margini/report" replace />} />
             <Route path="/analytics" element={<RoleGuard moduleKey="analytics"><AnalyticsPage /></RoleGuard>} />
             <Route path="/alert" element={<RoleGuard moduleKey="alert"><AlertsPage /></RoleGuard>} />
             <Route path="/assistente" element={<RoleGuard moduleKey="ai-assistant"><AiAssistantPage /></RoleGuard>} />

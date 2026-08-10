@@ -466,7 +466,7 @@ export function ProductDetail() {
           )}
 
           <p className="text-xs text-heemia-grey">
-            La quota costi fissi per capo si configura in <Link to="/margini" className="underline hover:text-heemia-black">Costi e margini</Link>.
+            La quota costi fissi per capo si configura in <Link to="/margini/costi" className="underline hover:text-heemia-black">Costi e margini</Link>.
           </p>
         </div>
       )}

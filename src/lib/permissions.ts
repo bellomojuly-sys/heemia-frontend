@@ -11,6 +11,7 @@ export type ModuleKey =
   | 'prodotti'
   | 'produzione'
   | 'inventario'
+  | 'lavorazioni'
   | 'ordini'
   | 'richieste-showroom'
   | 'fatture'
@@ -36,6 +37,10 @@ const MODULE_ACCESS: Record<ModuleKey, Role[]> = {
   // FR-36 / DEC-020: vista unica Inventario — le tre chiavi separate (tessuti/accessori/prodotti)
   // avevano comunque accesso identico, quindi la fusione non cambia alcun comportamento di gating.
   inventario: ADMIN_CEO_TEAM_VIEWER,
+  // Bolle di lavorazione esterna (2026-08-10): lavoro di magazzino, stessa apertura
+  // dell'inventario. La chiusura di una lavorazione **con differenza** resta però
+  // riservata ad Admin/CEO — quel controllo lo fa il server, che è l'autorità.
+  lavorazioni: ADMIN_CEO_TEAM_VIEWER,
   // La matrice assegna esplicitamente "ordini" al Team interno; pagina dedicata separata
   // da Clienti (che resta Admin/CEO perché include dati commerciali e sconti).
   ordini: ADMIN_CEO_TEAM_VIEWER,

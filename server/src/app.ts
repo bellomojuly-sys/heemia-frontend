@@ -18,6 +18,7 @@ import { supplierRoutes } from './modules/suppliers/routes.js'
 import { orderRoutes } from './modules/orders/routes.js'
 import { invoiceRoutes } from './modules/invoices/routes.js'
 import { inventoryRoutes } from './modules/inventory/routes.js'
+import { lavorazioniRoutes } from './modules/lavorazioni/routes.js'
 import { alertRoutes } from './modules/alerts/routes.js'
 import { dashboardRoutes } from './modules/dashboard/routes.js'
 import { reportRoutes } from './modules/reports/routes.js'
@@ -106,6 +107,7 @@ export async function buildApp() {
   await app.register(orderRoutes, { prefix: API_PREFIX })
   await app.register(invoiceRoutes, { prefix: API_PREFIX })
   await app.register(inventoryRoutes, { prefix: API_PREFIX })
+  await app.register(lavorazioniRoutes, { prefix: API_PREFIX })
   await app.register(alertRoutes, { prefix: API_PREFIX })
   await app.register(dashboardRoutes, { prefix: API_PREFIX })
   await app.register(reportRoutes, { prefix: API_PREFIX })

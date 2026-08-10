@@ -429,13 +429,14 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
-   Export PDF della scheda tecnica (FR-14).
-   Nessuna libreria PDF: il documento #sheet-print è nascosto a schermo e reso
-   visibile solo in stampa, così "Salva come PDF" del browser produce un file
-   con l'identità visiva Heemia. Il resto dell'app viene escluso dalla stampa.
+   Export PDF: scheda tecnica (FR-14) e bolla di lavorazione esterna (2026-08-10).
+   Nessuna libreria PDF: i documenti sono nascosti a schermo e resi visibili solo
+   in stampa, così "Salva come PDF" del browser produce un file con l'identità
+   visiva Heemia. Il resto dell'app viene escluso dalla stampa.
    --------------------------------------------------------------------------- */
 
-#sheet-print {
+#sheet-print,
+#bolla-print {
   display: none;
 }
 
@@ -450,14 +451,17 @@ body {
   }
 
   /* Nasconde l'applicazione (e qualunque altro portal: modali, toast) lasciando solo
-     il documento della scheda. Il documento è montato da SheetPdfDocument con un portal
-     direttamente su <body>: deve restare FRATELLO di #root, non figlio, altrimenti il
-     display:none dell'antenato lo nasconderebbe e l'export uscirebbe bianco. */
-  body > *:not(#sheet-print) {
+     il documento da stampare. I documenti sono montati con un portal direttamente su
+     <body>: devono restare FRATELLI di #root, non figli, altrimenti il display:none
+     dell'antenato li nasconderebbe e l'export uscirebbe bianco.
+     Due documenti stampabili, mai contemporaneamente a schermo: la scheda tecnica
+     (#sheet-print) e la bolla di lavorazione esterna (#bolla-print). */
+  body > *:not(#sheet-print):not(#bolla-print) {
     display: none !important;
   }
 
-  #sheet-print {
+  #sheet-print,
+  #bolla-print {
     display: block;
     font-family: var(--font-sans);
     color: var(--color-heemia-black);
@@ -468,7 +472,9 @@ body {
   /* Le rifiniture di Fase 14 (ombre, animazioni) non devono finire sulla carta:
      su stampa sporcano i bordi e possono bloccare il rendering della pagina. */
   #sheet-print,
-  #sheet-print * {
+  #sheet-print *,
+  #bolla-print,
+  #bolla-print * {
     box-shadow: none !important;
     animation: none !important;
     transition: none !important;

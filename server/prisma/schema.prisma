@@ -316,6 +316,73 @@ enum CommitmentStato {
   annullato
 }
 
+// --- Bolle / DDT di lavorazione esterna (richiesta di Giulia 2026-08-10) ---
+//
+// Ciclo del documento. Una bolla nasce `bozza` e in quello stato **non tocca nessuna
+// giacenza**: è un foglio che si sta ancora compilando. All'emissione i materiali escono
+// dal magazzino e si fermano "presso il lavorante"; da lì tornano indietro (restituiti),
+// spariscono (consumati o scartati) oppure restano fuori finché non arriva un altro rientro.
+//
+//   bozza → emessa → parzialmente_rientrata → chiusa
+//     ↓        ↓
+//   annullata (solo finché nessun rientro è stato registrato)
+enum BollaLavorazioneStato {
+  bozza
+  emessa
+  parzialmente_rientrata
+  chiusa
+  annullata
+}
+
+/// Perché la merce esce. "Conto lavorazione" è il caso normale (il lavorante trasforma
+/// materiale nostro e ce lo restituisce come capo); gli altri servono a non forzare
+/// dentro quella causale uscite che hanno tutt'altro significato fiscale e operativo.
+enum BollaCausale {
+  conto_lavorazione
+  conto_visione
+  riparazione
+  campionatura
+  reso_a_fornitore
+  altro
+}
+
+/// Cosa è successo alla quantità. Il `tipo` dice il fatto, le due ubicazioni dicono da
+/// dove a dove: insieme rendono il registro sommabile per differenza.
+///
+/// Sullo scarto ci sono **due** tipi e non uno, perché in atelier lo scarto non è una cosa
+/// sola: i ritagli di una pezza spesso si riusano (tasche, campioni, capi piccoli) e restano
+/// patrimonio, mentre il tessuto rovinato è perso davvero. Trattarli insieme voleva dire
+/// scaricare come perdita della roba che è ancora in casa.
+enum MovimentoLavorazioneTipo {
+  uscita_materiale
+  rientro_inutilizzato
+  consumo
+  scarto_recuperato
+  scarto
+  carico_finiti
+  storno_uscita
+}
+
+/// Estremi di un movimento del registro lavorazioni. `magazzino`, `produzione_esterna` e
+/// `scampoli` sono posti reali dove la merce sta; `consumato` e `scarto` non lo sono — sono
+/// i due modi in cui una quantità **esce dal patrimonio**. Tenerli qui come estremi di
+/// destinazione è ciò che permette al registro di quadrare: ogni riga ha sempre un "da" e un
+/// "a", e la somma per ubicazione ricostruisce le giacenze.
+enum LavorazioneUbicazione {
+  magazzino
+  produzione_esterna
+  scampoli
+  consumato
+  scarto
+}
+
+/// Da quale riserva viene prelevata una riga. Gli scampoli sono patrimonio disponibile
+/// per usi compatibili, ma non devono essere confusi con una pezza o un articolo integro.
+enum BollaRigaProvenienza {
+  magazzino
+  scampoli
+}
+
 // --- Import tracking (Database_Schema.md §2) ---
 enum ImportStatus {
   in_corso
@@ -338,14 +405,20 @@ model User {
   activityLogs         ActivityLog[]
   aiSessions           AiSession[]
   sessions             Session[]
-  approvedRequests     SupplierRequest[]     @relation("ApprovedBy")
+  approvedRequests     SupplierRequest[]      @relation("ApprovedBy")
   inventoryMovements   InventoryMovement[]
   importBatches        ImportBatch[]
   measurementTemplates MeasurementTemplate[]
   patternDocuments     PatternDocument[]
   patternDocumentNotes PatternDocumentNote[]
-  campioniApprovati    Product[]             @relation("CampioneApprovato")
+  campioniApprovati    Product[]              @relation("CampioneApprovato")
   stockCommitments     StockCommitment[]
+  bolleCreate          BollaLavorazione[]     @relation("BollaCreata")
+  bolleEmesse          BollaLavorazione[]     @relation("BollaEmessa")
+  bolleChiuse          BollaLavorazione[]     @relation("BollaChiusa")
+  rientriRegistrati    BollaRientro[]
+  movimentiLavorazione MovimentoLavorazione[]
+  allegatiBolla        BollaAllegato[]
 
   @@map("users")
 }
@@ -435,6 +508,8 @@ model Supplier {
   listiniMateriali  SupplierMaterial[]
   listiniAccessori  SupplierAccessory[]
   listiniServizi    SupplierServicePrice[]
+  /// Bolle di lavorazione esterna in cui questo fornitore è il lavorante (2026-08-10).
+  bolleLavorazione  BollaLavorazione[]
 
   @@map("suppliers")
 }
@@ -496,6 +571,7 @@ model Product {
   showroomViews     ShowroomProductView[]
   showroomFavorites ShowroomFavorite[]
   showroomRequests  ShowroomRequest[]
+  bolleLavorazione  BollaLavorazione[]
 
   // Colonne filtrate in listProducts()/listProduction() (products/service.ts, production/service.ts).
   @@index([stato])
@@ -538,34 +614,49 @@ model ProductVariant {
   movements     InventoryMovement[]
   snapshotItems InventorySnapshotItem[]
   impegni       StockCommitment[]
+  righeBolle    BollaRiga[]             @relation("BollaRigaVariante")
+  capiRientrati BollaRientroCapo[]      @relation("BollaRientroCapoVariante")
 
   @@index([productId])
   @@map("product_variants")
 }
 
 model Material {
-  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nome             String
-  codice           String        @unique
-  supplierId       String?       @map("supplier_id") @db.Uuid
-  supplier         Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  composizione     String?
-  colore           String?
-  altezzaCm        Decimal?      @map("altezza_cm") @db.Decimal(6, 1)
-  prezzoAlMetro    Decimal       @default(0) @map("prezzo_al_metro") @db.Decimal(10, 2)
-  metriAcquistati  Decimal       @default(0) @map("metri_acquistati") @db.Decimal(10, 2)
-  metriUtilizzati  Decimal       @default(0) @map("metri_utilizzati") @db.Decimal(10, 2)
-  dataAcquisto     DateTime?     @map("data_acquisto") @db.Date
-  stagione         String?
-  consigliLavaggio String?       @map("consigli_lavaggio")
-  noteTecniche     String?       @map("note_tecniche")
-  sogliaMinima     Decimal       @default(0) @map("soglia_minima") @db.Decimal(10, 2)
-  stato            MaterialStato @default(disponibile)
-  unitaMisura      MaterialUnita @default(m) @map("unita_misura")
-  fatturaId        String?       @map("fattura_id") @db.Uuid
-  fattura          Invoice?      @relation(fields: [fatturaId], references: [id], onDelete: SetNull)
-  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                String
+  codice              String        @unique
+  supplierId          String?       @map("supplier_id") @db.Uuid
+  supplier            Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  composizione        String?
+  colore              String?
+  altezzaCm           Decimal?      @map("altezza_cm") @db.Decimal(6, 1)
+  prezzoAlMetro       Decimal       @default(0) @map("prezzo_al_metro") @db.Decimal(10, 2)
+  metriAcquistati     Decimal       @default(0) @map("metri_acquistati") @db.Decimal(10, 2)
+  metriUtilizzati     Decimal       @default(0) @map("metri_utilizzati") @db.Decimal(10, 2)
+  /// Metri fisicamente **presso un lavorante** per una bolla emessa (2026-08-10).
+  /// Non sono usciti dal patrimonio: sono ancora nostri, semplicemente non sono in casa.
+  metriPressoTerzisti Decimal       @default(0) @map("metri_presso_terzisti") @db.Decimal(10, 2)
+  /// Ritagli riutilizzabili tornati da una lavorazione (2026-08-10, decisione di Giulia:
+  /// "gli scarti spesso li riutilizziamo"). Sono in casa e sono nostri, ma non sono pezza
+  /// intera: con 3 m di scampoli non si taglia un cappotto. Per questo stanno in un
+  /// contatore a sé e **non** entrano nel disponibile per il taglio.
+  ///
+  /// Le tre letture che ne derivano:
+  ///   patrimonio            = acquistati − utilizzati                              (tutto ciò che è nostro)
+  ///   disponibile al taglio = acquistati − utilizzati − presso terzisti − scampoli  (pezza intera in casa)
+  ///   scampoli              = questo campo                                         (usabile, ma spezzato)
+  metriScampoli       Decimal       @default(0) @map("metri_scampoli") @db.Decimal(10, 2)
+  dataAcquisto        DateTime?     @map("data_acquisto") @db.Date
+  stagione            String?
+  consigliLavaggio    String?       @map("consigli_lavaggio")
+  noteTecniche        String?       @map("note_tecniche")
+  sogliaMinima        Decimal       @default(0) @map("soglia_minima") @db.Decimal(10, 2)
+  stato               MaterialStato @default(disponibile)
+  unitaMisura         MaterialUnita @default(m) @map("unita_misura")
+  fatturaId           String?       @map("fattura_id") @db.Uuid
+  fattura             Invoice?      @relation(fields: [fatturaId], references: [id], onDelete: SetNull)
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   products         ProductMaterial[]
   tsPrincipale     TechnicalSheet[]         @relation("TessutoPrincipale")
@@ -575,6 +666,7 @@ model Material {
   orderItems       OrderItem[]
   righeSchede      SheetMaterialUsage[]
   listiniFornitori SupplierMaterial[]
+  righeBolle       BollaRiga[]
 
   @@index([supplierId])
   // Filtro stato in listMaterials()/listStockAlerts() (materials/service.ts).
@@ -583,28 +675,35 @@ model Material {
 }
 
 model Accessory {
-  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nome               String
-  codice             String         @unique
-  categoria          String?
-  supplierId         String?        @map("supplier_id") @db.Uuid
-  supplier           Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  quantitaAcquistata Decimal        @default(0) @map("quantita_acquistata") @db.Decimal(10, 2)
-  quantitaUtilizzata Decimal        @default(0) @map("quantita_utilizzata") @db.Decimal(10, 2)
-  costoUnitario      Decimal        @default(0) @map("costo_unitario") @db.Decimal(10, 2)
-  sogliaMinima       Decimal        @default(0) @map("soglia_minima") @db.Decimal(10, 2)
-  stato              MaterialStato  @default(disponibile)
-  unitaMisura        AccessoryUnita @default(cad) @map("unita_misura")
-  fatturaId          String?        @map("fattura_id") @db.Uuid
-  fattura            Invoice?       @relation(fields: [fatturaId], references: [id], onDelete: SetNull)
-  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                   String
+  codice                 String         @unique
+  categoria              String?
+  supplierId             String?        @map("supplier_id") @db.Uuid
+  supplier               Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  quantitaAcquistata     Decimal        @default(0) @map("quantita_acquistata") @db.Decimal(10, 2)
+  quantitaUtilizzata     Decimal        @default(0) @map("quantita_utilizzata") @db.Decimal(10, 2)
+  /// Quantità presso un lavorante per una bolla emessa: stessa logica dei tessuti,
+  /// vedi `Material.metriPressoTerzisti`.
+  quantitaPressoTerzisti Decimal        @default(0) @map("quantita_presso_terzisti") @db.Decimal(10, 2)
+  /// Accessori recuperati da una lavorazione (zip smontate, bottoni ripresi da un capo
+  /// scartato): riutilizzabili ma non nuovi. Vedi `Material.metriScampoli`.
+  quantitaScampoli       Decimal        @default(0) @map("quantita_scampoli") @db.Decimal(10, 2)
+  costoUnitario          Decimal        @default(0) @map("costo_unitario") @db.Decimal(10, 2)
+  sogliaMinima           Decimal        @default(0) @map("soglia_minima") @db.Decimal(10, 2)
+  stato                  MaterialStato  @default(disponibile)
+  unitaMisura            AccessoryUnita @default(cad) @map("unita_misura")
+  fatturaId              String?        @map("fattura_id") @db.Uuid
+  fattura                Invoice?       @relation(fields: [fatturaId], references: [id], onDelete: SetNull)
+  createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   products         ProductAccessory[]
   tsAccessori      TechnicalSheetAccessory[]
   supplierReqs     SupplierRequest[]
   righeSchede      SheetMaterialUsage[]
   listiniFornitori SupplierAccessory[]
+  righeBolle       BollaRiga[]
 
   @@index([supplierId])
   // Filtro stato in listAccessories()/listStockAlerts() (materials/service.ts).
@@ -696,6 +795,7 @@ model TechnicalSheet {
   foto           TechnicalSheetPhoto[]
   storicoCosti   SheetCostSnapshot[]
   misure         SheetMeasurement[]
+  bolle          BollaLavorazione[]
 
   @@unique([productId, versione])
   @@index([productId])
@@ -1102,9 +1202,10 @@ model Order {
   createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  items           OrderItem[]
+  items            OrderItem[]
   /// Presente solo sugli ordini nati da una richiesta showroom confermata (DEC-044).
-  showroomRequest ShowroomRequest?
+  showroomRequest  ShowroomRequest?
+  bolleLavorazione BollaLavorazione[]
 
   @@index([customerId])
   @@map("orders")
@@ -1137,6 +1238,14 @@ model InventoryRecord {
   variant                 ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
   qtaMagazzino            Int            @default(0) @map("qta_magazzino")
   qtaLaboratorio          Int            @default(0) @map("qta_laboratorio")
+  /// Capi (semilavorati o finiti) usciti con una bolla di lavorazione esterna e ancora
+  /// presso il lavorante (2026-08-10). Come i capi in produzione (DEC-047) sono una
+  /// giacenza a sé: contano nel totale registrato della variante — sono roba nostra —
+  /// ma **non** nel disponibile, perché non sono in casa e non si possono vendere.
+  qtaPressoTerzisti       Int            @default(0) @map("qta_presso_terzisti")
+  /// Semilavorati recuperati da una lavorazione: restano separati dai pezzi integri, ma
+  /// possono essere selezionati esplicitamente in una nuova bolla.
+  qtaScampoli             Int            @default(0) @map("qta_scampoli")
   qtaRiservata            Int            @default(0) @map("qta_riservata")
   qtaVenduta              Int            @default(0) @map("qta_venduta")
   sogliaMinima            Int            @default(0) @map("soglia_minima")
@@ -1546,4 +1655,280 @@ model ShowroomRequestImage {
 
   @@index([requestId])
   @@map("showroom_request_images")
+}
+
+// =====================================================================
+// BOLLE / DDT DI LAVORAZIONE ESTERNA (richiesta di Giulia 2026-08-10)
+//
+// Il problema che risolvono. Quando l'azienda consegna tessuti, zip, bottoni ed
+// etichette a un lavorante, quella roba **resta di proprietà dell'azienda**: non è
+// una vendita e non è un consumo. Prima di queste tabelle il gestionale non sapeva
+// dirlo — o il materiale era in casa, o risultava utilizzato. Un metro affidato a
+// un terzista spariva dalla disponibilità solo quando qualcuno lo scaricava a mano,
+// e nessuno sapeva più quanto fosse fuori né presso chi.
+//
+// Le tre giacenze che ne escono, per ogni materiale:
+//   in casa         = acquistato − utilizzato − presso terzisti   (si può consegnare/tagliare)
+//   presso terzisti = somma delle bolle emesse non ancora riconciliate
+//   patrimonio      = acquistato − utilizzato                     (in casa + presso terzisti)
+//
+// L'ubicazione "presso il lavorante" riusa il tipo `produzione_esterna` già previsto in
+// `InventoryLocationType`: non è stata creata una struttura parallela.
+// =====================================================================
+
+/// Testata della bolla di uscita verso un lavorante.
+///
+/// Sul numero: una bozza **non ha numero**. Il progressivo si assegna all'emissione,
+/// dentro la transazione e sotto lock, perché un registro di documenti non può avere
+/// buchi: se una bozza venisse abbandonata dopo aver bruciato un numero, quel numero
+/// mancherebbe per sempre e la numerazione non sarebbe più difendibile. Finché è bozza
+/// l'interfaccia mostra "Bozza · <id breve>".
+model BollaLavorazione {
+  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Numero del documento in forma leggibile, es. "DDT-2026-0001". Null finché è bozza.
+  numero      String?               @unique
+  /// Le due componenti da cui `numero` è costruito: servono a ordinare e a calcolare il
+  /// progressivo successivo senza dover interpretare la stringa.
+  anno        Int?
+  progressivo Int?
+  data        DateTime              @db.Date
+  causale     BollaCausale          @default(conto_lavorazione)
+  stato       BollaLavorazioneStato @default(bozza)
+
+  /// Il lavorante/terzista. È un fornitore dell'anagrafica esistente (categorie
+  /// Confezione, Modellistica/Confezione, Ricami, Smacchinatore…): non serviva una
+  /// seconda rubrica di soggetti con nome e partita IVA.
+  supplierId          String   @map("supplier_id") @db.Uuid
+  supplier            Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  /// Anagrafica del lavorante congelata al momento dell'emissione: una bolla di due anni
+  /// fa deve restare leggibile anche se il fornitore nel frattempo ha cambiato ragione
+  /// sociale o è stato riclassificato.
+  lavoranteNome       String?  @map("lavorante_nome")
+  lavorantePartitaIva String?  @map("lavorante_partita_iva")
+
+  /// Cosa si sta facendo produrre: il capo e, quando c'è, la versione di scheda tecnica
+  /// che il lavorante deve seguire.
+  productId        String?         @map("product_id") @db.Uuid
+  product          Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  technicalSheetId String?         @map("technical_sheet_id") @db.Uuid
+  technicalSheet   TechnicalSheet? @relation(fields: [technicalSheetId], references: [id], onDelete: SetNull)
+  /// Commessa/ordine di lavorazione. Testo libero: la commessa di un lavorante spesso è
+  /// un riferimento del lavorante stesso e non un ordine di vendita del gestionale.
+  /// Quando invece l'origine è un ordine interno, `orderId` lo collega davvero.
+  commessa         String?
+  orderId          String?         @map("order_id") @db.Uuid
+  order            Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  /// Quanti capi finiti ci si aspetta indietro. Serve a confrontare l'atteso col rientrato.
+  quantitaAttesa   Int             @default(0) @map("quantita_attesa")
+
+  note                String?
+  /// Nota obbligatoria quando la bolla viene chiusa pur non quadrando (vedi `chiusaConDifferenza`).
+  differenzaNote      String? @map("differenza_note")
+  /// true quando la chiusura è stata forzata da admin/CEO con quantità ancora fuori.
+  /// Distingue una lavorazione che torna dai conti da una che è stata chiusa per decisione.
+  chiusaConDifferenza Boolean @default(false) @map("chiusa_con_differenza")
+
+  createdBy   String?   @map("created_by") @db.Uuid
+  creataDa    User?     @relation("BollaCreata", fields: [createdBy], references: [id], onDelete: SetNull)
+  emessaDa    String?   @map("emessa_da") @db.Uuid
+  emittente   User?     @relation("BollaEmessa", fields: [emessaDa], references: [id], onDelete: SetNull)
+  emessaIl    DateTime? @map("emessa_il") @db.Timestamptz(6)
+  chiusaDa    String?   @map("chiusa_da") @db.Uuid
+  chiuditore  User?     @relation("BollaChiusa", fields: [chiusaDa], references: [id], onDelete: SetNull)
+  chiusaIl    DateTime? @map("chiusa_il") @db.Timestamptz(6)
+  annullataIl DateTime? @map("annullata_il") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  righe     BollaRiga[]
+  rientri   BollaRientro[]
+  movimenti MovimentoLavorazione[]
+  allegati  BollaAllegato[]
+
+  @@index([supplierId])
+  @@index([stato])
+  @@index([data])
+  @@map("bolle_lavorazione")
+}
+
+/// Riga di materiale consegnato. I campi `descrizione`, `sku` e `unitaMisura` sono copie
+/// **storiche** prese al momento in cui la riga è stata creata: se domani l'anagrafica del
+/// tessuto cambia nome o codice, la bolla dell'anno scorso continua a dire cosa è uscito
+/// davvero. Gli id restano collegati per poter risalire all'articolo di oggi.
+model BollaRiga {
+  id      String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bollaId String           @map("bolla_id") @db.Uuid
+  bolla   BollaLavorazione @relation(fields: [bollaId], references: [id], onDelete: Cascade)
+
+  /// Esattamente uno dei tre è valorizzato: tessuto, accessorio (zip, bottoni, etichette,
+  /// passamaneria…) o variante di capo, che è il caso del semilavorato.
+  materialId  String?         @map("material_id") @db.Uuid
+  material    Material?       @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  accessoryId String?         @map("accessory_id") @db.Uuid
+  accessory   Accessory?      @relation(fields: [accessoryId], references: [id], onDelete: SetNull)
+  variantId   String?         @map("variant_id") @db.Uuid
+  variant     ProductVariant? @relation("BollaRigaVariante", fields: [variantId], references: [id], onDelete: SetNull)
+
+  descrizione String
+  sku         String?
+  unitaMisura String  @map("unita_misura")
+  lotto       String?
+  colore      String?
+  variante    String?
+  note        String?
+  ordine      Int     @default(0)
+
+  /// La provenienza è congelata sulla riga: se la bolla usa scampoli, un eventuale
+  /// rientro inutilizzato deve tornare nella stessa riserva e non gonfiare il magazzino.
+  provenienza   BollaRigaProvenienza @default(magazzino)
+  /// Valore unitario fotografato quando nasce la riga. Le modifiche successive
+  /// all'anagrafica non riscrivono il costo storico della lavorazione.
+  costoUnitario Decimal              @default(0) @map("costo_unitario") @db.Decimal(12, 4)
+  fonteCosto    CostSource           @default(materiale) @map("fonte_costo")
+
+  quantitaInviata          Decimal @default(0) @map("quantita_inviata") @db.Decimal(12, 4)
+  /// Totali cumulati sui rientri registrati, mantenuti qui per non doverli ricalcolare a
+  /// ogni lettura e per poter mettere il vincolo "non si può restituire più di quanto
+  /// consegnato" su un dato solo.
+  ///   ancora presso il lavorante = inviata − utilizzata − restituita − recuperata − persa
+  quantitaUtilizzata       Decimal @default(0) @map("quantita_utilizzata") @db.Decimal(12, 4)
+  quantitaRestituita       Decimal @default(0) @map("quantita_restituita") @db.Decimal(12, 4)
+  quantitaScartoRecuperato Decimal @default(0) @map("quantita_scarto_recuperato") @db.Decimal(12, 4)
+  /// La colonna fisica mantiene il nome originale per conservare senza riscritture gli
+  /// scarti già registrati prima della distinzione: quelli storici erano perdite reali.
+  quantitaScartoPerso      Decimal @default(0) @map("quantita_scartata") @db.Decimal(12, 4)
+
+  righeRientro BollaRientroRiga[]
+  movimenti    MovimentoLavorazione[]
+
+  @@index([bollaId])
+  @@map("bolle_lavorazione_righe")
+}
+
+/// Un rientro dal lavorante: il documento che lui consegna insieme alla merce.
+/// Più rientri possono riferirsi alla stessa bolla — è il caso normale quando la
+/// produzione arriva scaglionata.
+model BollaRientro {
+  id                       String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bollaId                  String           @map("bolla_id") @db.Uuid
+  bolla                    BollaLavorazione @relation(fields: [bollaId], references: [id], onDelete: Cascade)
+  data                     DateTime         @db.Date
+  /// Numero del DDT emesso dal lavorante, così come sta scritto sul suo documento.
+  numeroDocumentoLavorante String?          @map("numero_documento_lavorante")
+  note                     String?
+  createdBy                String?          @map("created_by") @db.Uuid
+  registratoDa             User?            @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt                DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  righe     BollaRientroRiga[]
+  capi      BollaRientroCapo[]
+  movimenti MovimentoLavorazione[]
+  allegati  BollaAllegato[]
+
+  @@index([bollaId])
+  @@map("bolle_lavorazione_rientri")
+}
+
+/// Cosa è successo a una riga di materiale **in questo rientro**. Lo scarto recuperabile
+/// resta patrimonio e va nella riserva scampoli; lo scarto perso esce dal patrimonio ed è
+/// valorizzato separatamente dal consumo utile.
+model BollaRientroRiga {
+  id                       String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rientroId                String       @map("rientro_id") @db.Uuid
+  rientro                  BollaRientro @relation(fields: [rientroId], references: [id], onDelete: Cascade)
+  rigaId                   String       @map("riga_id") @db.Uuid
+  riga                     BollaRiga    @relation(fields: [rigaId], references: [id], onDelete: Cascade)
+  quantitaUtilizzata       Decimal      @default(0) @map("quantita_utilizzata") @db.Decimal(12, 4)
+  quantitaRestituita       Decimal      @default(0) @map("quantita_restituita") @db.Decimal(12, 4)
+  quantitaScartoRecuperato Decimal      @default(0) @map("quantita_scarto_recuperato") @db.Decimal(12, 4)
+  quantitaScartoPerso      Decimal      @default(0) @map("quantita_scartata") @db.Decimal(12, 4)
+  note                     String?
+
+  @@unique([rientroId, rigaId])
+  @@index([rigaId])
+  @@map("bolle_lavorazione_rientri_righe")
+}
+
+/// Capi finiti arrivati con un rientro. Entrano nell'inventario prodotti finiti
+/// (`inventory_records.qta_magazzino`) con un movimento tracciato.
+model BollaRientroCapo {
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rientroId String         @map("rientro_id") @db.Uuid
+  rientro   BollaRientro   @relation(fields: [rientroId], references: [id], onDelete: Cascade)
+  variantId String         @map("variant_id") @db.Uuid
+  variant   ProductVariant @relation("BollaRientroCapoVariante", fields: [variantId], references: [id], onDelete: Restrict)
+  /// Copie storiche, stessa ragione delle righe materiale.
+  sku       String
+  taglia    String
+  colore    String
+  quantita  Int
+  note      String?
+
+  @@index([rientroId])
+  @@index([variantId])
+  @@map("bolle_lavorazione_rientri_capi")
+}
+
+/// Registro dei movimenti generati dalle bolle. Ogni riga è agganciata alla **riga di
+/// bolla** che l'ha prodotta (e al rientro, quando ne nasce da uno): è la richiesta di
+/// tracciabilità — dal movimento si risale sempre al documento, alla persona e al perché.
+///
+/// Questa tabella non sostituisce `inventory_movements`, che resta il registro delle
+/// varianti fra magazzino e laboratorio: i capi finiti caricati da un rientro scrivono in
+/// **entrambe**, così chi guarda la scheda della variante vede il carico dove se lo aspetta.
+model MovimentoLavorazione {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bollaId   String           @map("bolla_id") @db.Uuid
+  bolla     BollaLavorazione @relation(fields: [bollaId], references: [id], onDelete: Cascade)
+  rigaId    String?          @map("riga_id") @db.Uuid
+  riga      BollaRiga?       @relation(fields: [rigaId], references: [id], onDelete: SetNull)
+  rientroId String?          @map("rientro_id") @db.Uuid
+  rientro   BollaRientro?    @relation(fields: [rientroId], references: [id], onDelete: SetNull)
+
+  tipo          MovimentoLavorazioneTipo
+  da            LavorazioneUbicazione
+  a             LavorazioneUbicazione
+  quantita      Decimal                  @db.Decimal(12, 4)
+  costoUnitario Decimal                  @default(0) @map("costo_unitario") @db.Decimal(12, 4)
+  valore        Decimal                  @default(0) @db.Decimal(14, 2)
+
+  materialId  String? @map("material_id") @db.Uuid
+  accessoryId String? @map("accessory_id") @db.Uuid
+  variantId   String? @map("variant_id") @db.Uuid
+  /// Descrizione storica dell'articolo movimentato: il registro deve restare leggibile
+  /// anche se l'articolo viene cancellato dall'anagrafica.
+  descrizione String
+  unitaMisura String  @map("unita_misura")
+
+  motivo     String?
+  note       String?
+  createdBy  String?  @map("created_by") @db.Uuid
+  eseguitoDa User?    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([bollaId])
+  @@index([rigaId])
+  @@index([createdAt])
+  @@map("movimenti_lavorazione")
+}
+
+/// Allegati della bolla: il PDF del documento emesso da noi e, sul rientro, la scansione
+/// del DDT ricevuto dal lavorante. Stesso schema delle foto scheda tecnica — data URL nel
+/// database, così finisce nei backup insieme al resto.
+model BollaAllegato {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bollaId    String           @map("bolla_id") @db.Uuid
+  bolla      BollaLavorazione @relation(fields: [bollaId], references: [id], onDelete: Cascade)
+  /// Valorizzato quando l'allegato appartiene a un rientro invece che alla testata.
+  rientroId  String?          @map("rientro_id") @db.Uuid
+  rientro    BollaRientro?    @relation(fields: [rientroId], references: [id], onDelete: Cascade)
+  nome       String
+  dataUrl    String           @map("data_url")
+  createdBy  String?          @map("created_by") @db.Uuid
+  caricatoDa User?            @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  caricatoIl DateTime         @default(now()) @map("caricato_il") @db.Timestamptz(6)
+
+  @@index([bollaId])
+  @@index([rientroId])
+  @@map("bolle_lavorazione_allegati")
 }

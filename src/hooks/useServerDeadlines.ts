@@ -24,7 +24,10 @@ export function useServerDeadlines(): Deadline[] {
             data: isoDate(d.data),
             importo: d.importo === null || d.importo === undefined ? undefined : num(d.importo),
             stato: d.stato as Deadline['stato'],
-            invoiceId: d.invoiceId ? String(d.invoiceId) : undefined,
+            // Il server chiama `invoiceId` il collegamento alla fattura, il tipo lato client
+            // lo chiama `collegatoA`: senza questa riga la colonna "Collegata a" delle
+            // Scadenze restava sempre a "–" (il cast qui sotto nascondeva la differenza).
+            collegatoA: d.invoiceId ? String(d.invoiceId) : undefined,
           })) as Deadline[],
         )
       })

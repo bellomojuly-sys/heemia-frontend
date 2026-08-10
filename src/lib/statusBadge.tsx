@@ -62,6 +62,11 @@ const STATUS_META: Record<string, StatusMeta> = {
   consegnato: { label: 'Consegnato', variant: 'success' },
   annullato: { label: 'Annullato', variant: 'neutral' },
 
+  // bolle di lavorazione esterna (2026-08-10). "bozza", "annullata" e "chiusa" sono già
+  // sopra con lo stesso significato; qui servono solo i due stati propri del ciclo.
+  emessa: { label: 'Emessa', variant: 'info' },
+  parzialmente_rientrata: { label: 'Parz. rientrata', variant: 'warning' },
+
   // richieste dalla vista cliente showroom (spec 2026-08-06 §7)
   nuova_richiesta: { label: 'Nuova richiesta', variant: 'warning' },
   da_contattare: { label: 'Da contattare', variant: 'warning' },

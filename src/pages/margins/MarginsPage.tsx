@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -10,7 +9,7 @@ import { MarginSummaryCard } from '../../components/margins/MarginSummaryCard'
 import { formatCurrency, formatDateIt, formatPercent } from '../../lib/format'
 import { computeQuotaPerCapo } from '../../lib/margins'
 import { useMarginThreshold } from '../../hooks/useMarginThreshold'
-import { useLiveMargins } from '../../hooks/useLiveMargins'
+import { useEconomicsOutlet } from './economicsOutlet'
 import { useServerCostAllocations } from '../../hooks/useServerCostAllocations'
 import type { Margin } from '../../types'
 import { useMockStore } from '../../context/MockStore'
@@ -195,8 +194,10 @@ function FixedCostsCard() {
 export function MarginsPage() {
   const { products, invoices } = useMockStore()
 
-  // Margini calcolati dal server sui dati reali (stessa formula: quota costi fissi + costo diretto).
-  const liveMargins = useLiveMargins()
+  // Margini calcolati dal server sui dati reali (stessa formula: quota costi fissi + costo
+  // diretto). Li carica il contenitore "Costi, margini e report", che li condivide con la
+  // scheda Report: prima le due pagine chiamavano /margins una per parte.
+  const { margins: liveMargins } = useEconomicsOutlet()
   const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
   const costAllocations = useServerCostAllocations()
 
@@ -215,7 +216,10 @@ export function MarginsPage() {
 
   return (
     <div>
-      <PageHeader title="Costi e margini" subtitle={`Calcolo automatico costi, margini e break-even per prodotto. Soglia margine configurata: ${MARGIN_THRESHOLD_PERCENT}%.`} />
+      {/* Scheda dentro "Costi, margini e report": l'intestazione la mette il contenitore. */}
+      <p className="mb-4 text-sm text-heemia-grey">
+        Calcolo automatico costi, margini e break-even per prodotto. Soglia margine configurata: {MARGIN_THRESHOLD_PERCENT}%.
+      </p>
 
       <FixedCostsCard />
 

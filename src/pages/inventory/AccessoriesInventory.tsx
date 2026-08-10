@@ -121,7 +121,13 @@ export function AccessoriesInventory() {
     { header: 'Categoria', accessor: (a) => a.categoria },
     { header: 'Fornitore', accessor: (a) => suppliers.find((s) => s.id === a.supplierId)?.nome ?? '–' },
     { header: 'Costo unitario', accessor: (a) => formatCurrency(a.costoUnitario), align: 'right' },
-    { header: 'Residui', accessor: (a) => `${a.quantitaAcquistata - a.quantitaUtilizzata} ${a.unitaMisura}`, align: 'right' },
+    {
+      header: 'Integri',
+      accessor: (a) => `${Math.max(a.quantitaAcquistata - a.quantitaUtilizzata - a.quantitaPressoTerzisti - a.quantitaScampoli, 0)} ${a.unitaMisura}`,
+      align: 'right',
+    },
+    { header: 'Recuperati', accessor: (a) => `${a.quantitaScampoli} ${a.unitaMisura}`, align: 'right' },
+    { header: 'Presso lavoranti', accessor: (a) => `${a.quantitaPressoTerzisti} ${a.unitaMisura}`, align: 'right' },
     { header: 'Stato', accessor: (a) => <StatusBadge status={a.stato} /> },
     {
       header: '',
