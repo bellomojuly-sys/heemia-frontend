@@ -26,6 +26,7 @@ import { DeadlinesPage } from './pages/deadlines/DeadlinesPage'
 import { EconomicsPage } from './pages/margins/EconomicsPage'
 import { MarginsPage } from './pages/margins/MarginsPage'
 import { SupplierList } from './pages/suppliers/SupplierList'
+import { SupplierWorkPage } from './pages/suppliers/SupplierWorkPage'
 import { CustomerList } from './pages/customers/CustomerList'
 import { ShopifyPage } from './pages/shopify/ShopifyPage'
 import { ReportsPage } from './pages/reports/ReportsPage'
@@ -84,8 +85,8 @@ export function AppRouter() {
               <Route path="accessori" element={<AccessoriesInventory />} />
               <Route path="prodotti-finiti" element={<FinishedGoodsInventory />} />
             </Route>
-            {/* Bolle di lavorazione esterna: elenco e scheda del singolo documento. */}
-            <Route path="/lavorazioni" element={<RoleGuard moduleKey="lavorazioni"><LavorazioniPage /></RoleGuard>} />
+            {/* Il vecchio elenco bolle confluisce nella vista unica Fornitori e lavorazioni. */}
+            <Route path="/lavorazioni" element={<Navigate to="/fornitori/lavorazioni" replace />} />
             <Route path="/lavorazioni/:id" element={<RoleGuard moduleKey="lavorazioni"><BollaDetail /></RoleGuard>} />
             {/* Vista unica del flusso commerciale: richieste showroom, ordini e Shopify. */}
             <Route path="/ordini" element={<RoleGuard moduleKey="ordini"><SalesChannelsPage /></RoleGuard>}>
@@ -109,7 +110,11 @@ export function AppRouter() {
               <Route path="costi" element={<MarginsPage />} />
               <Route path="report" element={<RoleGuard moduleKey="report"><ReportsPage /></RoleGuard>} />
             </Route>
-            <Route path="/fornitori" element={<RoleGuard moduleKey="fornitori"><SupplierList /></RoleGuard>} />
+            <Route path="/fornitori" element={<RoleGuard moduleKey="fornitori"><SupplierWorkPage /></RoleGuard>}>
+              <Route index element={<Navigate to="anagrafica" replace />} />
+              <Route path="anagrafica" element={<SupplierList />} />
+              <Route path="lavorazioni" element={<RoleGuard moduleKey="lavorazioni"><LavorazioniPage /></RoleGuard>} />
+            </Route>
             <Route path="/clienti" element={<RoleGuard moduleKey="clienti"><CustomerList /></RoleGuard>} />
             <Route path="/shopify" element={<Navigate to="/ordini/shopify" replace />} />
             {/* Vecchio indirizzo dei Report economici: i link salvati continuano a funzionare. */}

@@ -80,7 +80,7 @@ export function BollaDetail() {
   if (errore || !bolla) {
     return (
       <>
-        <Link to="/lavorazioni" className="mb-4 inline-flex items-center gap-1.5 text-xs text-heemia-grey hover:text-heemia-black">
+        <Link to="/fornitori/lavorazioni" className="mb-4 inline-flex items-center gap-1.5 text-xs text-heemia-grey hover:text-heemia-black">
           <ArrowLeft className="h-3.5 w-3.5" /> Torna alle bolle
         </Link>
         <p className="rounded-heemia border border-heemia-carmine/30 bg-heemia-carmine-light px-4 py-3 text-xs text-heemia-carmine">
@@ -105,7 +105,7 @@ export function BollaDetail() {
 
   return (
     <>
-      <Link to="/lavorazioni" className="mb-4 inline-flex items-center gap-1.5 text-xs text-heemia-grey transition-colors hover:text-heemia-black">
+      <Link to="/fornitori/lavorazioni" className="mb-4 inline-flex items-center gap-1.5 text-xs text-heemia-grey transition-colors hover:text-heemia-black">
         <ArrowLeft className="h-3.5 w-3.5" /> Torna alle bolle
       </Link>
 

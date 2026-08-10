@@ -26,10 +26,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Inventario',
     items: [
       { label: 'Inventario', path: '/inventario', moduleKey: 'inventario' },
-      // Bolle di lavorazione esterna (2026-08-10): sta qui perché è la continuazione
-      // dell'inventario — è il posto dove finisce il materiale che esce dal magazzino
-      // senza essere venduto.
-      { label: 'Bolle / Lavorazioni esterne', path: '/lavorazioni', moduleKey: 'lavorazioni' },
+      // Anagrafica e bolle sono due parti dello stesso rapporto con chi lavora materiali
+      // e capi per l'azienda, quindi condividono una sola pagina operativa.
+      { label: 'Fornitori e lavorazioni', path: '/fornitori', moduleKey: 'fornitori' },
       // Una richiesta showroom confermata diventa un ordine; Shopify è l'altro canale da
       // cui arrivano ordini. Le tre viste sono quindi schede della stessa pagina.
       { label: 'Ordini e canali di vendita', path: '/ordini', moduleKey: 'ordini' },
@@ -49,7 +48,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Relazioni',
     items: [
-      { label: 'Fornitori', path: '/fornitori', moduleKey: 'fornitori' },
       { label: 'Clienti', path: '/clienti', moduleKey: 'clienti' },
       { label: 'Analytics', path: '/analytics', moduleKey: 'analytics' },
     ],

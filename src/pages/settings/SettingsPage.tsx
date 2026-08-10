@@ -18,6 +18,7 @@ const NESTED_MODULES: { label: string; path: string; moduleKey: ModuleKey }[] = 
   { label: 'Scadenze', path: '/fatture/scadenze', moduleKey: 'scadenze' },
   { label: 'Report economici', path: '/margini/report', moduleKey: 'report' },
   { label: 'Activity log', path: '/impostazioni/log', moduleKey: 'activity-log' },
+  { label: 'Bolle e lavorazioni', path: '/fornitori/lavorazioni', moduleKey: 'lavorazioni' },
 ]
 const ALL_ITEMS = [...NAV_GROUPS.flatMap((g) => g.items), ...NESTED_MODULES]
 

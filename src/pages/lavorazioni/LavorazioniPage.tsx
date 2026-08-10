@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
 import { Button } from '../../components/ui/Button'
@@ -119,13 +118,12 @@ export function LavorazioniPage() {
 
   return (
     <>
-      <PageHeader
-        title="Bolle e lavorazioni esterne"
-        subtitle="Cosa è stato consegnato ai lavoranti, cosa è tornato e cosa è ancora fuori. Il materiale affidato resta di proprietà dell'azienda: esce dalla disponibilità, non dal patrimonio."
-        action={
-          modificabile ? <Button onClick={() => setNuovaAperta(true)}>Nuova bolla</Button> : undefined
-        }
-      />
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="max-w-3xl text-sm text-heemia-grey">
+          Controlla cosa è stato consegnato, cosa è tornato e cosa è ancora fuori. Il materiale affidato resta nel patrimonio.
+        </p>
+        {modificabile && <Button onClick={() => setNuovaAperta(true)}>Nuova bolla</Button>}
+      </div>
 
       {errore && (
         <div className="mb-4 rounded-heemia border border-heemia-carmine/30 bg-heemia-carmine-light px-4 py-3 text-xs text-heemia-carmine">

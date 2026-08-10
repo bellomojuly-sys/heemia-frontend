@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -168,11 +167,10 @@ export function SupplierList() {
 
   return (
     <div>
-      <PageHeader
-        title="Fornitori"
-        subtitle="Anagrafica fornitori e bozze email materiali/accessori."
-        action={canModify ? <Button onClick={() => setAddOpen(true)}>Aggiungi fornitore</Button> : undefined}
-      />
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-heemia-grey">Anagrafica fornitori e bozze email per materiali e accessori.</p>
+        {canModify && <Button onClick={() => setAddOpen(true)}>Aggiungi fornitore</Button>}
+      </div>
 
       <Card className="mb-6">
         <CardHeader title="Anagrafica fornitori" subtitle={`${suppliers.length} fornitori attivi`} />
