@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "playwright-local": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.78",
+        "--browser",
+        "webkit",
+        "--headless",
+        "--isolated",
+        "--allowed-origins",
+        "http://localhost:*;http://127.0.0.1:*;https://localhost:*;https://127.0.0.1:*",
+        "--output-dir",
+        "/tmp/heemia-playwright-mcp",
+        "--output-mode",
+        "stdout"
+      ]
+    },
+    "github-readonly": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "X-MCP-Toolsets": "repos,pull_requests,actions",
+        "X-MCP-Readonly": "true"
+      }
+    }
+  }
+}
