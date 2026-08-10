@@ -50,13 +50,17 @@ type Row = Record<string, unknown>
  * Traduce una scheda tecnica dal formato del client a quello dell'API.
  * Due differenze di nome storiche: nel client le righe materiali si chiamano `materiali`
  * e le voci di costo `costiAggiuntivi`; sul server sono `righeMateriali` e `righeCosti`.
- * Foto e storico costi hanno endpoint dedicati e vengono ignorati qui.
+ * Foto e storico costi vengono aggiunti più sotto dal salvataggio della correzione,
+ * dopo aver confrontato il form con la scheda presente nel database.
  */
 function toSheetPayload(patch?: Partial<TechnicalSheet>): Record<string, unknown> {
   if (!patch) return {}
   const {
-    materiali, costiAggiuntivi, foto, storicoCosti, misure, id, productId, versione,
-    creataIl, aggiornataIl, tessutiSecondariId, accessoriIds, pdfFile, scanAI,
+    materiali, costiAggiuntivi, foto: _foto, storicoCosti: _storicoCosti, misure,
+    id: _id, productId: _productId, versione: _versione,
+    creataIl: _creataIl, aggiornataIl: _aggiornataIl,
+    tessutiSecondariId: _tessutiSecondariId, accessoriIds: _accessoriIds,
+    pdfFile, scanAI,
     ...campi
   } = patch
   const payload: Record<string, unknown> = { ...campi }
@@ -111,6 +115,11 @@ function toSheetPayload(patch?: Partial<TechnicalSheet>): Record<string, unknown
     payload.scanAiNote = scanAI.note
     payload.scanAiAffidabilita = scanAI.affidabilita
     payload.scanAiVociEstratte = scanAI.vociEstratte
+  }
+  // Nei body JSON `undefined` sparisce: per rimuovere un laboratorio già scelto serve
+  // inviare esplicitamente null, altrimenti il backend conserva il valore precedente.
+  if ('fornitoreLaboratorioId' in campi && !campi.fornitoreLaboratorioId) {
+    payload.fornitoreLaboratorioId = null
   }
   // Il tessuto principale è una relazione: stringa vuota significa "nessuno".
   if ('tessutoPrincipaleId' in campi && !campi.tessutoPrincipaleId) delete payload.tessutoPrincipaleId
@@ -661,9 +670,35 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
       },
 
       // Righe materiali e voci di costo vengono inviate per intero: il server sostituisce
-      // il set della scheda in un'unica transazione, senza stati intermedi incoerenti.
+      // il set della scheda in un'unica transazione. Anche foto e snapshot dei costi fanno
+      // parte della stessa correzione: non devono restare a metà se una chiamata fallisce.
       updateTechnicalSheet: async (id, patch) => {
-        await persisti(api.patch(`/technical-sheets/${id}`, toSheetPayload(patch)))
+        const precedente = technicalSheets.find((s) => s.id === id)
+        const payload = toSheetPayload(patch)
+
+        if (precedente && patch.foto) {
+          const fotoPrecedenti = new Set((precedente.foto ?? []).map((foto) => foto.id))
+          const fotoCorrette = new Set(patch.foto.map((foto) => foto.id))
+          payload.fotoDaAggiungere = patch.foto
+            .filter((foto) => !fotoPrecedenti.has(foto.id))
+            .map((foto) => ({ nome: foto.nome, dataUrl: foto.dataUrl }))
+          payload.fotoDaRimuovereIds = (precedente.foto ?? [])
+            .filter((foto) => !fotoCorrette.has(foto.id))
+            .map((foto) => foto.id)
+        }
+
+        if (precedente) {
+          const schedaCorretta = { ...precedente, ...patch }
+          const costo = computeSheetCost(schedaCorretta, { materials, accessories, invoices })
+          payload.snapshotCosto = {
+            motivo: 'Salvataggio scheda tecnica',
+            costoMaterialiUnitario: costo.costoMateriali,
+            costoTotaleUnitario: costo.costoTotaleUnitario,
+            prezzoBreakEven: costo.prezzoBreakEven,
+          }
+        }
+
+        await persisti(api.patch(`/technical-sheets/${id}`, payload))
       },
 
       addSheetPhoto: async (sheetId, photo) => {

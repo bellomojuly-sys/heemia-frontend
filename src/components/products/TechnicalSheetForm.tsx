@@ -100,7 +100,7 @@ export function TechnicalSheetForm({
   sheet: TechnicalSheet
   onClose: () => void
 }) {
-  const { materials, accessories, invoices, suppliers, technicalSheets, updateTechnicalSheet, recordSheetCostSnapshot } =
+  const { materials, accessories, invoices, suppliers, technicalSheets, updateTechnicalSheet } =
     useMockStore()
 
   const { avvisa } = useGoatAlert()
@@ -332,8 +332,6 @@ export function TechnicalSheetForm({
     setSalvataggioInCorso(true)
     try {
       await updateTechnicalSheet(sheet.id, patch)
-      // Spec §6: ogni salvataggio registra uno snapshot del costo, senza toccare i precedenti.
-      await recordSheetCostSnapshot(sheet.id, 'Salvataggio scheda tecnica')
       onClose()
     } catch (e) {
       avvisa(e instanceof ApiError && (e.isAuthError || e.isForbidden) ? 'permesso' : 'salvataggio', {
@@ -711,7 +709,7 @@ export function TechnicalSheetForm({
 
         {/* 6. Foto prototipo ------------------------------------------------- */}
         <section>
-          <SectionTitle hint="Le foto vengono ridimensionate e salvate nel browser: restano disponibili anche dopo aver ricaricato la pagina.">
+          <SectionTitle hint="Le foto vengono ridimensionate e salvate con la scheda nel database: restano disponibili a tutto il team anche dopo aver ricaricato la pagina.">
             Fotografie del prototipo
           </SectionTitle>
 

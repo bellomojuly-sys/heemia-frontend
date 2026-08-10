@@ -109,7 +109,8 @@ const technicalSheetCreateSchema = z.object({
   misureVestibilita: z.string().optional(),
   istruzioniConfezione: z.string().optional(),
   noteTecniche: z.string().optional(),
-  fornitoreLaboratorioId: z.string().uuid().optional(),
+  // `null` permette di correggere una scelta precedente tornando a "Nessuno".
+  fornitoreLaboratorioId: z.string().uuid().nullable().optional(),
   quantitaPrevistaProduzione: z.number().int().positive().optional(),
   noteVersione: z.string().optional(),
   pdfFileNome: z.string().optional(),
@@ -163,13 +164,6 @@ const misuraSchema = z.object({
   fonte: fonteCostoEnum.optional(),
 })
 
-// Nell'update le collezioni sono opzionali: se presenti sostituiscono il set completo.
-const technicalSheetUpdateSchema = technicalSheetCreateSchema.partial().extend({
-  righeMateriali: z.array(rigaMaterialeSchema).optional(),
-  righeCosti: z.array(rigaCostoSchema).optional(),
-  misure: z.array(misuraSchema).optional(),
-})
-
 // Le foto sono data URL base64: un limite di dimensione evita di gonfiare database e backup.
 const MAX_FOTO_BYTES = 3 * 1024 * 1024
 const photoSchema = z.object({
@@ -177,6 +171,24 @@ const photoSchema = z.object({
   dataUrl: z.string().min(1).refine((v) => v.length <= MAX_FOTO_BYTES, {
     message: 'Immagine troppo grande (massimo ~3 MB): comprimila prima di caricarla',
   }),
+})
+
+const costSnapshotSchema = z.object({
+  motivo: z.string().min(1),
+  costoMaterialiUnitario: z.number().nonnegative(),
+  costoTotaleUnitario: z.number().nonnegative(),
+  prezzoBreakEven: z.number().nonnegative(),
+})
+
+// Il form salva una correzione completa in una sola transazione: campi, collezioni,
+// differenza delle foto e fotografia dei costi devono riuscire o fallire insieme.
+const technicalSheetUpdateSchema = technicalSheetCreateSchema.partial().extend({
+  righeMateriali: z.array(rigaMaterialeSchema).optional(),
+  righeCosti: z.array(rigaCostoSchema).optional(),
+  misure: z.array(misuraSchema).optional(),
+  fotoDaAggiungere: z.array(photoSchema).optional(),
+  fotoDaRimuovereIds: z.array(z.string().uuid()).optional(),
+  snapshotCosto: costSnapshotSchema.optional(),
 })
 
 // I documenti delle modelliste sono PDF in data URL base64: stesso limite delle foto,
@@ -204,13 +216,6 @@ const patternNotaSchema = z.object({
     'commento', 'correzione', 'problema', 'modifica_misure',
     'indicazione_taglio', 'approvazione', 'richiesta_nuova_versione',
   ]).optional(),
-})
-
-const costSnapshotSchema = z.object({
-  motivo: z.string().min(1),
-  costoMaterialiUnitario: z.number().nonnegative(),
-  costoTotaleUnitario: z.number().nonnegative(),
-  prezzoBreakEven: z.number().nonnegative(),
 })
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
@@ -353,8 +358,17 @@ export async function productRoutes(app: FastifyInstance) {
   app.patch('/technical-sheets/:id', write, async (req) => {
     const { id } = req.params as { id: string }
     const d = parse(technicalSheetUpdateSchema, req.body)
-    const { righeMateriali, righeCosti, misure, ...campi } = d
-    return updateTechnicalSheet(id, toSheetData(campi), { righeMateriali, righeCosti, misure }, req.user!.id)
+    const {
+      righeMateriali, righeCosti, misure,
+      fotoDaAggiungere, fotoDaRimuovereIds, snapshotCosto,
+      ...campi
+    } = d
+    return updateTechnicalSheet(
+      id,
+      toSheetData(campi),
+      { righeMateriali, righeCosti, misure, fotoDaAggiungere, fotoDaRimuovereIds, snapshotCosto },
+      req.user!.id,
+    )
   })
 
   // Foto del prototipo: salvate nel database (finiscono nei backup).

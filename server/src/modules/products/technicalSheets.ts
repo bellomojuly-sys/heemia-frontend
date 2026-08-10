@@ -67,6 +67,13 @@ export interface FotoInput {
   dataUrl: string
 }
 
+export interface SnapshotCostoInput {
+  motivo: string
+  costoMaterialiUnitario: number
+  costoTotaleUnitario: number
+  prezzoBreakEven: number
+}
+
 export interface MisuraInput {
   nome: string
   valore?: number
@@ -118,13 +125,20 @@ export async function createTechnicalSheet(
 
 /**
  * Aggiorna la scheda. Le collezioni passate vengono **sostituite per intero**; quelle
- * omesse restano come sono. Lo storico costi non si tocca mai da qui: si aggiunge solo
- * con `addCostSnapshot` (spec §6: il passato non si riscrive).
+ * omesse restano come sono. Il form può includere la differenza delle foto e un nuovo
+ * snapshot: vengono registrati nella stessa transazione, senza riscrivere lo storico.
  */
 export async function updateTechnicalSheet(
   id: string,
   campi: CampiScheda,
-  collezioni: { righeMateriali?: RigaMaterialeInput[]; righeCosti?: RigaCostoInput[]; misure?: MisuraInput[] },
+  collezioni: {
+    righeMateriali?: RigaMaterialeInput[]
+    righeCosti?: RigaCostoInput[]
+    misure?: MisuraInput[]
+    fotoDaAggiungere?: FotoInput[]
+    fotoDaRimuovereIds?: string[]
+    snapshotCosto?: SnapshotCostoInput
+  },
   userId: string,
 ) {
   const before = await prisma.technicalSheet.findUnique({ where: { id } })
@@ -196,6 +210,42 @@ export async function updateTechnicalSheet(
       }
     }
 
+    if (collezioni.fotoDaRimuovereIds?.length) {
+      await tx.technicalSheetPhoto.deleteMany({
+        where: { technicalSheetId: id, id: { in: collezioni.fotoDaRimuovereIds } },
+      })
+    }
+
+    if (collezioni.fotoDaAggiungere?.length) {
+      await tx.technicalSheetPhoto.createMany({
+        data: collezioni.fotoDaAggiungere.map((foto) => ({
+          technicalSheetId: id,
+          nome: foto.nome,
+          dataUrl: foto.dataUrl,
+        })),
+      })
+    }
+
+    if (collezioni.snapshotCosto) {
+      const snap = collezioni.snapshotCosto
+      const created = await tx.sheetCostSnapshot.create({
+        data: {
+          technicalSheetId: id,
+          motivo: snap.motivo,
+          costoMaterialiUnitario: new Prisma.Decimal(snap.costoMaterialiUnitario),
+          costoTotaleUnitario: new Prisma.Decimal(snap.costoTotaleUnitario),
+          prezzoBreakEven: new Prisma.Decimal(snap.prezzoBreakEven),
+        },
+      })
+      await logActivity(tx, {
+        userId,
+        azione: 'create',
+        entita: 'sheet_cost_snapshot',
+        entitaId: created.id,
+        valoreNuovo: snap.motivo,
+      })
+    }
+
     await logActivity(tx, {
       userId, azione: 'update', entita: 'technical_sheet', entitaId: id,
       valoreNuovo: `versione ${before.versione}`,
@@ -232,7 +282,7 @@ export async function removePhoto(sheetId: string, photoId: string, userId: stri
 
 export async function addCostSnapshot(
   sheetId: string,
-  snap: { motivo: string; costoMaterialiUnitario: number; costoTotaleUnitario: number; prezzoBreakEven: number },
+  snap: SnapshotCostoInput,
   userId: string,
 ) {
   const sheet = await prisma.technicalSheet.findUnique({ where: { id: sheetId } })

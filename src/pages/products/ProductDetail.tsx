@@ -145,15 +145,30 @@ export function ProductDetail() {
   const canSeeEconomics = canAccessModule(role, 'costi-margini')
   const userCanEdit = canEdit(role)
 
-  // Tab Tessuto: legge dalla stessa scheda tecnica mostrata nel tab Tecnico.
+  // Tab Tessuto: le schede nuove collegano tessuti e accessori nelle righe strutturate.
+  // I tre array legacy restano come fallback per le vecchie schede già presenti.
   const fabricSheet: TechnicalSheet | undefined = activeSheet
-  const mainFabric = fabricSheet ? materials.find((m) => m.id === fabricSheet.tessutoPrincipaleId) : undefined
-  const secondaryFabrics = fabricSheet
-    ? fabricSheet.tessutiSecondariId.map((mid) => materials.find((m) => m.id === mid)).filter((m): m is Material => Boolean(m))
+  const fabricIds = fabricSheet
+    ? Array.from(new Set([
+        fabricSheet.tessutoPrincipaleId,
+        ...(fabricSheet.materiali ?? []).map((riga) => riga.materialId),
+        ...fabricSheet.tessutiSecondariId,
+      ].filter((materialId): materialId is string => Boolean(materialId))))
     : []
-  const sheetAccessories = fabricSheet
-    ? fabricSheet.accessoriIds.map((aid) => accessories.find((a) => a.id === aid)).filter(Boolean)
+  const linkedFabrics = fabricIds
+    .map((materialId) => materials.find((materiale) => materiale.id === materialId))
+    .filter((materiale): materiale is Material => Boolean(materiale))
+  const mainFabric = linkedFabrics[0]
+  const secondaryFabrics = linkedFabrics.slice(1)
+  const accessoryIds = fabricSheet
+    ? Array.from(new Set([
+        ...(fabricSheet.materiali ?? []).map((riga) => riga.accessoryId),
+        ...fabricSheet.accessoriIds,
+      ].filter((accessoryId): accessoryId is string => Boolean(accessoryId))))
     : []
+  const sheetAccessories = accessoryIds
+    .map((accessoryId) => accessories.find((accessorio) => accessorio.id === accessoryId))
+    .filter((accessorio) => Boolean(accessorio))
 
   const TABS: { id: TabId; label: string; visible: boolean }[] = [
     { id: 'panoramica', label: 'Panoramica', visible: true },
