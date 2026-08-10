@@ -202,6 +202,44 @@ export interface RientroInput {
   allegato?: { nome: string; dataUrl: string }
 }
 
+export type DdtRientroMime = 'application/pdf' | 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+
+export interface PropostaDdtRientro {
+  numeroDocumentoLavorante: string | null
+  data: string | null
+  righe: {
+    rigaId: string | null
+    descrizioneDocumento: string
+    utilizzata: number | null
+    restituita: number | null
+    scartoRecuperato: number | null
+    scartoPerso: number | null
+    note: string | null
+    affidabilita: 'alta' | 'media' | 'bassa'
+  }[]
+  capi: {
+    variantId: string | null
+    descrizioneDocumento: string
+    quantita: number | null
+    note: string | null
+    affidabilita: 'alta' | 'media' | 'bassa'
+  }[]
+  note: string
+  affidabilita: 'alta' | 'media' | 'bassa'
+}
+
+export async function analizzaDdtRientro(
+  bollaId: string,
+  documento: { nome: string; dataUrl: string; mimeType: DdtRientroMime },
+) {
+  return api.post<{ proposta: PropostaDdtRientro; analizzatoIl: string }>('/ai/scan-ddt-rientro', {
+    bollaId,
+    fileBase64: documento.dataUrl,
+    nomeFile: documento.nome,
+    mimeType: documento.mimeType,
+  })
+}
+
 function query(f: FiltriBolle): string {
   const p = new URLSearchParams()
   for (const [k, v] of Object.entries(f)) if (v) p.set(k, String(v))

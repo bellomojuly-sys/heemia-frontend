@@ -33,7 +33,7 @@ type Definizione = {
 const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
   openai: {
     nome: 'OpenAI',
-    scopo: 'lettura del PDF della scheda tecnica e proposta delle misure (FR-14/FR-28)',
+    scopo: 'lettura di schede tecniche e DDT di rientro, più proposta delle misure (FR-14/FR-28)',
     // Il modello ha un default nel codice, quindi non è una variabile "mancante":
     // qui conta solo la chiave.
     variabili: ['OPENAI_API_KEY'],

@@ -1,6 +1,6 @@
-// FR-14 + FR-28: scansione AI della scheda tecnica in PDF.
-// La founder carica il PDF della scheda tecnica (versione Finale o Piazzamento e taglio)
-// e l'AI ne estrae i costi del capo, che alimentano il calcolo del break-even.
+// Letture documentali AI: schede tecniche e DDT di rientro dai lavoranti.
+// La founder carica il documento e l'AI restituisce sempre una proposta strutturata e
+// modificabile. Nessuna lettura AI scrive direttamente nelle giacenze.
 //
 // Fornitore: **OpenAI** (DEC-050, scelta di Giulia il 2026-08-08 — l'azienda usa già
 // ChatGPT). Si parla con la Responses API: il PDF viaggia come `input_file` in base64 e
@@ -15,10 +15,10 @@ import OpenAI from 'openai'
 import { AppError, badRequest } from '../../core/errors.js'
 import { config } from '../../core/config.js'
 
-/** Limite del PDF accettato: oltre questa soglia la richiesta è rifiutata con un messaggio chiaro. */
-const MAX_PDF_BYTES = 20 * 1024 * 1024 // 20 MB
+/** Limite dei documenti accettati: oltre questa soglia la richiesta è rifiutata con un messaggio chiaro. */
+const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024 // 20 MB
 
-// Schema dell'estrazione. Passato a Claude come structured output, così la risposta è
+// Schema dell'estrazione. Passato a OpenAI come structured output, così la risposta è
 // sempre un JSON valido con questa forma (niente parsing fragile di testo libero).
 const EXTRACTION_SCHEMA = {
   type: 'object',
@@ -116,6 +116,237 @@ export interface SheetScanResult {
   quantitaPrevistaProduzione: number | null
   note: string
   affidabilita: 'alta' | 'media' | 'bassa'
+}
+
+// --- DDT di rientro da lavorazione esterna ---------------------------------
+
+export interface DdtRientroContext {
+  bollaId: string
+  numeroBollaUscita: string | null
+  lavorante: string
+  prodotto: { id: string; nome: string; codice: string } | null
+  quantitaAttesa: number
+  capiGiaRientrati: number
+  righe: {
+    id: string
+    descrizione: string
+    sku: string | null
+    unitaMisura: string
+    lotto: string | null
+    colore: string | null
+    variante: string | null
+    quantitaAncoraFuori: number
+  }[]
+  varianti: { id: string; sku: string; taglia: string; colore: string }[]
+}
+
+export interface DdtRientroProposal {
+  numeroDocumentoLavorante: string | null
+  data: string | null
+  righe: {
+    rigaId: string | null
+    descrizioneDocumento: string
+    utilizzata: number | null
+    restituita: number | null
+    scartoRecuperato: number | null
+    scartoPerso: number | null
+    note: string | null
+    affidabilita: 'alta' | 'media' | 'bassa'
+  }[]
+  capi: {
+    variantId: string | null
+    descrizioneDocumento: string
+    quantita: number | null
+    note: string | null
+    affidabilita: 'alta' | 'media' | 'bassa'
+  }[]
+  note: string
+  affidabilita: 'alta' | 'media' | 'bassa'
+}
+
+function ddtRientroSchema(contesto: DdtRientroContext) {
+  return {
+    type: 'object',
+    properties: {
+      numeroDocumentoLavorante: {
+        type: ['string', 'null'],
+        description: 'Numero del DDT emesso dal lavorante, esattamente come appare sul documento',
+      },
+      data: {
+        type: ['string', 'null'],
+        pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+        description: 'Data del DDT in formato AAAA-MM-GG, oppure null se non leggibile',
+      },
+      righe: {
+        type: 'array',
+        description: 'Materiali della bolla di uscita che il DDT dichiara utilizzati, restituiti o scartati',
+        items: {
+          type: 'object',
+          properties: {
+            rigaId: {
+              type: ['string', 'null'],
+              enum: [...contesto.righe.map((r) => r.id), null],
+              description: 'ID copiato dal contesto soltanto quando la corrispondenza è chiara',
+            },
+            descrizioneDocumento: { type: 'string' },
+            utilizzata: { type: ['number', 'null'], minimum: 0 },
+            restituita: { type: ['number', 'null'], minimum: 0 },
+            scartoRecuperato: { type: ['number', 'null'], minimum: 0 },
+            scartoPerso: { type: ['number', 'null'], minimum: 0 },
+            note: { type: ['string', 'null'] },
+            affidabilita: { type: 'string', enum: ['alta', 'media', 'bassa'] },
+          },
+          required: [
+            'rigaId', 'descrizioneDocumento', 'utilizzata', 'restituita',
+            'scartoRecuperato', 'scartoPerso', 'note', 'affidabilita',
+          ],
+          additionalProperties: false,
+        },
+      },
+      capi: {
+        type: 'array',
+        description: 'Capi finiti consegnati dal lavorante, associati a una variante solo se inequivocabile',
+        items: {
+          type: 'object',
+          properties: {
+            variantId: {
+              type: ['string', 'null'],
+              enum: [...contesto.varianti.map((v) => v.id), null],
+              description: 'ID copiato dal contesto soltanto quando SKU, taglia e colore coincidono',
+            },
+            descrizioneDocumento: { type: 'string' },
+            quantita: { type: ['integer', 'null'], minimum: 1 },
+            note: { type: ['string', 'null'] },
+            affidabilita: { type: 'string', enum: ['alta', 'media', 'bassa'] },
+          },
+          required: ['variantId', 'descrizioneDocumento', 'quantita', 'note', 'affidabilita'],
+          additionalProperties: false,
+        },
+      },
+      note: {
+        type: 'string',
+        description: 'Sintesi italiana: dati letti, associazioni dubbie e campi da verificare a mano',
+      },
+      affidabilita: { type: 'string', enum: ['alta', 'media', 'bassa'] },
+    },
+    required: ['numeroDocumentoLavorante', 'data', 'righe', 'capi', 'note', 'affidabilita'],
+    additionalProperties: false,
+  } as const
+}
+
+const DDT_RIENTRO_PROMPT = `Sei un assistente amministrativo di un'azienda di moda italiana. Leggi un DDT ricevuto da un lavorante esterno e prepara una proposta di registrazione del rientro.
+
+Regole inderogabili:
+- Il tuo output è solo una proposta: non stai modificando il magazzino.
+- Estrai solo dati effettivamente leggibili. Non inventare quantità, SKU, taglie, colori o destinazioni.
+- Usa esclusivamente gli ID presenti nel contesto. Se la corrispondenza non è chiara, usa null e spiegalo nelle note.
+- Una riga di materiale che il documento dichiara restituita va in "restituita".
+- Compila "utilizzata", "scartoRecuperato" o "scartoPerso" solo se il documento lo dichiara esplicitamente. Non dedurre il consumo per differenza e non considerare perso ciò che non compare.
+- I prodotti finiti consegnati vanno in "capi". Associa una variantId solo con corrispondenza chiara di SKU oppure di prodotto, taglia e colore.
+- Non superare le quantità ancora presso il lavorante indicate nel contesto.
+- Le quantità dei capi sono interi. Per metri e altri materiali sono ammessi decimali.
+- Se il documento è illeggibile o non sembra pertinente alla bolla, restituisci gli elementi non associati con ID null e affidabilità bassa.`
+
+function numeroNonNegativo(v: unknown, intero = false): number | null {
+  if (v === null || v === undefined || typeof v !== 'number' || !Number.isFinite(v) || v < 0) return null
+  if (intero && (!Number.isInteger(v) || v < 1)) return null
+  return v
+}
+
+/**
+ * Seconda cintura dopo lo schema strutturato: non lascia passare ID estranei al contesto
+ * né numeri negativi. È esportata per poter verificare questa garanzia senza chiamare l'API.
+ */
+export function normalizzaPropostaDdt(
+  proposta: DdtRientroProposal,
+  contesto: DdtRientroContext,
+): DdtRientroProposal {
+  const righeAmmesse = new Set(contesto.righe.map((r) => r.id))
+  const variantiAmmesse = new Set(contesto.varianti.map((v) => v.id))
+  const data = proposta.data && /^\d{4}-\d{2}-\d{2}$/.test(proposta.data) ? proposta.data : null
+
+  return {
+    numeroDocumentoLavorante: proposta.numeroDocumentoLavorante?.trim() || null,
+    data,
+    righe: proposta.righe.map((r) => ({
+      ...r,
+      rigaId: r.rigaId && righeAmmesse.has(r.rigaId) ? r.rigaId : null,
+      descrizioneDocumento: r.descrizioneDocumento.trim(),
+      utilizzata: numeroNonNegativo(r.utilizzata),
+      restituita: numeroNonNegativo(r.restituita),
+      scartoRecuperato: numeroNonNegativo(r.scartoRecuperato),
+      scartoPerso: numeroNonNegativo(r.scartoPerso),
+      note: r.note?.trim() || null,
+    })),
+    capi: proposta.capi.map((c) => ({
+      ...c,
+      variantId: c.variantId && variantiAmmesse.has(c.variantId) ? c.variantId : null,
+      descrizioneDocumento: c.descrizioneDocumento.trim(),
+      quantita: numeroNonNegativo(c.quantita, true),
+      note: c.note?.trim() || null,
+    })),
+    note: proposta.note.trim(),
+    affidabilita: proposta.affidabilita,
+  }
+}
+
+export async function scanDdtRientro(
+  fileBase64: string,
+  nomeFile: string,
+  mimeType: 'application/pdf' | 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif',
+  contesto: DdtRientroContext,
+): Promise<DdtRientroProposal> {
+  const data = fileBase64.includes(',') ? fileBase64.slice(fileBase64.indexOf(',') + 1) : fileBase64
+  const pulito = data.replace(/\s/g, '')
+  if (!pulito) throw badRequest('Documento mancante.')
+
+  const bytes = Math.floor((pulito.length * 3) / 4)
+  if (bytes > MAX_DOCUMENT_BYTES) {
+    throw badRequest(`Il documento pesa circa ${Math.round(bytes / 1024 / 1024)} MB: il limite è ${MAX_DOCUMENT_BYTES / 1024 / 1024} MB.`)
+  }
+
+  const fileData = `data:${mimeType};base64,${pulito}`
+  const documento = mimeType === 'application/pdf'
+    ? { type: 'input_file' as const, filename: nomeFile, file_data: fileData }
+    : { type: 'input_image' as const, image_url: fileData, detail: 'high' as const }
+  const contestoTesto = JSON.stringify(contesto, null, 2)
+  const openai = getClient()
+
+  try {
+    const response = await openai.responses.create({
+      model: config.openaiModel,
+      max_output_tokens: 8000,
+      instructions: DDT_RIENTRO_PROMPT,
+      input: [
+        {
+          role: 'user',
+          content: [
+            documento,
+            {
+              type: 'input_text',
+              text: `Leggi il DDT allegato e prepara la proposta di rientro per questa bolla.\n\nCONTESTO BOLLA:\n${contestoTesto}`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'proposta_rientro_ddt',
+          schema: ddtRientroSchema(contesto) as unknown as Record<string, unknown>,
+          strict: true,
+        },
+      },
+    })
+
+    const proposta = jsonDallaRisposta<DdtRientroProposal>(
+      response,
+      'Compila il rientro a mano: nessuna giacenza è stata modificata.',
+    )
+    return normalizzaPropostaDdt(proposta, contesto)
+  } catch (err) {
+    throw tradurreErroreAI(err)
+  }
 }
 
 // --- Misure tecniche suggerite (richiesta 3 del backlog "Note") ---
@@ -260,7 +491,7 @@ function jsonDallaRisposta<T>(response: OpenAI.Responses.Response, fallback: str
 }
 
 /**
- * Invia il PDF della scheda tecnica a Claude e restituisce i costi estratti.
+ * Invia il PDF della scheda tecnica a OpenAI e restituisce i costi estratti.
  * `pdfBase64` è il contenuto del file, senza il prefisso data URL.
  */
 export async function scanTechnicalSheetPdf(pdfBase64: string, nomeFile?: string): Promise<SheetScanResult> {
@@ -270,8 +501,8 @@ export async function scanTechnicalSheetPdf(pdfBase64: string, nomeFile?: string
   // La stringa base64 non deve contenere a capo, e il file deve stare nei limiti dell'API.
   const pulito = data.replace(/\s/g, '')
   const bytes = Math.floor((pulito.length * 3) / 4)
-  if (bytes > MAX_PDF_BYTES) {
-    throw badRequest(`Il PDF pesa circa ${Math.round(bytes / 1024 / 1024)} MB: il limite è ${MAX_PDF_BYTES / 1024 / 1024} MB.`)
+  if (bytes > MAX_DOCUMENT_BYTES) {
+    throw badRequest(`Il PDF pesa circa ${Math.round(bytes / 1024 / 1024)} MB: il limite è ${MAX_DOCUMENT_BYTES / 1024 / 1024} MB.`)
   }
 
   const openai = getClient()

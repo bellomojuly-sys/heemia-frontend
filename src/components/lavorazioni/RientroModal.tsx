@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Paperclip, Plus, Trash2 } from 'lucide-react'
+import { Paperclip, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { Button } from '../ui/Button'
+import { Badge } from '../ui/Badge'
 import { Modal, Field, FormActions, campoClass, fieldClass } from '../ui/Modal'
 import { useFormSubmit } from '../../hooks/useFormSubmit'
 import { useMockStore } from '../../context/MockStore'
-import type { RientroInput } from '../../hooks/useServerLavorazioni'
+import { analizzaDdtRientro } from '../../hooks/useServerLavorazioni'
+import type { DdtRientroMime, PropostaDdtRientro, RientroInput } from '../../hooks/useServerLavorazioni'
 import type { BollaLavorazione } from '../../types'
 
 // Registrazione del rientro dal lavorante.
@@ -38,6 +40,19 @@ const vuota = (): RigaForm => ({
 const n = (v: string) => (v.trim() ? Number(v) : 0)
 const nuovaChiave = () => `c${Math.random().toString(36).slice(2, 9)}`
 const arrotonda = (v: number) => Math.round(v * 1e4) / 1e4
+const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024
+const MIME_DDT = new Set<DdtRientroMime>([
+  'application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/gif',
+])
+
+function mimeDocumento(file: File): DdtRientroMime | null {
+  if (file.type === 'image/jpg') return 'image/jpeg'
+  if (MIME_DDT.has(file.type as DdtRientroMime)) return file.type as DdtRientroMime
+  if (!file.type && file.name.toLowerCase().endsWith('.pdf')) return 'application/pdf'
+  return null
+}
+
+const numeroProposto = (v: number | null) => (v && v > 0 ? String(v) : '')
 
 export function RientroModal({
   bolla,
@@ -53,7 +68,14 @@ export function RientroModal({
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10))
   const [numeroDoc, setNumeroDoc] = useState('')
   const [note, setNote] = useState('')
-  const [allegato, setAllegato] = useState<{ nome: string; dataUrl: string } | null>(null)
+  const [allegato, setAllegato] = useState<{
+    nome: string
+    dataUrl: string
+    mimeType: DdtRientroMime
+  } | null>(null)
+  const [scanInCorso, setScanInCorso] = useState(false)
+  const [scanErrore, setScanErrore] = useState('')
+  const [propostaAi, setPropostaAi] = useState<PropostaDdtRientro | null>(null)
   const [righe, setRighe] = useState<Record<string, RigaForm>>(() =>
     Object.fromEntries(bolla.righe.map((r) => [r.id, vuota()])),
   )
@@ -68,6 +90,14 @@ export function RientroModal({
   }, [productVariants, bolla.prodotto])
 
   const aperte = bolla.righe.filter((r) => r.quantitaPressoLavorante > 0)
+  const righeAiAbbinate = propostaAi?.righe.filter((r) => r.rigaId).length ?? 0
+  const capiAiAbbinati = propostaAi?.capi.filter((c) => c.variantId && c.quantita).length ?? 0
+  const elementiAiNonAbbinati = propostaAi
+    ? [
+        ...propostaAi.righe.filter((r) => !r.rigaId).map((r) => r.descrizioneDocumento),
+        ...propostaAi.capi.filter((c) => !c.variantId).map((c) => c.descrizioneDocumento),
+      ].filter(Boolean)
+    : []
 
   const aggiorna = (id: string, patch: Partial<RigaForm>) =>
     setRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
@@ -92,7 +122,7 @@ export function RientroModal({
         data,
         numeroDocumentoLavorante: numeroDoc.trim() || undefined,
         note: note.trim() || undefined,
-        allegato: allegato ?? undefined,
+        allegato: allegato ? { nome: allegato.nome, dataUrl: allegato.dataUrl } : undefined,
         righe: bolla.righe
           .filter((r) =>
             n(righe[r.id].utilizzata) + n(righe[r.id].restituita) +
@@ -115,13 +145,103 @@ export function RientroModal({
   )
 
   async function scegliFile(file: File) {
-    const dataUrl = await new Promise<string>((risolvi, rifiuta) => {
-      const lettore = new FileReader()
-      lettore.onload = () => risolvi(String(lettore.result))
-      lettore.onerror = () => rifiuta(lettore.error)
-      lettore.readAsDataURL(file)
+    setScanErrore('')
+    setPropostaAi(null)
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      setAllegato(null)
+      setScanErrore(`Il documento supera 20 MB (${Math.ceil(file.size / 1024 / 1024)} MB).`)
+      return
+    }
+    const mimeType = mimeDocumento(file)
+    if (!mimeType) {
+      setAllegato(null)
+      setScanErrore('Formato non supportato. Usa PDF, PNG, JPG, WEBP o GIF.')
+      return
+    }
+    try {
+      const dataUrl = await new Promise<string>((risolvi, rifiuta) => {
+        const lettore = new FileReader()
+        lettore.onload = () => risolvi(String(lettore.result))
+        lettore.onerror = () => rifiuta(lettore.error)
+        lettore.readAsDataURL(file)
+      })
+      setAllegato({ nome: file.name, dataUrl, mimeType })
+    } catch {
+      setAllegato(null)
+      setScanErrore('Non riesco a leggere il documento selezionato. Scegline un altro.')
+    }
+  }
+
+  function applicaProposta(proposta: PropostaDdtRientro) {
+    if (proposta.data) setData(proposta.data)
+    if (proposta.numeroDocumentoLavorante) setNumeroDoc(proposta.numeroDocumentoLavorante)
+
+    const perRiga = new Map<string, {
+      utilizzata: number
+      restituita: number
+      scartoRecuperato: number
+      scartoPerso: number
+      note: string[]
+    }>()
+    for (const r of proposta.righe) {
+      if (!r.rigaId) continue
+      const corrente = perRiga.get(r.rigaId) ?? {
+        utilizzata: 0, restituita: 0, scartoRecuperato: 0, scartoPerso: 0, note: [],
+      }
+      corrente.utilizzata += r.utilizzata ?? 0
+      corrente.restituita += r.restituita ?? 0
+      corrente.scartoRecuperato += r.scartoRecuperato ?? 0
+      corrente.scartoPerso += r.scartoPerso ?? 0
+      if (r.note) corrente.note.push(r.note)
+      perRiga.set(r.rigaId, corrente)
+    }
+    setRighe((precedenti) => {
+      const prossime = { ...precedenti }
+      for (const [rigaId, propostaRiga] of perRiga) {
+        const corrente = precedenti[rigaId]
+        if (!corrente) continue
+        prossime[rigaId] = {
+          utilizzata: corrente.utilizzata || numeroProposto(propostaRiga.utilizzata),
+          restituita: corrente.restituita || numeroProposto(propostaRiga.restituita),
+          scartoRecuperato: corrente.scartoRecuperato || numeroProposto(propostaRiga.scartoRecuperato),
+          scartoPerso: corrente.scartoPerso || numeroProposto(propostaRiga.scartoPerso),
+          note: corrente.note || propostaRiga.note.join(' · '),
+        }
+      }
+      return prossime
     })
-    setAllegato({ nome: file.name, dataUrl })
+
+    const capiProposti = new Map<string, number>()
+    for (const c of proposta.capi) {
+      if (c.variantId && c.quantita && c.quantita > 0) {
+        capiProposti.set(c.variantId, (capiProposti.get(c.variantId) ?? 0) + c.quantita)
+      }
+    }
+    setCapi((precedenti) => {
+      const giaPresenti = new Set(precedenti.map((c) => c.variantId).filter(Boolean))
+      const nuovi = [...capiProposti]
+        .filter(([variantId]) => !giaPresenti.has(variantId))
+        .map(([variantId, quantita]) => ({
+          chiave: nuovaChiave(), variantId, quantita: String(quantita),
+        }))
+      return [...precedenti, ...nuovi]
+    })
+  }
+
+  async function leggiConAi() {
+    if (!allegato || scanInCorso) return
+    setScanInCorso(true)
+    setScanErrore('')
+    try {
+      const { proposta } = await analizzaDdtRientro(bolla.id, allegato)
+      applicaProposta(proposta)
+      setPropostaAi(proposta)
+    } catch (e) {
+      setPropostaAi(null)
+      setScanErrore(e instanceof Error ? e.message : 'Documento non letto. Compila il rientro a mano.')
+    } finally {
+      setScanInCorso(false)
+    }
   }
 
   return (
@@ -144,12 +264,66 @@ export function RientroModal({
             <input
               type="file"
               className="hidden"
-              accept="application/pdf,image/*"
+              accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) void scegliFile(f) }}
             />
           </label>
         </Field>
       </div>
+
+      {allegato && (
+        <div className="mt-3 rounded-heemia border border-heemia-border bg-heemia-surface px-3 py-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="truncate text-sm text-heemia-black">{allegato.nome}</p>
+              <p className="mt-0.5 text-[11px] text-heemia-grey">
+                L’AI compila una proposta modificabile. Il magazzino resta invariato fino alla conferma finale.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={() => void leggiConAi()} disabled={scanInCorso || inCorso}>
+              <Sparkles className="mr-1 inline h-3.5 w-3.5" />
+              {scanInCorso ? 'Lettura in corso…' : propostaAi ? 'Rileggi con AI' : 'Leggi DDT con AI'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {scanErrore && (
+        <p role="alert" className="mt-3 rounded-heemia border border-heemia-carmine/30 bg-heemia-carmine-light px-3 py-2 text-xs text-heemia-carmine">
+          {scanErrore} Nessuna giacenza è stata modificata.
+        </p>
+      )}
+
+      {propostaAi && (
+        <div className="mt-3 rounded-heemia border border-heemia-border-strong bg-white px-3 py-3" aria-live="polite">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-medium text-heemia-black">Proposta AI applicata ai campi</p>
+            <Badge
+              variant={
+                propostaAi.affidabilita === 'alta'
+                  ? 'success'
+                  : propostaAi.affidabilita === 'media'
+                    ? 'warning'
+                    : 'critical'
+              }
+            >
+              Affidabilità {propostaAi.affidabilita}
+            </Badge>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-heemia-grey">{propostaAi.note}</p>
+          <p className="mt-2 font-mono-heemia text-[11px] text-heemia-grey">
+            {righeAiAbbinate} righe materiali abbinate · {capiAiAbbinati} varianti capi abbinate
+          </p>
+          {elementiAiNonAbbinati.length > 0 && (
+            <p className="mt-2 text-[11px] leading-relaxed text-heemia-orange">
+              Da associare a mano: {elementiAiNonAbbinati.join(' · ')}
+            </p>
+          )}
+          <p className="mt-2 text-[11px] font-medium text-heemia-black">
+            Controlla quantità, taglie e destinazioni. Solo “Registra il rientro” aggiorna il magazzino.
+          </p>
+        </div>
+      )}
 
       <div className="mt-5 border-t border-heemia-border pt-4">
         <div className="mb-2 flex items-center justify-between">
@@ -309,9 +483,9 @@ export function RientroModal({
       </div>
 
       <FormActions>
-        <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
-        <Button onClick={() => void submit()} disabled={inCorso}>
-          {inCorso ? 'Registrazione…' : 'Registra il rientro'}
+        <Button variant="ghost" onClick={onClose} disabled={inCorso || scanInCorso}>Annulla</Button>
+        <Button onClick={() => void submit()} disabled={inCorso || scanInCorso}>
+          {inCorso ? 'Registrazione…' : scanInCorso ? 'Attendi la lettura…' : 'Registra il rientro'}
         </Button>
       </FormActions>
     </Modal>

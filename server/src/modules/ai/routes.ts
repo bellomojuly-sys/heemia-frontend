@@ -1,11 +1,11 @@
-// FR-14/FR-28 — scansione AI del PDF della scheda tecnica.
-// Gating: modulo "prodotti" + permesso di modifica, perché il risultato scrive i costi
-// del capo. Il PDF viaggia in JSON base64 (nessun multipart: il backend non lo monta).
+// Letture documentali AI. Ogni endpoint usa il modulo della funzione che lo richiama:
+// prodotti per le schede tecniche, lavorazioni per il DDT di rientro.
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate, requireModule, requireEdit } from '../../core/guards.js'
 import { badRequest } from '../../core/errors.js'
-import { scanTechnicalSheetPdf, suggestMeasurements } from './service.js'
+import { getContestoRientroAi } from '../lavorazioni/service.js'
+import { scanDdtRientro, scanTechnicalSheetPdf, suggestMeasurements } from './service.js'
 
 const scanSchema = z.object({
   /** Contenuto del PDF in base64 (con o senza prefisso data URL). */
@@ -24,25 +24,47 @@ const measurementsSchema = z.object({
   dettagliCostruttivi: z.string().max(2000).optional(),
 })
 
-export async function aiRoutes(app: FastifyInstance) {
-  const write = { preHandler: [authenticate, requireModule('prodotti'), requireEdit] }
+const ddtRientroSchema = z.object({
+  bollaId: z.string().uuid(),
+  fileBase64: z.string().min(1, 'Documento mancante'),
+  nomeFile: z.string().min(1).max(200),
+  mimeType: z.enum(['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/gif']),
+})
 
-  app.post('/ai/scan-technical-sheet', write, async (req) => {
-    const parsed = scanSchema.safeParse(req.body)
-    if (!parsed.success) {
-      throw badRequest(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '))
-    }
-    const { pdfBase64, nomeFile } = parsed.data
+const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
+  const parsed = schema.safeParse(body)
+  if (!parsed.success) {
+    throw badRequest(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '))
+  }
+  return parsed.data
+}
+
+export async function aiRoutes(app: FastifyInstance) {
+  const prodottiWrite = { preHandler: [authenticate, requireModule('prodotti'), requireEdit] }
+  const lavorazioniWrite = { preHandler: [authenticate, requireModule('lavorazioni'), requireEdit] }
+
+  app.post('/ai/scan-technical-sheet', prodottiWrite, async (req) => {
+    const { pdfBase64, nomeFile } = parse(scanSchema, req.body)
     const estrazione = await scanTechnicalSheetPdf(pdfBase64, nomeFile)
     return { estrazione, analizzatoIl: new Date().toISOString() }
   })
 
   // Quali misure servono per questo capo: l'AI propone l'elenco, i valori si compilano a mano.
-  app.post('/ai/suggest-measurements', write, async (req) => {
-    const parsed = measurementsSchema.safeParse(req.body)
-    if (!parsed.success) {
-      throw badRequest(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '))
-    }
-    return suggestMeasurements(parsed.data)
+  app.post('/ai/suggest-measurements', prodottiWrite, async (req) => {
+    return suggestMeasurements(parse(measurementsSchema, req.body))
+  })
+
+  // Legge il DDT e restituisce soltanto una proposta. Il magazzino non viene toccato:
+  // la scrittura resta sull'endpoint /lavorazioni/bolle/:id/rientri dopo la conferma.
+  app.post('/ai/scan-ddt-rientro', lavorazioniWrite, async (req) => {
+    const input = parse(ddtRientroSchema, req.body)
+    const contesto = await getContestoRientroAi(input.bollaId)
+    const proposta = await scanDdtRientro(
+      input.fileBase64,
+      input.nomeFile,
+      input.mimeType,
+      contesto,
+    )
+    return { proposta, analizzatoIl: new Date().toISOString() }
   })
 }

@@ -67,7 +67,7 @@ export const config = {
   // credenziali. Resta revocabile dal server (le sessioni stanno a database).
   sessionTtlHours: durataSessione(),
   isProd: (process.env.NODE_ENV ?? 'development') === 'production',
-  // Chiave OpenAI per la scansione AI delle schede tecniche (FR-14/FR-28), fornitore
+  // Chiave OpenAI per la lettura AI di schede tecniche e DDT (FR-14/FR-28), fornitore
   // scelto in DEC-050 perché l'azienda usa già ChatGPT. Volutamente NON obbligatoria:
   // senza chiave il server parte lo stesso e solo l'endpoint /ai/* risponde con un
   // errore chiaro, invece di bloccare tutta l'app.

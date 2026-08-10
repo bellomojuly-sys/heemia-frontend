@@ -198,6 +198,56 @@ export async function getBolla(id: string) {
   return decoraBolla(b)
 }
 
+/**
+ * Contesto minimo inviato all'AI quando legge il DDT di rientro.
+ *
+ * Contiene solo ciò che serve per associare le righe del documento alla bolla già
+ * emessa. Non espone costi e, soprattutto, non esegue alcuna scrittura: l'AI prepara
+ * una proposta, mentre il magazzino cambia soltanto in `registraRientro`.
+ */
+export async function getContestoRientroAi(id: string) {
+  const bolla = await getBolla(id)
+  if (bolla.stato !== 'emessa' && bolla.stato !== 'parzialmente_rientrata') {
+    throw conflict(
+      bolla.stato === 'bozza'
+        ? 'La bolla deve essere emessa prima di leggere un DDT di rientro.'
+        : `Questa bolla è ${bolla.stato}: non accetta altri rientri.`,
+    )
+  }
+
+  const varianti = bolla.product
+    ? await prisma.productVariant.findMany({
+        where: { productId: bolla.product.id },
+        orderBy: [{ taglia: 'asc' }, { colore: 'asc' }],
+        select: { id: true, sku: true, taglia: true, colore: true },
+      })
+    : []
+
+  return {
+    bollaId: bolla.id,
+    numeroBollaUscita: bolla.numero,
+    lavorante: bolla.lavoranteNome ?? bolla.supplier.nome,
+    prodotto: bolla.product
+      ? { id: bolla.product.id, nome: bolla.product.nome, codice: bolla.product.codiceProdotto }
+      : null,
+    quantitaAttesa: bolla.quantitaAttesa,
+    capiGiaRientrati: bolla.capiRientrati,
+    righe: bolla.righe
+      .filter((r) => r.quantitaPressoLavorante > EPS)
+      .map((r) => ({
+        id: r.id,
+        descrizione: r.descrizione,
+        sku: r.sku,
+        unitaMisura: r.unitaMisura,
+        lotto: r.lotto,
+        colore: r.colore,
+        variante: r.variante,
+        quantitaAncoraFuori: r.quantitaPressoLavorante,
+      })),
+    varianti,
+  }
+}
+
 /** Registro completo dei movimenti generati da una bolla, dal più recente. */
 export function listMovimenti(bollaId: string) {
   return prisma.movimentoLavorazione.findMany({

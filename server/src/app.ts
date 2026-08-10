@@ -35,8 +35,8 @@ export const API_PREFIX = '/api/v1'
 export const SHOWROOM_PREFIX = '/api/showroom'
 
 export async function buildApp() {
-  // bodyLimit alzato a 30 MB: la scansione AI riceve il PDF della scheda tecnica
-  // codificato in base64 (che pesa ~1/3 in più del file originale).
+  // bodyLimit alzato a 30 MB: le letture AI ricevono PDF o immagini codificati in base64
+  // (che pesano ~1/3 in più del file originale).
   const app = Fastify({
     logger: { level: config.isProd ? 'info' : 'debug' },
     bodyLimit: 30 * 1024 * 1024,
