@@ -1,4 +1,3 @@
-import { PageHeader } from '../../components/ui/PageHeader'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { formatDateTimeIt } from '../../lib/format'
 import type { ActivityLogEntry } from '../../types'
@@ -32,7 +31,9 @@ export function ActivityLogPage() {
 
   return (
     <div>
-      <PageHeader title="Activity log" subtitle="Ogni azione critica tracciata con utente, data, valore precedente e nuovo. Visibile solo ad Admin e CEO." />
+      <p className="mb-5 text-sm text-heemia-grey">
+        Ogni azione critica con utente, data, valore precedente e nuovo. Visibile soltanto ad Admin e CEO.
+      </p>
       <DataTable
         loading={caricamento} columns={columns} rows={sorted} keyExtractor={(l) => l.id} />
     </div>

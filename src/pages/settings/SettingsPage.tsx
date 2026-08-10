@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { NAV_GROUPS } from '../../components/layout/nav'
-import { canAccessModule, canEdit, ROLE_LABELS } from '../../lib/permissions'
+import { canAccessModule, canEdit, ROLE_LABELS, type ModuleKey } from '../../lib/permissions'
 import { useMarginThreshold } from '../../hooks/useMarginThreshold'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
@@ -11,7 +10,16 @@ import { isGoatSoundMuto, playGoatBleat, setGoatSoundMuto } from '../../lib/goat
 import type { Role } from '../../types'
 
 const ROLES: Role[] = ['admin', 'ceo', 'team', 'viewer']
-const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items)
+// Le voci fuse nella sidebar restano moduli distinti per il controllo accessi: la matrice
+// deve mostrarle anche quando non hanno più una voce di navigazione autonoma.
+const NESTED_MODULES: { label: string; path: string; moduleKey: ModuleKey }[] = [
+  { label: 'Richieste showroom', path: '/ordini/showroom', moduleKey: 'richieste-showroom' },
+  { label: 'Shopify', path: '/ordini/shopify', moduleKey: 'shopify' },
+  { label: 'Scadenze', path: '/fatture/scadenze', moduleKey: 'scadenze' },
+  { label: 'Report economici', path: '/margini/report', moduleKey: 'report' },
+  { label: 'Activity log', path: '/impostazioni/log', moduleKey: 'activity-log' },
+]
+const ALL_ITEMS = [...NAV_GROUPS.flatMap((g) => g.items), ...NESTED_MODULES]
 
 export function SettingsPage() {
   const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
@@ -24,8 +32,6 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Impostazioni" subtitle="Ruolo attivo, matrice permessi e parametri configurabili." />
-
       <Card className="mb-6">
         <CardHeader title="Ruolo attivo" subtitle="Selettore demo nell'header: sostituisce l'autenticazione reale in questa fase." />
         <div className="p-5">

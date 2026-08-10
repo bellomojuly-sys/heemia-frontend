@@ -59,7 +59,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Azioni richieste', path: '/alert', moduleKey: 'alert' },
       { label: 'AI Assistant', path: '/assistente', moduleKey: 'ai-assistant' },
-      { label: 'Activity log', path: '/log', moduleKey: 'activity-log' },
       { label: 'Impostazioni', path: '/impostazioni', moduleKey: 'impostazioni' },
     ],
   },

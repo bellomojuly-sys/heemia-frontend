@@ -34,6 +34,7 @@ import { AlertsPage } from './pages/alerts/AlertsPage'
 import { AiAssistantPage } from './pages/assistant/AiAssistantPage'
 import { ActivityLogPage } from './pages/logs/ActivityLogPage'
 import { SettingsPage } from './pages/settings/SettingsPage'
+import { SettingsHubPage } from './pages/settings/SettingsHubPage'
 import { ShowroomApp } from './pages/showroom/ShowroomApp'
 
 /**
@@ -116,8 +117,12 @@ export function AppRouter() {
             <Route path="/analytics" element={<RoleGuard moduleKey="analytics"><AnalyticsPage /></RoleGuard>} />
             <Route path="/alert" element={<RoleGuard moduleKey="alert"><AlertsPage /></RoleGuard>} />
             <Route path="/assistente" element={<RoleGuard moduleKey="ai-assistant"><AiAssistantPage /></RoleGuard>} />
-            <Route path="/log" element={<RoleGuard moduleKey="activity-log"><ActivityLogPage /></RoleGuard>} />
-            <Route path="/impostazioni" element={<RoleGuard moduleKey="impostazioni"><SettingsPage /></RoleGuard>} />
+            <Route path="/log" element={<Navigate to="/impostazioni/log" replace />} />
+            <Route path="/impostazioni" element={<RoleGuard moduleKey="impostazioni"><SettingsHubPage /></RoleGuard>}>
+              <Route index element={<Navigate to="generali" replace />} />
+              <Route path="generali" element={<SettingsPage />} />
+              <Route path="log" element={<RoleGuard moduleKey="activity-log"><ActivityLogPage /></RoleGuard>} />
+            </Route>
           </Route>
           </Route>
         </Routes>
