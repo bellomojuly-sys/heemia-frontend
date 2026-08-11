@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMockStore } from '../context/MockStore'
+import { useDataStore } from '../context/DataStore'
 import { api, ApiError, isoDate, num } from '../lib/api'
 import type { Deadline } from '../types'
 
@@ -7,7 +7,7 @@ import type { Deadline } from '../types'
 // tabella e quelle derivate dalle fatture da pagare, e calcola "in ritardo" sulla data
 // reale — nel prototipo erano un elenco fisso con una data di riferimento finta.
 export function useServerDeadlines(): Deadline[] {
-  const { invoices } = useMockStore()
+  const { invoices } = useDataStore()
   const [deadlines, setDeadlines] = useState<Deadline[]>([])
 
   useEffect(() => {

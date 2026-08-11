@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMockStore } from '../context/MockStore'
+import { useDataStore } from '../context/DataStore'
 import { api, ApiError } from '../lib/api'
 import type { AlertItem } from '../types'
 
@@ -9,7 +9,7 @@ import type { AlertItem } from '../types'
 // Si ricarica quando cambiano i dati dello store, così un tessuto appena sceso sotto
 // soglia fa comparire subito il suo alert.
 export function useServerAlerts(): AlertItem[] {
-  const { materials, accessories, invoices, orders, products, cashClosures } = useMockStore()
+  const { materials, accessories, invoices, orders, products, cashClosures } = useDataStore()
   const [alerts, setAlerts] = useState<AlertItem[]>([])
 
   useEffect(() => {

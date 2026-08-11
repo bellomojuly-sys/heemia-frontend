@@ -3,7 +3,7 @@ import { Check, CircleAlert } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { fieldClass } from '../ui/Modal'
 import { ApiError } from '../../lib/api'
-import { useMockStore, type RequisitiCampione } from '../../context/MockStore'
+import { useDataStore, type RequisitiCampione } from '../../context/DataStore'
 
 /**
  * Approvazione del campione (backlog "Note" §6).
@@ -12,7 +12,7 @@ import { useMockStore, type RequisitiCampione } from '../../context/MockStore'
  * essere ricevuto, controllato e approvato. Qui si vede cosa manca prima di poterlo fare.
  */
 export function SampleApproval({ productId, canEdit }: { productId: string; canEdit: boolean }) {
-  const { checkRequisitiCampione, approvaCampione } = useMockStore()
+  const { checkRequisitiCampione, approvaCampione } = useDataStore()
   const [stato, setStato] = useState<RequisitiCampione | null>(null)
   const [note, setNote] = useState('')
   const [errore, setErrore] = useState('')

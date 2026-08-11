@@ -1,4 +1,4 @@
-// Clienti (FR-24). Porting di addCustomer/customers dal MockStore: la dedup per email
+// Clienti (FR-24). Porting di addCustomer/customers dal DataStore: la dedup per email
 // è server-side (API_Mapping §Clienti) — oggi era nel form showroom.
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'

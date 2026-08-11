@@ -1,5 +1,5 @@
 // Fatture (FR-19/22/23), scadenze (FR-21) e chiusura di cassa (FR-41, DEC-031).
-// Porting di addInvoice / updateInvoiceAssociations / addCashClosure dal MockStore.
+// Porting di addInvoice / updateInvoiceAssociations / addCashClosure dal DataStore.
 import { Prisma, type InvoicePagamento } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
 import { notFound } from '../../core/errors.js'

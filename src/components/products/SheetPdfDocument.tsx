@@ -2,7 +2,7 @@ import { createPortal } from 'react-dom'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import { computeSheetCost } from '../../lib/sheetCost'
 import { quantitaEffettiva } from '../../lib/sheetCost'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import type { Product, TechnicalSheet } from '../../types'
 
 // Documento stampabile della scheda tecnica (spec §1: export PDF con layout professionale).
@@ -41,7 +41,7 @@ export function SheetPdfDocument({
   sheet: TechnicalSheet
   variante?: PdfVariante
 }) {
-  const { materials, accessories, invoices, suppliers } = useMockStore()
+  const { materials, accessories, invoices, suppliers } = useDataStore()
   const conCosti = variante === 'completa'
   const costo = computeSheetCost(sheet, { materials, accessories, invoices })
   const laboratorio = sheet.fornitoreLaboratorioId

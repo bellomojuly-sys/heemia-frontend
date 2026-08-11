@@ -8,7 +8,7 @@ import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatDateIt } from '../../lib/format'
 import type { Accessory, Material, Supplier, SupplierCategoria, SupplierRequest } from '../../types'
-import { useMockStore, type NewSupplierInput } from '../../context/MockStore'
+import { useDataStore, type NewSupplierInput } from '../../context/DataStore'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
@@ -95,7 +95,7 @@ function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 
 export function SupplierList() {
   const { role } = useRole()
-  const { suppliers, materials, accessories, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft, sendSupplierRequest, caricamento } = useMockStore()
+  const { suppliers, materials, accessories, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft, sendSupplierRequest, caricamento } = useDataStore()
   const { avvisa } = useGoatAlert()
   const [openId, setOpenId] = useState<string | null>(supplierRequests[0]?.id ?? null)
   const [editingId, setEditingId] = useState<string | null>(null)

@@ -1,10 +1,14 @@
-// Inventario prodotti finiti. Porting di updateVariantQuantities dal MockStore: il record
+// Inventario prodotti finiti. Porting di updateVariantQuantities dal DataStore: il record
 // inventario e la variante restano allineati, stato e divergenza Shopify sono ricalcolati
 // dal server (mai inviati dal client).
-import type { InventoryStato, InventoryMovementType, Prisma } from '@prisma/client'
+import type { InventoryStato, InventoryMovementType, Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
 import { notFound, badRequest } from '../../core/errors.js'
+import { bloccaRisorsa } from '../../core/lock.js'
 import { logActivity } from '../../core/activityLog.js'
+
+/** Client Prisma o client di una transazione in corso: le letture funzionano con entrambi. */
+type Db = PrismaClient | Prisma.TransactionClient
 
 /** Stessa soglia del prototipo (variantStato): 0 = esaurito, <= soglia = low_stock. */
 export function stockStato(qta: number, sogliaMinima: number): InventoryStato {
@@ -175,76 +179,76 @@ export async function migrationAdjust(
 ) {
   if (input.quantita < 0) throw badRequest('La quantità non può essere negativa')
 
-  const record = await prisma.inventoryRecord.findUnique({ where: { variantId } })
-  if (!record) throw notFound('Record di inventario non trovato per questa variante')
-  if (record.migrazioneCompletata) {
-    throw badRequest(
-      'La distribuzione iniziale di questa variante è già stata confermata: usa i trasferimenti fra magazzino e laboratorio.',
-    )
-  }
-
-  const versoMagazzino = input.ubicazione === 'magazzino'
-  const inProduzione = await sommaInProduzione(variantId)
-  const totaleDichiarato = record.totaleMigrazione ?? record.qtaMagazzino + record.qtaLaboratorio + inProduzione
-
-  let qtaMagazzino = record.qtaMagazzino
-  let qtaLaboratorio = record.qtaLaboratorio
-  let nuovoTotale = totaleDichiarato
-  let quantitaMossa = 0
-
-  if (input.modalita === 'redistribuisci') {
-    // "Già compresi nel totale": l'ubicazione indicata arriva alla quantità richiesta e
-    // la differenza esce dall'altra. Il totale resta quello.
-    const attuale = versoMagazzino ? record.qtaMagazzino : record.qtaLaboratorio
-    const altra = versoMagazzino ? record.qtaLaboratorio : record.qtaMagazzino
-    const delta = input.quantita - attuale
-    if (delta > altra) {
-      throw badRequest(
-        versoMagazzino
-          ? `In laboratorio ci sono ${altra} pezzi: non se ne possono spostare ${delta} in magazzino.`
-          : `In magazzino ci sono ${altra} pezzi: non se ne possono spostare ${delta} in laboratorio.`,
-      )
-    }
-    quantitaMossa = Math.abs(delta)
-    qtaMagazzino = versoMagazzino ? input.quantita : record.qtaMagazzino - delta
-    qtaLaboratorio = versoMagazzino ? record.qtaLaboratorio - delta : input.quantita
-  } else if (input.modalita === 'colma') {
-    // "Erano nel totale ma non assegnati": l'ubicazione arriva alla quantità richiesta e
-    // il totale resta com'è, così lo scarto si chiude. Ha senso solo se lo scarto si
-    // riduce davvero: altrimenti si starebbe solo spostando il problema.
-    const attuale = versoMagazzino ? record.qtaMagazzino : record.qtaLaboratorio
-    const delta = input.quantita - attuale
-    if (delta === 0) throw badRequest('La quantità è già questa: non cambia niente')
-    const scartoPrima = record.qtaMagazzino + record.qtaLaboratorio + inProduzione - totaleDichiarato
-    const scartoDopo = scartoPrima + delta
-    if (Math.abs(scartoDopo) >= Math.abs(scartoPrima)) {
-      throw badRequest(
-        `Con questa quantità lo scarto rispetto al totale registrato non si riduce ` +
-          `(da ${scartoPrima} a ${scartoDopo}). Se sono capi nuovi usa "Da aggiungere al totale".`,
-      )
-    }
-    quantitaMossa = Math.abs(delta)
-    qtaMagazzino = versoMagazzino ? input.quantita : record.qtaMagazzino
-    qtaLaboratorio = versoMagazzino ? record.qtaLaboratorio : input.quantita
-    // `nuovoTotale` resta `totaleDichiarato`: è tutto il senso di questa risposta.
-  } else {
-    // "Da aggiungere al totale": la differenza non viene dall'altra ubicazione, viene da
-    // fuori — capi mai contati. L'ubicazione arriva comunque alla quantità richiesta (il
-    // numero digitato ha **un solo significato**: "qui ce ne sono tanti"), e il totale
-    // dichiarato si muove della stessa differenza, così la distribuzione resta quadrata.
-    // Una differenza negativa è il caso simmetrico: capi contati per errore, si tolgono.
-    const attuale = versoMagazzino ? record.qtaMagazzino : record.qtaLaboratorio
-    const delta = input.quantita - attuale
-    if (delta === 0) throw badRequest('La quantità è già questa: non c\'è niente da aggiungere')
-    quantitaMossa = Math.abs(delta)
-    qtaMagazzino = versoMagazzino ? input.quantita : record.qtaMagazzino
-    qtaLaboratorio = versoMagazzino ? record.qtaLaboratorio : input.quantita
-    nuovoTotale = totaleDichiarato + delta
-  }
-
-  const calcolo = calcolaDisponibilita({ ...record, qtaMagazzino, qtaLaboratorio })
-
   return prisma.$transaction(async (tx) => {
+    await bloccaRisorsa(tx, 'inventory_record', variantId)
+    const record = await tx.inventoryRecord.findUnique({ where: { variantId } })
+    if (!record) throw notFound('Record di inventario non trovato per questa variante')
+    if (record.migrazioneCompletata) {
+      throw badRequest(
+        'La distribuzione iniziale di questa variante è già stata confermata: usa i trasferimenti fra magazzino e laboratorio.',
+      )
+    }
+
+    const versoMagazzino = input.ubicazione === 'magazzino'
+    const inProduzione = await sommaInProduzione(variantId, tx)
+    const totaleDichiarato = record.totaleMigrazione ?? record.qtaMagazzino + record.qtaLaboratorio + inProduzione
+
+    let qtaMagazzino = record.qtaMagazzino
+    let qtaLaboratorio = record.qtaLaboratorio
+    let nuovoTotale = totaleDichiarato
+    let quantitaMossa = 0
+
+    if (input.modalita === 'redistribuisci') {
+      // "Già compresi nel totale": l'ubicazione indicata arriva alla quantità richiesta e
+      // la differenza esce dall'altra. Il totale resta quello.
+      const attuale = versoMagazzino ? record.qtaMagazzino : record.qtaLaboratorio
+      const altra = versoMagazzino ? record.qtaLaboratorio : record.qtaMagazzino
+      const delta = input.quantita - attuale
+      if (delta > altra) {
+        throw badRequest(
+          versoMagazzino
+            ? `In laboratorio ci sono ${altra} pezzi: non se ne possono spostare ${delta} in magazzino.`
+            : `In magazzino ci sono ${altra} pezzi: non se ne possono spostare ${delta} in laboratorio.`,
+        )
+      }
+      quantitaMossa = Math.abs(delta)
+      qtaMagazzino = versoMagazzino ? input.quantita : record.qtaMagazzino - delta
+      qtaLaboratorio = versoMagazzino ? record.qtaLaboratorio - delta : input.quantita
+    } else if (input.modalita === 'colma') {
+      // "Erano nel totale ma non assegnati": l'ubicazione arriva alla quantità richiesta e
+      // il totale resta com'è, così lo scarto si chiude. Ha senso solo se lo scarto si
+      // riduce davvero: altrimenti si starebbe solo spostando il problema.
+      const attuale = versoMagazzino ? record.qtaMagazzino : record.qtaLaboratorio
+      const delta = input.quantita - attuale
+      if (delta === 0) throw badRequest('La quantità è già questa: non cambia niente')
+      const scartoPrima = record.qtaMagazzino + record.qtaLaboratorio + inProduzione - totaleDichiarato
+      const scartoDopo = scartoPrima + delta
+      if (Math.abs(scartoDopo) >= Math.abs(scartoPrima)) {
+        throw badRequest(
+          `Con questa quantità lo scarto rispetto al totale registrato non si riduce ` +
+            `(da ${scartoPrima} a ${scartoDopo}). Se sono capi nuovi usa "Da aggiungere al totale".`,
+        )
+      }
+      quantitaMossa = Math.abs(delta)
+      qtaMagazzino = versoMagazzino ? input.quantita : record.qtaMagazzino
+      qtaLaboratorio = versoMagazzino ? record.qtaLaboratorio : input.quantita
+      // `nuovoTotale` resta `totaleDichiarato`: è tutto il senso di questa risposta.
+    } else {
+      // "Da aggiungere al totale": la differenza non viene dall'altra ubicazione, viene da
+      // fuori — capi mai contati. L'ubicazione arriva comunque alla quantità richiesta (il
+      // numero digitato ha **un solo significato**: "qui ce ne sono tanti"), e il totale
+      // dichiarato si muove della stessa differenza, così la distribuzione resta quadrata.
+      // Una differenza negativa è il caso simmetrico: capi contati per errore, si tolgono.
+      const attuale = versoMagazzino ? record.qtaMagazzino : record.qtaLaboratorio
+      const delta = input.quantita - attuale
+      if (delta === 0) throw badRequest('La quantità è già questa: non c\'è niente da aggiungere')
+      quantitaMossa = Math.abs(delta)
+      qtaMagazzino = versoMagazzino ? input.quantita : record.qtaMagazzino
+      qtaLaboratorio = versoMagazzino ? record.qtaLaboratorio : input.quantita
+      nuovoTotale = totaleDichiarato + delta
+    }
+
+    const calcolo = calcolaDisponibilita({ ...record, qtaMagazzino, qtaLaboratorio })
     const updated = await tx.inventoryRecord.update({
       where: { variantId },
       data: {
@@ -304,23 +308,23 @@ export async function migrationAdjust(
  * significherebbe congelare un errore e non accorgersene più.
  */
 export async function confirmMigration(variantId: string, userId: string) {
-  const record = await prisma.inventoryRecord.findUnique({ where: { variantId } })
-  if (!record) throw notFound('Record di inventario non trovato per questa variante')
-  if (record.migrazioneCompletata) throw badRequest('La distribuzione iniziale è già stata confermata')
-
-  const inProduzione = await sommaInProduzione(variantId)
-  const stato = statoMigrazione(record, inProduzione)
-  if (stato.differenzaMigrazione !== 0) {
-    const d = stato.differenzaMigrazione
-    throw badRequest(
-      `La distribuzione non torna: magazzino ${record.qtaMagazzino} + laboratorio ${record.qtaLaboratorio}` +
-        (inProduzione > 0 ? ` + in produzione ${inProduzione}` : '') +
-        ` = ${stato.totaleDistribuito}, ma il totale registrato è ${stato.totaleDichiarato} ` +
-        `(${d > 0 ? `${d} in più` : `${Math.abs(d)} mancanti`}). Sistema le quantità prima di confermare.`,
-    )
-  }
-
   return prisma.$transaction(async (tx) => {
+    await bloccaRisorsa(tx, 'inventory_record', variantId)
+    const record = await tx.inventoryRecord.findUnique({ where: { variantId } })
+    if (!record) throw notFound('Record di inventario non trovato per questa variante')
+    if (record.migrazioneCompletata) throw badRequest('La distribuzione iniziale è già stata confermata')
+
+    const inProduzione = await sommaInProduzione(variantId, tx)
+    const stato = statoMigrazione(record, inProduzione)
+    if (stato.differenzaMigrazione !== 0) {
+      const d = stato.differenzaMigrazione
+      throw badRequest(
+        `La distribuzione non torna: magazzino ${record.qtaMagazzino} + laboratorio ${record.qtaLaboratorio}` +
+          (inProduzione > 0 ? ` + in produzione ${inProduzione}` : '') +
+          ` = ${stato.totaleDistribuito}, ma il totale registrato è ${stato.totaleDichiarato} ` +
+          `(${d > 0 ? `${d} in più` : `${Math.abs(d)} mancanti`}). Sistema le quantità prima di confermare.`,
+      )
+    }
     const updated = await tx.inventoryRecord.update({
       where: { variantId },
       data: { migrazioneCompletata: true, migrazioneConfermataIl: new Date(), migrazioneConfermataDa: userId },
@@ -407,26 +411,26 @@ export async function transferStock(
 ) {
   if (quantita <= 0) throw badRequest('La quantità da trasferire deve essere maggiore di zero')
 
-  const record = await prisma.inventoryRecord.findUnique({ where: { variantId } })
-  if (!record) throw notFound('Record di inventario non trovato per questa variante')
-
-  const versoLaboratorio = direzione === 'to_lab'
-  const disponibile = versoLaboratorio ? record.qtaMagazzino : record.qtaLaboratorio
-  if (quantita > disponibile) {
-    throw badRequest(
-      versoLaboratorio
-        ? `In magazzino ci sono ${disponibile} pezzi: non se ne possono inviare ${quantita}`
-        : `In laboratorio ci sono ${disponibile} pezzi: non se ne possono riportare ${quantita}`,
-    )
-  }
-
-  const qtaMagazzino = record.qtaMagazzino + (versoLaboratorio ? -quantita : quantita)
-  const qtaLaboratorio = record.qtaLaboratorio + (versoLaboratorio ? quantita : -quantita)
-  // Un trasferimento sposta capi fra due giacenze interne: il totale non cambia, e con
-  // esso non cambiano né lo stato né la divergenza Shopify.
-  const calcolo = calcolaDisponibilita({ ...record, qtaMagazzino, qtaLaboratorio })
-
   return prisma.$transaction(async (tx) => {
+    await bloccaRisorsa(tx, 'inventory_record', variantId)
+    const record = await tx.inventoryRecord.findUnique({ where: { variantId } })
+    if (!record) throw notFound('Record di inventario non trovato per questa variante')
+
+    const versoLaboratorio = direzione === 'to_lab'
+    const disponibile = versoLaboratorio ? record.qtaMagazzino : record.qtaLaboratorio
+    if (quantita > disponibile) {
+      throw badRequest(
+        versoLaboratorio
+          ? `In magazzino ci sono ${disponibile} pezzi: non se ne possono inviare ${quantita}`
+          : `In laboratorio ci sono ${disponibile} pezzi: non se ne possono riportare ${quantita}`,
+      )
+    }
+
+    const qtaMagazzino = record.qtaMagazzino + (versoLaboratorio ? -quantita : quantita)
+    const qtaLaboratorio = record.qtaLaboratorio + (versoLaboratorio ? quantita : -quantita)
+    // Un trasferimento sposta capi fra due giacenze interne: il totale non cambia, e con
+    // esso non cambiano né lo stato né la divergenza Shopify.
+    const calcolo = calcolaDisponibilita({ ...record, qtaMagazzino, qtaLaboratorio })
     const updated = await tx.inventoryRecord.update({
       where: { variantId },
       data: { qtaMagazzino, qtaLaboratorio, stato: calcolo.stato, divergenzaShopify: calcolo.divergenzaShopify },
@@ -475,19 +479,19 @@ export async function mandaInProduzione(
 ) {
   if (input.quantita <= 0) throw badRequest('La quantità da mandare in produzione deve essere maggiore di zero')
 
-  const record = await prisma.inventoryRecord.findUnique({ where: { variantId } })
-  if (!record) throw notFound('Record di inventario non trovato per questa variante')
-
-  if (input.quantita > record.qtaLaboratorio) {
-    throw badRequest(
-      `In laboratorio ci sono ${record.qtaLaboratorio} pezzi: non se ne possono mandare in lavorazione ${input.quantita}.`,
-    )
-  }
-
-  const qtaLaboratorio = record.qtaLaboratorio - input.quantita
-  const calcolo = calcolaDisponibilita({ ...record, qtaLaboratorio })
-
   return prisma.$transaction(async (tx) => {
+    await bloccaRisorsa(tx, 'inventory_record', variantId)
+    const record = await tx.inventoryRecord.findUnique({ where: { variantId } })
+    if (!record) throw notFound('Record di inventario non trovato per questa variante')
+
+    if (input.quantita > record.qtaLaboratorio) {
+      throw badRequest(
+        `In laboratorio ci sono ${record.qtaLaboratorio} pezzi: non se ne possono mandare in lavorazione ${input.quantita}.`,
+      )
+    }
+
+    const qtaLaboratorio = record.qtaLaboratorio - input.quantita
+    const calcolo = calcolaDisponibilita({ ...record, qtaLaboratorio })
     const creato = await tx.stockCommitment.create({
       data: { variantId, quantita: input.quantita, productId: input.productId, stepId: input.stepId, note: input.note, createdBy: userId },
     })
@@ -525,19 +529,19 @@ export async function chiudiLavorazione(
   esito: 'terminato' | 'annullato',
   userId: string,
 ) {
-  const lavorazione = await prisma.stockCommitment.findUnique({ where: { id } })
-  if (!lavorazione) throw notFound('Lavorazione non trovata')
-  if (lavorazione.stato !== 'in_produzione') {
-    throw badRequest(`Questa lavorazione risulta già ${lavorazione.stato}.`)
-  }
-
-  const record = await prisma.inventoryRecord.findUnique({ where: { variantId: lavorazione.variantId } })
-  if (!record) throw notFound('Record di inventario non trovato')
-
-  const qtaLaboratorio = record.qtaLaboratorio + lavorazione.quantita
-  const calcolo = calcolaDisponibilita({ ...record, qtaLaboratorio })
-
   return prisma.$transaction(async (tx) => {
+    const lavorazione = await tx.stockCommitment.findUnique({ where: { id } })
+    if (!lavorazione) throw notFound('Lavorazione non trovata')
+    if (lavorazione.stato !== 'in_produzione') {
+      throw badRequest(`Questa lavorazione risulta già ${lavorazione.stato}.`)
+    }
+
+    await bloccaRisorsa(tx, 'inventory_record', lavorazione.variantId)
+    const record = await tx.inventoryRecord.findUnique({ where: { variantId: lavorazione.variantId } })
+    if (!record) throw notFound('Record di inventario non trovato')
+
+    const qtaLaboratorio = record.qtaLaboratorio + lavorazione.quantita
+    const calcolo = calcolaDisponibilita({ ...record, qtaLaboratorio })
     await tx.stockCommitment.update({
       where: { id },
       data: { stato: esito, chiusoIl: new Date() },
@@ -566,8 +570,10 @@ export async function chiudiLavorazione(
   })
 }
 
-async function sommaInProduzione(variantId: string): Promise<number> {
-  const somma = await prisma.stockCommitment.aggregate({
+// Accetta il client della transazione in corso: chiamata da dentro una transazione deve
+// leggere ciò che quella transazione sta vedendo, non lo stato esterno.
+async function sommaInProduzione(variantId: string, db: Db = prisma): Promise<number> {
+  const somma = await db.stockCommitment.aggregate({
     where: { variantId, stato: 'in_produzione' },
     _sum: { quantita: true },
   })

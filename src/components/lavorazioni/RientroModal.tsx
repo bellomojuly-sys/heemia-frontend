@@ -4,7 +4,7 @@ import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { Modal, Field, FormActions, campoClass, fieldClass } from '../ui/Modal'
 import { useFormSubmit } from '../../hooks/useFormSubmit'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { analizzaDdtRientro } from '../../hooks/useServerLavorazioni'
 import type { DdtRientroMime, PropostaDdtRientro, RientroInput } from '../../hooks/useServerLavorazioni'
 import type { BollaLavorazione } from '../../types'
@@ -63,7 +63,7 @@ export function RientroModal({
   onClose: () => void
   onSubmit: (input: RientroInput) => Promise<unknown>
 }) {
-  const { productVariants } = useMockStore()
+  const { productVariants } = useDataStore()
 
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10))
   const [numeroDoc, setNumeroDoc] = useState('')

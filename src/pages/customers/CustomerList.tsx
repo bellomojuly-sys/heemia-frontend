@@ -12,7 +12,7 @@ import { formatCurrency, formatDateIt } from '../../lib/format'
 import type { Customer, TipologiaCliente } from '../../types'
 import { useRole } from '../../context/RoleContext'
 import { canEdit } from '../../lib/permissions'
-import { useMockStore, type NewCustomerInput, type NewOrderInput } from '../../context/MockStore'
+import { useDataStore, type NewCustomerInput, type NewOrderInput } from '../../context/DataStore'
 
 const TIPOLOGIA_LABEL: Record<string, string> = {
   ecommerce: 'E-commerce', showroom: 'Showroom', b2b: 'B2B', retailer: 'Retailer', showroom_partner: 'Showroom partner',
@@ -119,7 +119,7 @@ function AddOrderForm({ customerName, onClose, onSubmit }: { customerName: strin
 
 export function CustomerList() {
   const { role } = useRole()
-  const { customers, orders, invoices, products, addCustomer, addOrder, caricamento } = useMockStore()
+  const { customers, orders, invoices, products, addCustomer, addOrder, caricamento } = useDataStore()
   const [search, setSearch] = useState('')
   const [tipologia, setTipologia] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)

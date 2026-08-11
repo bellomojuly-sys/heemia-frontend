@@ -3,10 +3,10 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 
 export function ShopifyPage() {
-  const { products, inventoryRecords, productVariants, orders, customers } = useMockStore()
+  const { products, inventoryRecords, productVariants, orders, customers } = useDataStore()
   const divergenti = inventoryRecords.filter((r) => r.divergenzaShopify)
   const shopifyOrders = orders.filter((o) => o.canale === 'shopify')
 

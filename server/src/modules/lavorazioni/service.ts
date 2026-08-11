@@ -22,6 +22,7 @@ import type {
 } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
 import { badRequest, conflict, notFound, forbidden } from '../../core/errors.js'
+import { bloccaRisorsa } from '../../core/lock.js'
 import { logActivity } from '../../core/activityLog.js'
 import { derivaStato } from '../materials/service.js'
 import { calcolaDisponibilita } from '../inventory/service.js'
@@ -774,10 +775,16 @@ export interface RientroInput {
  *
  * Rientri parziali e multipli sono la norma: la bolla passa a `parzialmente_rientrata` e
  * ci resta finché qualcosa è ancora fuori. Il doppio rientro è impedito dal vincolo che la
- * somma dei rientri di una riga non superi mai quanto era stato consegnato.
+ * somma dei rientri di una riga non superi mai quanto era stato consegnato — vincolo che
+ * vale anche fra due richieste simultanee, grazie al lock preso qui sotto: senza, due
+ * conferme partite insieme leggevano entrambe le stesse quantità residue, passavano
+ * entrambe il controllo e registravano entrambe (giacenza sotto zero, capi contati due
+ * volte). È lo stesso presidio che l'emissione ottiene con il suo compare-and-set.
  */
 export async function registraRientro(bollaId: string, input: RientroInput, userId: string) {
   return prisma.$transaction(async (tx) => {
+    // Prima di ogni lettura: da qui in poi, per questa bolla, si passa uno alla volta.
+    await bloccaRisorsa(tx, 'bolla_rientro', bollaId)
     const bolla = await tx.bollaLavorazione.findUnique({
       where: { id: bollaId },
       include: { righe: true, supplier: { select: { nome: true } } },

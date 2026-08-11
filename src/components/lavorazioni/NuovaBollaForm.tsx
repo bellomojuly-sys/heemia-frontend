@@ -3,7 +3,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Modal, Field, FormActions, campoClass, fieldClass } from '../ui/Modal'
 import { useFormSubmit } from '../../hooks/useFormSubmit'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useArticoliDisponibili, type NuovaBollaInput, type NuovaRigaInput } from '../../hooks/useServerLavorazioni'
 import type { ArticoloDisponibile, CausaleBolla } from '../../types'
 
@@ -40,7 +40,7 @@ export function NuovaBollaForm({
   onClose: () => void
   onSubmit: (input: NuovaBollaInput) => Promise<unknown>
 }) {
-  const { suppliers, products } = useMockStore()
+  const { suppliers, products } = useDataStore()
   const { articoli, caricamento: caricamentoArticoli } = useArticoliDisponibili()
 
   const [supplierId, setSupplierId] = useState('')

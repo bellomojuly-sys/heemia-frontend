@@ -40,8 +40,19 @@ const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
 }
 
 export async function aiRoutes(app: FastifyInstance) {
-  const prodottiWrite = { preHandler: [authenticate, requireModule('prodotti'), requireEdit] }
-  const lavorazioniWrite = { preHandler: [authenticate, requireModule('lavorazioni'), requireEdit] }
+  // Limite proprio, molto sotto il globale di 300/minuto. Qui ogni richiesta porta fino a
+  // 20 MB di documento e fa partire una chiamata a OpenAI che si paga: il limite globale
+  // difende il server dal carico, questo difende la bolletta. Dieci letture al minuto
+  // sono più di quante una persona ne possa controllare.
+  const limiteAi = { rateLimit: { max: 10, timeWindow: '1 minute' } }
+  const prodottiWrite = {
+    config: limiteAi,
+    preHandler: [authenticate, requireModule('prodotti'), requireEdit],
+  }
+  const lavorazioniWrite = {
+    config: limiteAi,
+    preHandler: [authenticate, requireModule('lavorazioni'), requireEdit],
+  }
 
   app.post('/ai/scan-technical-sheet', prodottiWrite, async (req) => {
     const { pdfBase64, nomeFile } = parse(scanSchema, req.body)

@@ -4,7 +4,7 @@ import { Badge } from '../ui/Badge'
 import { formatCurrency, formatPercent } from '../../lib/format'
 import { useMarginThreshold } from '../../hooks/useMarginThreshold'
 import { computePriceBands, computeUnitsToBreakEven } from '../../lib/margins'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 
 // Tooltip in linguaggio semplice — testo esatto da FR-10, la sezione è letta dalla CEO
 // senza formazione finanziaria.
@@ -36,7 +36,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 export function MarginSummaryCard({ margin, productName }: { margin: Margin; productName: string }) {
   const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
-  const { fixedCostItems } = useMockStore()
+  const { fixedCostItems } = useDataStore()
   const totaleCostiFissi = fixedCostItems.reduce((sum, item) => sum + item.importoAnnuo, 0)
   // FR-10 §18: unità di pareggio sui costi fissi e margine residuo per fascia di prezzo,
   // con alert automatico quando uno sconto porta il prodotto sotto break-even.

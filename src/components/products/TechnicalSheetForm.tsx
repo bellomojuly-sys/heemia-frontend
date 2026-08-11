@@ -11,7 +11,7 @@ import { estimateConsumption, weightedAverageUnitCost } from '../../lib/material
 import { VOCE_LABEL } from '../../lib/sheetCost'
 import { api, ApiError } from '../../lib/api'
 import { fileToDownscaledDataUrl } from '../../lib/images'
-import { useMockStore, type TechnicalSheetInput } from '../../context/MockStore'
+import { useDataStore, type TechnicalSheetInput } from '../../context/DataStore'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import type {
   Product,
@@ -101,7 +101,7 @@ export function TechnicalSheetForm({
   onClose: () => void
 }) {
   const { materials, accessories, invoices, suppliers, technicalSheets, updateTechnicalSheet } =
-    useMockStore()
+    useDataStore()
 
   const { avvisa } = useGoatAlert()
   const [form, setForm] = useState<TechnicalSheet>(sheet)

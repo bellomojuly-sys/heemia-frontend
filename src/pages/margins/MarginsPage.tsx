@@ -12,7 +12,7 @@ import { useMarginThreshold } from '../../hooks/useMarginThreshold'
 import { useEconomicsOutlet } from './economicsOutlet'
 import { useServerCostAllocations } from '../../hooks/useServerCostAllocations'
 import type { Margin } from '../../types'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
 import { QuantitaInput } from '../../components/ui/QuantitaInput'
@@ -23,7 +23,7 @@ const ALLOCATION_LABEL: Record<string, string> = {
 }
 
 function FixedCostsCard() {
-  const { fixedCostItems, capiProdottiAnnui, quotaHistory, updateFixedCostItem, addFixedCostItem, removeFixedCostItem, setCapiProdottiAnnui, saveQuotaSnapshot } = useMockStore()
+  const { fixedCostItems, capiProdottiAnnui, quotaHistory, updateFixedCostItem, addFixedCostItem, removeFixedCostItem, setCapiProdottiAnnui, saveQuotaSnapshot } = useDataStore()
   const { avvisa } = useGoatAlert()
   const [newNome, setNewNome] = useState('')
   const [newImporto, setNewImporto] = useState('')
@@ -192,7 +192,7 @@ function FixedCostsCard() {
 }
 
 export function MarginsPage() {
-  const { products, invoices } = useMockStore()
+  const { products, invoices } = useDataStore()
 
   // Margini calcolati dal server sui dati reali (stessa formula: quota costi fissi + costo
   // diretto). Li carica il contenitore "Costi, margini e report", che li condivide con la

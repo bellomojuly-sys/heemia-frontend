@@ -17,7 +17,7 @@ import { formatCurrency, formatPercent } from '../../lib/format'
 import { PRODUCT_STAGES, type Product, type ProductStage } from '../../types'
 import { useRole } from '../../context/RoleContext'
 import { canAccessModule, canDeleteProducts, canEdit } from '../../lib/permissions'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useLiveMargins } from '../../hooks/useLiveMargins'
 
 // Backlog "Note" §7: i KPI della dashboard aprono questa pagina già filtrata. Il filtro
@@ -36,7 +36,7 @@ const VISTE: Record<string, { label: string; test: (p: Product) => boolean }> = 
 export function ProductList() {
   const navigate = useNavigate()
   const { role } = useRole()
-  const { products, productVariants, addProduct, caricamento } = useMockStore()
+  const { products, productVariants, addProduct, caricamento } = useDataStore()
   const liveMargins = useLiveMargins()
   const canSeeMargins = canAccessModule(role, 'costi-margini')
   const [searchParams, setSearchParams] = useSearchParams()

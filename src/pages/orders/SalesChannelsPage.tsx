@@ -1,7 +1,7 @@
 import { MessageSquareText, ShoppingBag, Store } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useRole } from '../../context/RoleContext'
 import { useServerShowroomRequests } from '../../hooks/useServerShowroomRequests'
 import { canAccessModule, type ModuleKey } from '../../lib/permissions'
@@ -14,7 +14,7 @@ import type { SalesChannelsOutlet } from './salesChannelsOutlet'
  */
 export function SalesChannelsPage() {
   const { role } = useRole()
-  const { orders, products, inventoryRecords } = useMockStore()
+  const { orders, products, inventoryRecords } = useDataStore()
   const showroom = useServerShowroomRequests()
 
   const ordiniAperti = orders.filter((o) => o.stato !== 'consegnato' && o.stato !== 'annullato').length

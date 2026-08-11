@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMockStore } from '../context/MockStore'
+import { useDataStore } from '../context/DataStore'
 import { api, ApiError, num } from '../lib/api'
 import type { Margin } from '../types'
 
@@ -8,7 +8,7 @@ import type { Margin } from '../types'
 // mock è stato rimosso: la fonte di verità è una sola.
 // Si aggiorna quando cambiano voci di costo fisso o capi/anno, perché entrambe modificano la quota.
 export function useLiveMargins(): Margin[] {
-  const { fixedCostItems, capiProdottiAnnui } = useMockStore()
+  const { fixedCostItems, capiProdottiAnnui } = useDataStore()
   const [margins, setMargins] = useState<Margin[]>([])
 
   useEffect(() => {

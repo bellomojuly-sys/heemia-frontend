@@ -4,7 +4,7 @@ import { Modal, Field, FormActions, SiNoField, campoClass, fieldClass } from '..
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Linea, Product } from '../../types'
 
-// Modifica dei dati prodotto (FR-01) nel prototipo: aggiorna il record nel MockStore in
+// Modifica dei dati prodotto (FR-01) nel prototipo: aggiorna il record nel DataStore in
 // sessione. Il prezzo netto IVA viene ricalcolato automaticamente dal prezzo di vendita
 // (IVA 22%), come da definizione campo "calcolato automaticamente" in FR-01.
 export function EditProductForm({

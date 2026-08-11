@@ -6,7 +6,8 @@
 import { Prisma } from '@prisma/client'
 import type { MaterialStato } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
-import { conflict, notFound } from '../../core/errors.js'
+import { badRequest, conflict, notFound } from '../../core/errors.js'
+import { bloccaRisorsa } from '../../core/lock.js'
 import { logActivity } from '../../core/activityLog.js'
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -95,12 +96,26 @@ export async function updateMaterial(id: string, input: Prisma.MaterialUpdateInp
 }
 
 // Consumo metri: aggiorna metri_utilizzati e ricalcola lo stato (FR-04, alert FR-05).
+//
+// Lettura e scrittura stanno dentro la stessa transazione, e il lock le serializza: la
+// riga scritta è un totale assoluto, quindi due consumi simultanei letti sullo stesso
+// valore ne farebbero sparire uno senza lasciare traccia da nessuna parte.
 export async function consumeMaterial(id: string, metri: number, userId: string) {
-  const m = await prisma.material.findUnique({ where: { id } })
-  if (!m) throw notFound('Tessuto non trovato')
-  const utilizzati = r2(Number(m.metriUtilizzati) + metri)
-  const residuo = r2(Number(m.metriAcquistati) - utilizzati)
   return prisma.$transaction(async (tx) => {
+    await bloccaRisorsa(tx, 'material', id)
+    const m = await tx.material.findUnique({ where: { id } })
+    if (!m) throw notFound('Tessuto non trovato')
+    const utilizzati = r2(Number(m.metriUtilizzati) + metri)
+    const residuo = r2(Number(m.metriAcquistati) - utilizzati)
+    // Non si consuma quello che non c'è: senza questo controllo `metri_utilizzati` poteva
+    // superare `metri_acquistati` e il residuo restava negativo, falsando sia gli alert di
+    // scorta sia il costo medio ponderato che da qui alimenta il break-even dei capi.
+    if (residuo < 0) {
+      const disponibili = r2(Number(m.metriAcquistati) - Number(m.metriUtilizzati))
+      throw badRequest(
+        `"${m.nome}": restano ${disponibili} m, non se ne possono consumare ${r2(metri)}.`,
+      )
+    }
     const updated = await tx.material.update({
       where: { id },
       data: { metriUtilizzati: new Prisma.Decimal(utilizzati), stato: derivaStato(residuo, Number(m.sogliaMinima), m.stato) },
@@ -184,12 +199,21 @@ export async function updateAccessory(id: string, input: Prisma.AccessoryUpdateI
   })
 }
 
+// Stesso presidio di consumeMaterial: lettura e scrittura nella stessa transazione,
+// serializzate, e nessun consumo oltre quello che c'è.
 export async function consumeAccessory(id: string, quantita: number, userId: string) {
-  const a = await prisma.accessory.findUnique({ where: { id } })
-  if (!a) throw notFound('Accessorio non trovato')
-  const utilizzata = r2(Number(a.quantitaUtilizzata) + quantita)
-  const residuo = r2(Number(a.quantitaAcquistata) - utilizzata)
   return prisma.$transaction(async (tx) => {
+    await bloccaRisorsa(tx, 'accessory', id)
+    const a = await tx.accessory.findUnique({ where: { id } })
+    if (!a) throw notFound('Accessorio non trovato')
+    const utilizzata = r2(Number(a.quantitaUtilizzata) + quantita)
+    const residuo = r2(Number(a.quantitaAcquistata) - utilizzata)
+    if (residuo < 0) {
+      const disponibili = r2(Number(a.quantitaAcquistata) - Number(a.quantitaUtilizzata))
+      throw badRequest(
+        `"${a.nome}": restano ${disponibili} pezzi, non se ne possono consumare ${r2(quantita)}.`,
+      )
+    }
     const updated = await tx.accessory.update({
       where: { id },
       data: { quantitaUtilizzata: new Prisma.Decimal(utilizzata), stato: derivaStato(residuo, Number(a.sogliaMinima), a.stato) },

@@ -1,11 +1,11 @@
 import { Truck, UsersRound } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 
 /** Anagrafica e documenti di conto lavorazione sono due letture dello stesso rapporto. */
 export function SupplierWorkPage() {
-  const { suppliers } = useMockStore()
+  const { suppliers } = useDataStore()
 
   const sections = [
     {

@@ -3,7 +3,7 @@ import { PageHeader } from '../../components/ui/PageHeader'
 import { Button } from '../../components/ui/Button'
 import { formatPercent } from '../../lib/format'
 import type { AiMessage, Accessory, Margin, Material, Product } from '../../types'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useLiveMargins } from '../../hooks/useLiveMargins'
 import { useRole } from '../../context/RoleContext'
 import { canAccessModule } from '../../lib/permissions'
@@ -70,7 +70,7 @@ function answer(question: string, canSeeEconomics: boolean, data: AiData): strin
 
 export function AiAssistantPage() {
   const { role } = useRole()
-  const { materials, accessories, products, logAction } = useMockStore()
+  const { materials, accessories, products, logAction } = useDataStore()
   const liveMargins = useLiveMargins()
   const canSeeEconomics = canAccessModule(role, 'costi-margini')
   const [messages, setMessages] = useState<AiMessage[]>([WELCOME])

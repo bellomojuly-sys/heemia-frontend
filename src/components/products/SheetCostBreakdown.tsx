@@ -6,7 +6,7 @@ import { InfoTooltip } from '../ui/InfoTooltip'
 import { fieldClass } from '../ui/Modal'
 import { formatCurrency, formatDateIt, formatDateTimeIt } from '../../lib/format'
 import { computeSheetCost, type CostRow } from '../../lib/sheetCost'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { canEdit } from '../../lib/permissions'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
@@ -37,7 +37,7 @@ function Riga({ label, value, strong = false }: { label: string; value: string; 
 
 export function SheetCostBreakdown({ sheet }: { sheet: TechnicalSheet }) {
   const { role } = useRole()
-  const { materials, accessories, invoices, recordSheetCostSnapshot } = useMockStore()
+  const { materials, accessories, invoices, recordSheetCostSnapshot } = useDataStore()
   const { avvisa } = useGoatAlert()
   const [motivo, setMotivo] = useState('')
   const [apriRegistra, setApriRegistra] = useState(false)

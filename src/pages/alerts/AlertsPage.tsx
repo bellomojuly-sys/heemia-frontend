@@ -3,7 +3,7 @@ import { PageHeader } from '../../components/ui/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { AzioniRichieste } from '../../components/alerts/AzioniRichieste'
 import { useServerAlerts } from '../../hooks/useServerAlerts'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { toAzioni } from '../../lib/azioni'
 
 // Backlog "Note" §9: stessa lettura della dashboard, non un secondo formato. Prima questa
@@ -13,7 +13,7 @@ import { toAzioni } from '../../lib/azioni'
 export function AlertsPage() {
   // Gli alert arrivano dal server già filtrati per ruolo (canSeeAlertModulo lato API).
   const alerts = useServerAlerts()
-  const { products } = useMockStore()
+  const { products } = useDataStore()
   const azioni = useMemo(() => toAzioni(alerts, products), [alerts, products])
 
   return (

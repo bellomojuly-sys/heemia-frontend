@@ -32,7 +32,11 @@ const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
 export async function integrationRoutes(app: FastifyInstance) {
   const shopifyRead = { preHandler: [authenticate, requireModule('shopify')] }
   const shopifyWrite = { preHandler: [authenticate, requireModule('shopify'), requireEdit] }
-  const aiWrite = { preHandler: [authenticate, requireModule('ai-assistant')] }
+  // Volutamente SENZA `requireEdit`: l'assistente risponde a domande e non modifica dati,
+  // e la matrice dei permessi apre `ai-assistant` a tutti i ruoli interni, viewer compreso.
+  // Si chiamava `aiWrite`, nome che prometteva un controllo di scrittura che non c'è mai
+  // stato: se un giorno l'assistente scriverà qualcosa, qui va aggiunto `requireEdit`.
+  const aiSolaLettura = { preHandler: [authenticate, requireModule('ai-assistant')] }
 
   // Quadro delle integrazioni per la diagnosi (Fase 15.1): quali credenziali risultano
   // presenti sul server che sta girando davvero. Restituisce solo presenza/assenza e i
@@ -71,7 +75,7 @@ export async function integrationRoutes(app: FastifyInstance) {
   const descriptionSchema = z.object({ productId: z.string().uuid() })
   const cashClosureSchema = z.object({ mese: z.string().regex(/^\d{4}-\d{2}$/) })
 
-  app.post('/ai/assistant', aiWrite, async (req) => {
+  app.post('/ai/assistant', aiSolaLettura, async (req) => {
     parse(assistantSchema, req.body)
     richiediConfigurata('openai')
     daImplementare('Assistente AI', 'Fase 15.1 punto 1b, API_Mapping §B4')

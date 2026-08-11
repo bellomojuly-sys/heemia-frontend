@@ -1,14 +1,14 @@
 import { ScrollText, Settings2 } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useRole } from '../../context/RoleContext'
 import { canAccessModule, type ModuleKey } from '../../lib/permissions'
 
 /** Preferenze operative e audit condividono lo stesso luogo, senza confonderne i permessi. */
 export function SettingsHubPage() {
   const { role } = useRole()
-  const { activityLogs } = useMockStore()
+  const { activityLogs } = useDataStore()
 
   const sections: {
     to: string

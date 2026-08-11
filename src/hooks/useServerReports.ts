@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMockStore } from '../context/MockStore'
+import { useDataStore } from '../context/DataStore'
 import { api, ApiError, num } from '../lib/api'
 
 // Fase 13: i report mensili arrivano da GET /reports. Non esiste una tabella `reports`:
@@ -18,7 +18,7 @@ export interface MonthlyReportView {
 }
 
 export function useServerReports(): MonthlyReportView[] {
-  const { invoices, orders } = useMockStore()
+  const { invoices, orders } = useDataStore()
   const [reports, setReports] = useState<MonthlyReportView[]>([])
 
   useEffect(() => {

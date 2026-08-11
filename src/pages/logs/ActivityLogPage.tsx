@@ -1,12 +1,12 @@
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { formatDateTimeIt } from '../../lib/format'
 import type { ActivityLogEntry } from '../../types'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 
 export function ActivityLogPage() {
-  // FR-18: i log vivono nel MockStore, così anche le azioni fatte in sessione
+  // FR-18: i log vivono nel DataStore, così anche le azioni fatte in sessione
   // (creazioni, avanzamenti fase, approvazioni bozze) compaiono qui.
-  const { activityLogs, caricamento } = useMockStore()
+  const { activityLogs, caricamento } = useDataStore()
   const sorted = [...activityLogs].sort((a, b) => (a.data < b.data ? 1 : -1))
 
   const columns: DataTableColumn<ActivityLogEntry>[] = [

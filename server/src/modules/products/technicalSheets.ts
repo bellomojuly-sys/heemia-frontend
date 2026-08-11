@@ -30,6 +30,22 @@ export function listTechnicalSheets(productId: string) {
   })
 }
 
+/**
+ * Tutte le schede in una sola lettura.
+ *
+ * Esiste per il caricamento iniziale dell'app, che prima chiedeva le schede **un prodotto
+ * alla volta**: con 93 capi erano 93 richieste HTTP a ogni avvio e a ogni salvataggio, e
+ * il rate limit da 300/minuto veniva raggiunto dal terzo salvataggio consecutivo. I dati
+ * restituiti sono esattamente gli stessi di prima: cambia il numero di richieste, non il
+ * contenuto (vedi OQ-27 per il peso di quel contenuto, che è una questione a parte).
+ */
+export function listAllTechnicalSheets() {
+  return prisma.technicalSheet.findMany({
+    orderBy: [{ productId: 'asc' }, { createdAt: 'asc' }],
+    include: INCLUDE_COMPLETO,
+  })
+}
+
 export async function getTechnicalSheet(id: string) {
   const sheet = await prisma.technicalSheet.findUnique({ where: { id }, include: INCLUDE_COMPLETO })
   if (!sheet) throw notFound('Scheda tecnica non trovata')

@@ -5,12 +5,12 @@ import { Badge } from '../../components/ui/Badge'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import type { Order } from '../../types'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 
 // Pagina dedicata agli ordini: la matrice permessi assegna "ordini" anche al Team interno,
 // che non ha accesso a Clienti (dati commerciali e sconti, riservati ad Admin/CEO).
 export function OrdersPage() {
-  const { orders, customers, products, caricamento } = useMockStore()
+  const { orders, customers, products, caricamento } = useDataStore()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [canale, setCanale] = useState('')

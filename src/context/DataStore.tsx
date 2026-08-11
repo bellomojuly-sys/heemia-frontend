@@ -331,7 +331,7 @@ export type TechnicalSheetInput = Partial<Omit<TechnicalSheet, 'id' | 'productId
 // I valori di default di una scheda nuova sono ora quelli del database (colonne con
 // DEFAULT), non più costruiti nel client.
 
-interface MockStoreValue {
+interface DataStoreValue {
   supplierRequests: SupplierRequest[]
   technicalSheets: TechnicalSheet[]
   productionSteps: ProductionStep[]
@@ -452,9 +452,9 @@ interface MockStoreValue {
   setCapiProdottiAnnui: (n: number) => Promise<void>
 }
 
-const MockStoreContext = createContext<MockStoreValue | undefined>(undefined)
+const DataStoreContext = createContext<DataStoreValue | undefined>(undefined)
 
-export function MockStoreProvider({ children }: { children: ReactNode }) {
+export function DataStoreProvider({ children }: { children: ReactNode }) {
   const { role } = useRole()
   const { user } = useAuth()
   const [supplierRequests, setSupplierRequests] = useState<SupplierRequest[]>([])
@@ -501,11 +501,16 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
     }
     try {
       const [
-        prodottiRaw, materialiRaw, accessoriRaw, fornitoriRaw, produzioneRaw, richiesteRaw,
+        prodottiRaw, schedeRaw, materialiRaw, accessoriRaw, fornitoriRaw, produzioneRaw, richiesteRaw,
         inventarioRaw, ordiniRaw, clientiRaw, fattureRaw, chiusureRaw, costiFissiRaw,
         quotaRaw, logRaw,
       ] = await Promise.all([
         api.get<Row[]>('/products'),
+        // Tutte le schede tecniche in una richiesta sola. Prima se ne faceva una per
+        // prodotto, dopo aver ricevuto l'elenco: con 93 capi erano 93 richieste in più a
+        // ogni avvio **e a ogni salvataggio** (`persisti` richiama loadAll), e il rate
+        // limit da 300/minuto arrivava al terzo salvataggio di fila.
+        api.get<Row[]>('/technical-sheets'),
         api.get<Row[]>('/materials'),
         api.get<Row[]>('/accessories'),
         api.get<Row[]>('/suppliers'),
@@ -523,13 +528,7 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
 
       const prodotti = prodottiRaw.map(toProduct)
       setProducts(prodotti)
-      // Le schede tecniche stanno su un endpoint per prodotto: si caricano in parallelo.
-      const schede = await Promise.all(
-        prodotti.map((p) =>
-          api.get<Row[]>(`/products/${p.id}/technical-sheets`).catch(() => [] as Row[]),
-        ),
-      )
-      setTechnicalSheets(schede.flat().map(toTechnicalSheet))
+      setTechnicalSheets(schedeRaw.map(toTechnicalSheet))
       // Le varianti arrivano dentro ogni prodotto (include Prisma), non da un endpoint a sé.
       setProductVariants(prodottiRaw.flatMap((p) => ((p.variants as Row[]) ?? []).map(toVariant)))
       setMaterials(materialiRaw.map(toMaterial))
@@ -611,7 +610,7 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const value = useMemo<MockStoreValue>(
+  const value = useMemo<DataStoreValue>(
     () => ({
       caricamento,
       erroreCaricamento,
@@ -962,11 +961,11 @@ export function MockStoreProvider({ children }: { children: ReactNode }) {
     ],
   )
 
-  return <MockStoreContext.Provider value={value}>{children}</MockStoreContext.Provider>
+  return <DataStoreContext.Provider value={value}>{children}</DataStoreContext.Provider>
 }
 
-export function useMockStore(): MockStoreValue {
-  const ctx = useContext(MockStoreContext)
-  if (!ctx) throw new Error('useMockStore deve essere usato dentro MockStoreProvider')
+export function useDataStore(): DataStoreValue {
+  const ctx = useContext(DataStoreContext)
+  if (!ctx) throw new Error('useDataStore deve essere usato dentro DataStoreProvider')
   return ctx
 }

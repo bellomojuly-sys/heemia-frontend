@@ -16,6 +16,7 @@ import {
   annullaBolla, chiudiBolla, creaBolla, emettiBolla, getBolla, listBolle, listMovimenti,
   registraRientro, riepilogoPressoLavoranti,
 } from '../src/modules/lavorazioni/service.js'
+import { consumeMaterial } from '../src/modules/materials/service.js'
 
 const prisma = new PrismaClient()
 
@@ -607,6 +608,56 @@ describe('Bolle di lavorazione esterna', () => {
 
     const fuoriFinestra = await listBolle({ supplierId, dataDa: '2027-01-01' })
     assert.equal(fuoriFinestra.length, 0)
+  })
+
+  test('9c — due rientri contemporanei: passa quello che ci sta, l\'altro viene respinto', async () => {
+    // Il gemello del caso 4b, dall'altro capo del ciclo. La doppia conferma sequenziale è
+    // già coperta dal 9b; qui le due richieste partono **insieme**, che è ciò che succede
+    // con due schede aperte o con un retry di rete. Prima entrambe leggevano "12 ancora
+    // fuori", passavano entrambe il controllo e registravano entrambe: 24 metri restituiti
+    // su 12 consegnati, `metriPressoTerzisti` negativo e magazzino gonfiato dal nulla.
+    const tessutoId = await nuovoTessuto('T9C', 100)
+    const b = await bozza([{ tipo: 'materiale', articoloId: tessutoId, quantita: 12 }])
+    const emessa = await emettiBolla(b.id, admin.id)
+    const rigaId = emessa.righe[0].id
+
+    const rientro = () =>
+      registraRientro(b.id, { data: '2026-08-22', righe: [{ rigaId, restituita: 12 }] }, admin.id)
+    const esiti = await Promise.allSettled([rientro(), rientro()])
+
+    assert.equal(
+      esiti.filter((e) => e.status === 'fulfilled').length,
+      1,
+      'esattamente uno dei due rientri va a buon fine',
+    )
+    const t = await tessuto(tessutoId)
+    assert.equal(t.presso, 0, 'dal lavorante non resta niente')
+    assert.equal(t.disponibile, 100, 'i 12 metri rientrano una volta sola')
+    assert.equal(t.patrimonio, 100, 'niente è uscito dal patrimonio')
+    const riga = await prisma.bollaRiga.findUniqueOrThrow({ where: { id: rigaId } })
+    assert.equal(Number(riga.quantitaRestituita), 12, 'la riga registra 12, non 24')
+  })
+
+  test('consumo diretto: due richieste insieme non ne fanno sparire una, e non si va sotto zero', async () => {
+    // Stessa classe di problema fuori dalle bolle: `consumeMaterial` leggeva il totale,
+    // ci sommava sopra e riscriveva un valore assoluto. Due consumi simultanei letti sullo
+    // stesso valore ne cancellavano uno senza lasciare traccia da nessuna parte.
+    const tessutoId = await nuovoTessuto('TCONS', 30)
+
+    const esiti = await Promise.allSettled([
+      consumeMaterial(tessutoId, 10, admin.id),
+      consumeMaterial(tessutoId, 10, admin.id),
+    ])
+    assert.equal(esiti.filter((e) => e.status === 'fulfilled').length, 2, 'entrambi i consumi sono leciti')
+    assert.equal((await tessuto(tessutoId)).utilizzati, 20, 'nessun consumo è andato perso')
+
+    // E oltre il disponibile ci si ferma, invece di lasciare il residuo negativo.
+    await assert.rejects(
+      () => consumeMaterial(tessutoId, 11, admin.id),
+      /restano 10 m/,
+      'non si consuma più di quello che c\'è',
+    )
+    assert.equal((await tessuto(tessutoId)).utilizzati, 20, 'il rifiuto non ha scritto niente')
   })
 
   test('ogni operazione finisce nell\'audit log con il suo utente', async () => {

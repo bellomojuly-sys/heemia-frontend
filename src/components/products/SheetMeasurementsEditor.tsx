@@ -4,7 +4,7 @@ import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { fieldClass } from '../ui/Modal'
 import type { SheetMeasurement } from '../../types'
-import { useMockStore, type SuggerimentoMisureInput } from '../../context/MockStore'
+import { useDataStore, type SuggerimentoMisureInput } from '../../context/DataStore'
 import { ApiError } from '../../lib/api'
 
 const UNITA: SheetMeasurement['unita'][] = ['cm', 'mm', 'in']
@@ -32,7 +32,7 @@ export function SheetMeasurementsEditor({
   vestibilita?: string
   onChange: (aggiorna: (precedenti: SheetMeasurement[]) => SheetMeasurement[]) => void
 }) {
-  const { suggerisciMisure } = useMockStore()
+  const { suggerisciMisure } = useDataStore()
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState('')
   const [notaAi, setNotaAi] = useState('')

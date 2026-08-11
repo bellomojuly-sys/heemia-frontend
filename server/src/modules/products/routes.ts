@@ -8,8 +8,8 @@ import {
   updateProduct, updateVariantQuantities,
 } from './service.js'
 import {
-  addCostSnapshot, addPhoto, createTechnicalSheet, getTechnicalSheet, listTechnicalSheets,
-  removePhoto, updateTechnicalSheet,
+  addCostSnapshot, addPhoto, createTechnicalSheet, getTechnicalSheet, listAllTechnicalSheets,
+  listTechnicalSheets, removePhoto, updateTechnicalSheet,
 } from './technicalSheets.js'
 import {
   addPatternDocumentNote, createPatternDocument, deletePatternDocument,
@@ -340,6 +340,10 @@ export async function productRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string }
     return listTechnicalSheets(id)
   })
+
+  // Tutte le schede in una richiesta sola: serve al caricamento iniziale dell'app, che
+  // altrimenti ne fa una per prodotto. Stessi dati della rotta qui sopra, stesso gating.
+  app.get('/technical-sheets', read, async () => listAllTechnicalSheets())
 
   app.get('/technical-sheets/:id', read, async (req) => {
     const { id } = req.params as { id: string }

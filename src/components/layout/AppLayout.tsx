@@ -3,7 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 
 export function AppLayout() {
   // Sotto il breakpoint lg la sidebar diventa un drawer aperto dall'hamburger nell'header;
@@ -16,7 +16,7 @@ export function AppLayout() {
   // Lo store intercettava già l'errore in `erroreCaricamento`, ma non lo leggeva
   // nessuno: col backend spento ogni pagina mostrava il proprio empty state
   // ("Nessun prodotto trovato"), indistinguibile da un archivio davvero vuoto.
-  const { erroreCaricamento } = useMockStore()
+  const { erroreCaricamento } = useDataStore()
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-heemia-surface">

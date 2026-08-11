@@ -10,7 +10,7 @@ import { StatusBadge } from '../../lib/statusBadge'
 import { formatDateIt } from '../../lib/format'
 import { useRole } from '../../context/RoleContext'
 import { canEdit } from '../../lib/permissions'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { NuovaBollaForm } from '../../components/lavorazioni/NuovaBollaForm'
 import { useServerLavorazioni, type FiltriBolle } from '../../hooks/useServerLavorazioni'
 import type { BollaLavorazione, StatoBolla } from '../../types'
@@ -32,7 +32,7 @@ const STATI: { id: StatoBolla; label: string }[] = [
 export function LavorazioniPage() {
   const navigate = useNavigate()
   const { role } = useRole()
-  const { suppliers } = useMockStore()
+  const { suppliers } = useDataStore()
   const modificabile = canEdit(role)
 
   const [stato, setStato] = useState('')

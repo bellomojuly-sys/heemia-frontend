@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { FileText, CalendarClock } from 'lucide-react'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useServerDeadlines } from '../../hooks/useServerDeadlines'
 import { daysBetween } from '../../lib/alerts'
 import type { AmministrazioneOutlet } from './amministrazioneOutlet'
@@ -22,7 +22,7 @@ import type { AmministrazioneOutlet } from './amministrazioneOutlet'
  * il contatore della scheda e la tabella leggono la stessa lista, con una sola chiamata.
  */
 export function InvoicesDeadlinesPage() {
-  const { invoices } = useMockStore()
+  const { invoices } = useDataStore()
   const deadlines = useServerDeadlines()
 
   const scadute = invoices.filter((i) => i.statoPagamento === 'scaduta').length

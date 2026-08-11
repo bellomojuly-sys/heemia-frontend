@@ -26,7 +26,7 @@ import { computeSheetCost } from '../../lib/sheetCost'
 import { useMarginThreshold } from '../../hooks/useMarginThreshold'
 import { useLiveMargins } from '../../hooks/useLiveMargins'
 import type { Material, ProductVariant, TechnicalSheet, TechnicalSheetVersion } from '../../types'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
@@ -79,7 +79,7 @@ export function ProductDetail() {
     productionSteps, products, productVariants, updateProduct, addVariant, updateVariantQuantities,
     fixedCostItems, capiProdottiAnnui, technicalSheets, invoices, suppliers, addTechnicalSheet, persistenzaAvviso,
     materials, accessories, inventoryRecords,
-  } = useMockStore()
+  } = useDataStore()
   const { avvisa } = useGoatAlert()
   // Margini dal server: stessa formula, ma su prodotti e schede reali.
   const liveMargins = useLiveMargins()

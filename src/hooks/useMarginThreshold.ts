@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMockStore } from '../context/MockStore'
+import { useDataStore } from '../context/DataStore'
 import { api, ApiError, num } from '../lib/api'
 
 /**
@@ -9,7 +9,7 @@ import { api, ApiError, num } from '../lib/api'
  * Il 35 resta solo come valore di partenza finché la risposta non arriva.
  */
 export function useMarginThreshold(): number {
-  const { fixedCostItems, capiProdottiAnnui } = useMockStore()
+  const { fixedCostItems, capiProdottiAnnui } = useDataStore()
   const [soglia, setSoglia] = useState(35)
 
   useEffect(() => {

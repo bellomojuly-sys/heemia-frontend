@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMockStore } from '../context/MockStore'
+import { useDataStore } from '../context/DataStore'
 import { api, ApiError } from '../lib/api'
 
 // Fase 13: i KPI della dashboard li calcola il server (GET /dashboard) sugli stessi criteri
@@ -38,7 +38,7 @@ const VUOTI: DashboardKpis = {
 }
 
 export function useServerDashboard(): DashboardKpis {
-  const { products, materials, accessories, invoices } = useMockStore()
+  const { products, materials, accessories, invoices } = useDataStore()
   const [kpis, setKpis] = useState<DashboardKpis>(VUOTI)
 
   useEffect(() => {

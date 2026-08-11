@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Modal, FormActions } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { useFormSubmit } from '../../hooks/useFormSubmit'
-import { useMockStore, type VerificaEliminazioneProdotto } from '../../context/MockStore'
+import { useDataStore, type VerificaEliminazioneProdotto } from '../../context/DataStore'
 import type { Product } from '../../types'
 
 // Conferma di eliminazione di un capo.
@@ -24,7 +24,7 @@ export function DeleteProductModal({
   onClose: () => void
   onDeleted?: () => void
 }) {
-  const { checkProductDeletion, deleteProduct, updateProduct } = useMockStore()
+  const { checkProductDeletion, deleteProduct, updateProduct } = useDataStore()
   const [verifica, setVerifica] = useState<VerificaEliminazioneProdotto | null>(null)
   const [erroreVerifica, setErroreVerifica] = useState<string | null>(null)
 

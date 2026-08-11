@@ -1,5 +1,5 @@
 // Fornitori (FR-25) e richieste fornitore / bozze email (FR-06). Porting fedele di
-// addSupplier, addSupplierRequest, setSupplierRequestStatus, updateSupplierRequestDraft dal MockStore.
+// addSupplier, addSupplierRequest, setSupplierRequestStatus, updateSupplierRequestDraft dal DataStore.
 import { Prisma, type SupplierReqStato } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
 import { badRequest, conflict, notFound } from '../../core/errors.js'

@@ -12,9 +12,9 @@ import { formatCurrency, formatDateIt } from '../../lib/format'
 import { useServerCostAllocations } from '../../hooks/useServerCostAllocations'
 import type { Invoice, CategoriaCosto } from '../../types'
 import {
-  useMockStore, meseLabel,
+  useDataStore, meseLabel,
   type NewInvoiceInput, type NewCashClosureInput, type EsitoImportFatture,
-} from '../../context/MockStore'
+} from '../../context/DataStore'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
@@ -116,7 +116,7 @@ function CheckList({ label, options, selected, onToggle }: {
 }
 
 function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewInvoiceInput) => void | Promise<unknown> }) {
-  const { suppliers, customers, products, materials } = useMockStore()
+  const { suppliers, customers, products, materials } = useDataStore()
   const [form, setForm] = useState(emptyForm)
 
   const isEstera = form.valuta.trim().toUpperCase() !== 'EUR' && form.valuta.trim() !== ''
@@ -278,7 +278,7 @@ function AddInvoiceForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
 // prodotti/materiali anche dopo il caricamento (FR-19).
 function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const { role } = useRole()
-  const { products, materials, updateInvoiceAssociations } = useMockStore()
+  const { products, materials, updateInvoiceAssociations } = useDataStore()
   const { avvisa } = useGoatAlert()
   const [prodottiIds, setProdottiIds] = useState<string[]>(invoice.prodottiCollegatiIds)
   const [materialiIds, setMaterialiIds] = useState<string[]>(invoice.materialiCollegatiIds)
@@ -454,7 +454,7 @@ function CashClosureModal({ onClose, onSubmit }: { onClose: () => void; onSubmit
  */
 function ImportFattureSection() {
   const { role } = useRole()
-  const { invoices, importaFattureElettroniche } = useMockStore()
+  const { invoices, importaFattureElettroniche } = useDataStore()
   const { avvisa } = useGoatAlert()
   const [inCorso, setInCorso] = useState(false)
   const [esito, setEsito] = useState<EsitoImportFatture | null>(null)
@@ -565,7 +565,7 @@ function ImportFattureSection() {
 
 function CashClosureSection() {
   const { role } = useRole()
-  const { cashClosures, addCashClosure } = useMockStore()
+  const { cashClosures, addCashClosure } = useDataStore()
   const [open, setOpen] = useState(false)
 
   const closures = useMemo(() => [...cashClosures].sort((a, b) => b.mese.localeCompare(a.mese)), [cashClosures])
@@ -632,7 +632,7 @@ function CashClosureSection() {
 
 export function InvoiceList() {
   const { role } = useRole()
-  const { invoices, suppliers, customers, addInvoice, caricamento } = useMockStore()
+  const { invoices, suppliers, customers, addInvoice, caricamento } = useDataStore()
   // Ripartizione costi indiretti dal database (FR-23), non più da un elenco di esempio.
   const costAllocations = useServerCostAllocations()
   const [search, setSearch] = useState('')

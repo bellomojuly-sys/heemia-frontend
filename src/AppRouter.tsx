@@ -1,8 +1,7 @@
-import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
-import { RoleProvider, useRole } from './context/RoleContext'
+import { RoleProvider } from './context/RoleContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { MockStoreProvider } from './context/MockStore'
+import { DataStoreProvider } from './context/DataStore'
 import { LoginPage } from './pages/auth/LoginPage'
 import { AppLayout } from './components/layout/AppLayout'
 import { RoleGuard } from './components/layout/RoleGuard'
@@ -44,14 +43,9 @@ import { ShowroomApp } from './pages/showroom/ShowroomApp'
  */
 function AreaRiservata() {
   const { user, loading } = useAuth()
-  const { setRole } = useRole()
 
-  // Il ruolo dell'interfaccia segue quello reale della sessione: il selettore demo non decide più nulla.
-  useEffect(() => {
-    if (user) setRole(user.role)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.role])
-
+  // Il ruolo dell'interfaccia lo deriva RoleContext direttamente dalla sessione, quindi è
+  // già giusto al primo render: qui non c'è più niente da sincronizzare a posteriori.
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-heemia-surface">
@@ -68,7 +62,7 @@ export function AppRouter() {
     <BrowserRouter>
       <AuthProvider>
       <RoleProvider>
-        <MockStoreProvider>
+        <DataStoreProvider>
         <Routes>
           <Route path="/showroom" element={<ShowroomApp />} />
 
@@ -131,7 +125,7 @@ export function AppRouter() {
           </Route>
           </Route>
         </Routes>
-        </MockStoreProvider>
+        </DataStoreProvider>
       </RoleProvider>
       </AuthProvider>
     </BrowserRouter>

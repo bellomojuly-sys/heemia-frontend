@@ -1,6 +1,6 @@
 import type { Accessory, InventoryRecord, Invoice, Margin, Material, Order, Product, ProductionStep, ProductVariant, SupplierRequest } from '../types'
 
-// Sorgenti dati: di default i mock statici; i chiamanti passano lo stato del MockStore
+// Sorgenti dati: di default i mock statici; i chiamanti passano lo stato del DataStore
 // così KPI e conteggi riflettono anche i record creati/modificati in sessione.
 export interface DashboardSources {
   products?: Product[]
@@ -73,7 +73,7 @@ export function getRecentOrders(limit = 5, orders: Order[] = []) {
   return [...orders].sort((a, b) => (a.data < b.data ? 1 : -1)).slice(0, limit)
 }
 
-// productionSteps e supplierRequests vivono nel MockStore (stato mutabile a runtime),
+// productionSteps e supplierRequests vivono nel DataStore (stato mutabile a runtime),
 // quindi queste funzioni li ricevono come parametro invece di importarli staticamente.
 export function getActiveProduction(productionSteps: ProductionStep[]) {
   return productionSteps.filter((s) => s.fase !== 'archivio')
@@ -85,7 +85,7 @@ export function getPendingEmailDrafts(supplierRequests: SupplierRequest[]) {
   )
 }
 
-// records: passare i record dal MockStore (mutabili in sessione) per riflettere le quantità
+// records: passare i record dal DataStore (mutabili in sessione) per riflettere le quantità
 // modificate; se omesso usa i dati mock statici iniziali.
 export function getStockOverview(records: InventoryRecord[] = []) {
   // Disponibile = magazzino + laboratorio: sono entrambe giacenze di capi finiti.

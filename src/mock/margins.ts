@@ -3,7 +3,7 @@ import type { FixedCostItem, Margin, QuotaHistoryEntry } from '../types'
 // Soglia margine configurabile (FR-10). Valore demo: 35%.
 export const MARGIN_THRESHOLD_PERCENT = 35
 
-// Costi fissi annui — Business_Analysis.md §6.1. Editabili in sessione da MockStore, questo
+// Costi fissi annui — Business_Analysis.md §6.1. Editabili in sessione da DataStore, questo
 // resta il valore iniziale caricato all'avvio.
 export const fixedCostItems: FixedCostItem[] = [
   { id: 'fc-01', nome: 'Affitto laboratorio/showroom', importoAnnuo: 14400 },
@@ -29,7 +29,7 @@ export const fixedCostItems: FixedCostItem[] = [
 export const DEFAULT_CAPI_PRODOTTI_ANNUI = 442
 
 // Storico quota per stagione/periodo (FR-40: "storicizzato, non sovrascritto silenziosamente").
-// Nuove registrazioni si aggiungono dal MockStore; queste sono le voci iniziali.
+// Nuove registrazioni si aggiungono dal DataStore; queste sono le voci iniziali.
 export const initialQuotaHistory: QuotaHistoryEntry[] = [
   {
     id: 'qh-01', periodo: 'Storico 2023-2025 (media)', capiProdottiAnnui: 442,

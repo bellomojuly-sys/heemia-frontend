@@ -12,7 +12,7 @@ import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
 import { canEdit } from '../../lib/permissions'
-import { useMockStore, type NewAccessoryInput } from '../../context/MockStore'
+import { useDataStore, type NewAccessoryInput } from '../../context/DataStore'
 
 const emptyForm = {
   nome: '',
@@ -25,7 +25,7 @@ const emptyForm = {
 }
 
 function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewAccessoryInput) => void | Promise<unknown> }) {
-  const { suppliers } = useMockStore()
+  const { suppliers } = useDataStore()
   const [form, setForm] = useState(emptyForm)
 
   const { errori, inCorso, submit, pulisci } = useFormSubmit<
@@ -92,7 +92,7 @@ function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit
 export function AccessoriesInventory() {
   const { role } = useRole()
   const navigate = useNavigate()
-  const { accessories, suppliers, products, invoices, addAccessory, addSupplierRequest, caricamento } = useMockStore()
+  const { accessories, suppliers, products, invoices, addAccessory, addSupplierRequest, caricamento } = useDataStore()
   const { avvisa } = useGoatAlert()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')

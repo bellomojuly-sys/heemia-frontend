@@ -233,7 +233,7 @@ function stockStato(qta: number, sogliaMinima: number): 'disponibile' | 'esaurit
 }
 
 // Aggiorna le quantità di una variante passando dal record inventario, così i due
-// restano allineati (stessa logica di updateVariantQuantities nel MockStore).
+// restano allineati (stessa logica di updateVariantQuantities nel DataStore).
 export async function updateVariantQuantities(
   variantId: string,
   patch: {

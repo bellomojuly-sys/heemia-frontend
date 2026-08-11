@@ -3,7 +3,7 @@ import { Button } from '../ui/Button'
 import { Modal, Field, FormActions, SiNoField, campoClass, fieldClass } from '../ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Linea } from '../../types'
-import type { NewProductInput } from '../../context/MockStore'
+import type { NewProductInput } from '../../context/DataStore'
 
 const emptyForm = {
   nome: '',
@@ -19,7 +19,7 @@ const emptyForm = {
 }
 
 // Form condiviso tra Anagrafica prodotti e Pipeline produzione: il prodotto creato parte
-// dalla fase "Idea" ed entra subito in pipeline (vedi MockStore.addProduct).
+// dalla fase "Idea" ed entra subito in pipeline (vedi DataStore.addProduct).
 export function AddProductForm({
   onClose,
   onSubmit,

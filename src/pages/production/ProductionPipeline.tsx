@@ -9,13 +9,13 @@ import { AddProductForm } from '../../components/products/AddProductForm'
 import { formatDateIt } from '../../lib/format'
 import { stageLabel } from '../../lib/production'
 import type { ProductionStep } from '../../types'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useRole } from '../../context/RoleContext'
 import { canEdit } from '../../lib/permissions'
 
 export function ProductionPipeline() {
   const { role } = useRole()
-  const { products, productionSteps, advanceProductionStep, addProduct, caricamento } = useMockStore()
+  const { products, productionSteps, advanceProductionStep, addProduct, caricamento } = useDataStore()
   const canAct = canEdit(role)
   const [addOpen, setAddOpen] = useState(false)
 

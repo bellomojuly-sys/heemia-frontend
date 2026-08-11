@@ -16,7 +16,7 @@ import { Button } from '../../components/ui/Button'
 import { QuantitaInput } from '../../components/ui/QuantitaInput'
 import { getStockOverview } from '../../lib/dashboard'
 import type { InventoryRecord } from '../../types'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
@@ -27,7 +27,7 @@ export function FinishedGoodsInventory() {
   const {
     inventoryRecords, productVariants, products, updateVariantQuantities,
     transferStock, loadStockMovements, sistemaDistribuzione, confermaDistribuzione, caricamento,
-  } = useMockStore()
+  } = useDataStore()
   const { avvisa } = useGoatAlert()
   const userCanEdit = canEdit(role)
   const stock = getStockOverview(inventoryRecords)

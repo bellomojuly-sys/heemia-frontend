@@ -16,7 +16,8 @@
 import { Prisma, type CategoriaCosto, type InvoicePaese } from '@prisma/client'
 import JSZip from 'jszip'
 import { prisma } from '../../core/prisma.js'
-import { badRequest } from '../../core/errors.js'
+import { AppError, badRequest } from '../../core/errors.js'
+import { reportError } from '../../core/reportError.js'
 import { logActivity } from '../../core/activityLog.js'
 import { estraiXml, leggiFatturaPa, contaDocumenti, FatturaNonLeggibile, type FatturaLetta } from './fatturapa.js'
 
@@ -24,6 +25,8 @@ import { estraiXml, leggiFatturaPa, contaDocumenti, FatturaNonLeggibile, type Fa
 const MAX_BYTES = 25 * 1024 * 1024
 /** Quante fatture al massimo in un solo caricamento, per non lasciare la richiesta appesa. */
 const MAX_FATTURE = 500
+/** Limite del contenuto **decompresso**: uno ZIP piccolo può nascondere molto di più. */
+const MAX_ESPANSO_BYTES = 200 * 1024 * 1024
 
 export type EsitoRiga =
   | { file: string; esito: 'importata'; invoiceId: string; fornitore: string; numero: string; totale: number }
@@ -108,6 +111,11 @@ async function espandi(nomeFile: string, dati: Buffer): Promise<FileDaLeggere[]>
     throw badRequest('Lo ZIP non è leggibile. Riprova a scaricarlo dall\'area riservata.')
   })
   const dentro: FileDaLeggere[] = []
+  // Il limite di 25 MB vale sul file compresso; quanto diventa una volta aperto è un'altra
+  // cosa, e uno ZIP costruito apposta può espandersi in gigabyte e far finire la memoria al
+  // server. Qui si somma man mano e ci si ferma: il pacchetto di un anno di fatture sta
+  // largamente sotto questa soglia.
+  let espansi = 0
   for (const voce of Object.values(zip.files)) {
     if (voce.dir) continue
     const n = voce.name.split('/').pop() ?? voce.name
@@ -115,7 +123,14 @@ async function espandi(nomeFile: string, dati: Buffer): Promise<FileDaLeggere[]>
     if (n.startsWith('.') || n.startsWith('__MACOSX')) continue
     if (/_MT_|metadato/i.test(n)) continue
     if (!/\.(xml|p7m)$/i.test(n)) continue
-    dentro.push({ nome: n, contenuto: Buffer.from(await voce.async('nodebuffer')) })
+    const contenuto = Buffer.from(await voce.async('nodebuffer'))
+    espansi += contenuto.length
+    if (espansi > MAX_ESPANSO_BYTES) {
+      throw badRequest(
+        `Il contenuto dello ZIP supera ${MAX_ESPANSO_BYTES / 1024 / 1024} MB una volta aperto. Dividi il pacchetto per periodo.`,
+      )
+    }
+    dentro.push({ nome: n, contenuto })
   }
   if (dentro.length === 0) {
     throw badRequest('Nello ZIP non ci sono fatture elettroniche (file .xml o .xml.p7m).')
@@ -170,12 +185,16 @@ export async function importaFattureElettroniche(
         righe.push(esito)
       }
     } catch (err) {
-      const motivo =
-        err instanceof FatturaNonLeggibile
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Errore di lettura del file.'
+      // Due categorie diverse, e vanno tenute separate. «Questa fattura non si legge» è
+      // un'informazione per chi importa, e il messaggio va mostrato. Qualunque altro
+      // errore è un guasto nostro: il suo testo può contenere dettagli interni (nomi di
+      // colonne, vincoli, percorsi) e non deve uscire dall'API — vale la stessa regola
+      // dell'handler globale in app.ts, che risponde «Errore interno del server».
+      const previsto = err instanceof FatturaNonLeggibile || err instanceof AppError
+      if (!previsto) reportError(err)
+      const motivo = previsto
+        ? (err as Error).message
+        : 'Errore interno durante la lettura di questo file: le altre fatture del pacchetto non sono state toccate.'
       righe.push({ file: file.nome, esito: 'scartata', motivo })
     }
   }

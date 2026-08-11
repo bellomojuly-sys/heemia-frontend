@@ -5,7 +5,7 @@ import { Badge } from '../ui/Badge'
 import { Field, fieldClass } from '../ui/Modal'
 import { formatDateIt } from '../../lib/format'
 import { ApiError } from '../../lib/api'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import type {
   PatternDocument, PatternDocumentNoteTipo, PatternDocumentStato, PatternDocumentTipo,
 } from '../../types'
@@ -46,7 +46,7 @@ export function PatternDocuments({ productId, canEdit }: { productId: string; ca
   const {
     loadPatternDocuments, addPatternDocument, setPatternDocumentStato,
     removePatternDocument, addPatternDocumentNote,
-  } = useMockStore()
+  } = useDataStore()
 
   const [documenti, setDocumenti] = useState<PatternDocument[]>([])
   const [caricamento, setCaricamento] = useState(true)

@@ -1,14 +1,14 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { Layers, Puzzle, PackageCheck } from 'lucide-react'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 
 // FR-36: pagina unica Inventario, schede interne cliccabili invece di tre voci di menu
 // separate (Decision_Log 2026-07-15). Le tre viste restano route annidate sotto /inventario
 // (deep-link e link dashboard esistenti restano validi), ma la sidebar mostra una sola voce.
-// I conteggi leggono dal MockStore: i record creati in sessione aggiornano anche le schede.
+// I conteggi leggono dal DataStore: i record creati in sessione aggiornano anche le schede.
 export function InventoryPage() {
-  const { materials, accessories, inventoryRecords } = useMockStore()
+  const { materials, accessories, inventoryRecords } = useDataStore()
 
   const SECTIONS = [
     {

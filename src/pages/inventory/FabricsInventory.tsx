@@ -12,7 +12,7 @@ import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
 import { canEdit } from '../../lib/permissions'
-import { useMockStore, type NewMaterialInput } from '../../context/MockStore'
+import { useDataStore, type NewMaterialInput } from '../../context/DataStore'
 
 const emptyForm = {
   nome: '',
@@ -28,7 +28,7 @@ const emptyForm = {
 }
 
 function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewMaterialInput) => void | Promise<unknown> }) {
-  const { suppliers } = useMockStore()
+  const { suppliers } = useDataStore()
   const [form, setForm] = useState(emptyForm)
 
   const { errori, inCorso, submit, pulisci } = useFormSubmit<
@@ -108,7 +108,7 @@ function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 export function FabricsInventory() {
   const { role } = useRole()
   const navigate = useNavigate()
-  const { materials, suppliers, products, invoices, addMaterial, addSupplierRequest, caricamento } = useMockStore()
+  const { materials, suppliers, products, invoices, addMaterial, addSupplierRequest, caricamento } = useDataStore()
   const { avvisa } = useGoatAlert()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')

@@ -60,7 +60,11 @@ export async function authRoutes(app: FastifyInstance) {
     return { ok: true }
   })
 
+  // `req.user` contiene anche l'id di sessione, che qui NON esce: il cookie è httpOnly
+  // proprio perché JavaScript non debba poterlo leggere, e restituirlo nel corpo della
+  // risposta annullerebbe metà di quella protezione. Al client servono identità e ruolo.
   app.get('/auth/me', { preHandler: authenticate }, async (req) => {
-    return req.user
+    const { sessionId: _sessionId, ...utente } = req.user!
+    return utente
   })
 }

@@ -3,7 +3,7 @@ import { Modal, fieldClass } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { ApiError } from '../../lib/api'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import type { LabDetail, Lavorazione, StockMovement } from '../../types'
 
 /**
@@ -25,7 +25,7 @@ export function LabDetailModal({
   canEdit: boolean
   onClose: () => void
 }) {
-  const { loadLabDetail, mandaInProduzione, chiudiLavorazione } = useMockStore()
+  const { loadLabDetail, mandaInProduzione, chiudiLavorazione } = useDataStore()
   const [dettaglio, setDettaglio] = useState<LabDetail | null>(null)
   const [errore, setErrore] = useState('')
   const [quantita, setQuantita] = useState('')

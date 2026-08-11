@@ -3,7 +3,7 @@ import { Button } from '../ui/Button'
 import { Modal, Field, FormActions, campoClass, fieldClass } from '../ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Product } from '../../types'
-import type { NewVariantInput } from '../../context/MockStore'
+import type { NewVariantInput } from '../../context/DataStore'
 
 // Nuova variante taglia/colore (FR-03): crea insieme il record di inventario prodotti finiti
 // collegato (FR-INV-01), così la quantità è subito visibile e modificabile da entrambe le viste.

@@ -1,4 +1,4 @@
-// Ordini (FR-26/27). Porting di addOrder dal MockStore: alla creazione aggiorna il contatore
+// Ordini (FR-26/27). Porting di addOrder dal DataStore: alla creazione aggiorna il contatore
 // e il valore acquistato del cliente. Include gli ordini SM-* generati dallo showroom (FR-29).
 import { Prisma, type OrderStato } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'

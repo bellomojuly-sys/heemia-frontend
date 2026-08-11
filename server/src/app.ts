@@ -69,6 +69,35 @@ export async function buildApp() {
   // Difesa base: rate limit globale; il login ha un limite più stretto (System_Architecture §4).
   await app.register(rateLimit, { max: 300, timeWindow: '1 minute' })
 
+  // ⚠️ Nota CSRF, da leggere prima di toccare i parser del corpo.
+  // In produzione il cookie di sessione è `SameSite=None` (frontend e backend stanno su
+  // domini diversi su Render), quindi il browser lo invia ANCHE sulle richieste partite da
+  // un altro sito: la difesa nativa non c'è. Quello che oggi ci protegge è che questa API
+  // accetta solo `application/json`, e un corpo JSON obbliga il browser a fare il preflight,
+  // che il CORS blocca. Registrare un parser per `application/x-www-form-urlencoded` o
+  // `multipart/form-data` (es. @fastify/formbody, @fastify/multipart) toglie quel preflight
+  // e apre il CSRF su tutte le scritture. Se un giorno serve, va aggiunto insieme a un
+  // token anti-CSRF, non da solo.
+
+  // Tutti gli identificativi che compaiono nei percorsi sono UUID di database: le rotte li
+  // leggono con un cast (`req.params as { id: string }`), che è una promessa fatta al
+  // compilatore e non un controllo. Un valore diverso arrivava fino a Prisma e tornava
+  // indietro come 500 «Errore interno del server», con lo stack nei log, dove la risposta
+  // onesta è 400. Qui il controllo si fa una volta per tutte, e vale anche per le rotte
+  // che verranno scritte domani — compresi i quattro endpoint pubblici dello showroom,
+  // che sono raggiungibili senza sessione.
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  app.addHook('onRequest', async (req) => {
+    const params = req.params as Record<string, unknown> | undefined
+    if (!params) return
+    for (const [nome, valore] of Object.entries(params)) {
+      // Convenzione dei percorsi: `id` o `qualcosaId` è sempre un identificativo di database.
+      if (nome !== 'id' && !nome.endsWith('Id')) continue
+      if (typeof valore === 'string' && UUID.test(valore)) continue
+      throw new AppError(400, `Identificativo non valido nel percorso: ${nome}`, 'BAD_REQUEST')
+    }
+  })
+
   // Formato errore da API_Mapping §Convenzioni: { error: { code, message } }.
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof AppError) {

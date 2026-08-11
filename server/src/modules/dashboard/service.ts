@@ -1,6 +1,6 @@
 // FR-30 — KPI e riquadri della dashboard. Porting di src/lib/dashboard.ts (getDashboardKpis
 // e funzioni collegate). A differenza del prototipo i conteggi vengono dal database, quindi
-// includono sempre tutti i record (il limite documentato nel MockStore non esiste più).
+// includono sempre tutti i record (il limite documentato nel DataStore non esiste più).
 import { prisma } from '../../core/prisma.js'
 import { daysFromToday } from '../../core/dates.js'
 import { computeAllMargins } from '../margins/service.js'

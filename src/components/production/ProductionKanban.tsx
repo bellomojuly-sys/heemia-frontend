@@ -2,7 +2,7 @@ import { useState, type DragEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { PRODUCT_STAGES, type ProductionStep, type ProductStage } from '../../types'
 import { checkAdvance, stageLabel } from '../../lib/production'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { Button } from '../ui/Button'
 
@@ -37,7 +37,7 @@ export function ProductionKanban({
   canAct: boolean
   onAdvance: (id: string) => Promise<{ ok: boolean; reason?: string }>
 }) {
-  const { technicalSheets, products, materials, accessories } = useMockStore()
+  const { technicalSheets, products, materials, accessories } = useDataStore()
 
   const { avvisa } = useGoatAlert()
   const [trascinato, setTrascinato] = useState<{ id: string; destinazione: ProductStage | null } | null>(null)

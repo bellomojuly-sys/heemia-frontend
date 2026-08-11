@@ -3,7 +3,7 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { formatCurrency, formatPercent, formatDateIt } from '../../lib/format'
 import { EmptyState } from '../../components/ui/States'
-import { useMockStore } from '../../context/MockStore'
+import { useDataStore } from '../../context/DataStore'
 import { useEconomicsOutlet } from '../margins/economicsOutlet'
 
 function StatRow({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
@@ -16,7 +16,7 @@ function StatRow({ label, value, accent = false }: { label: string; value: strin
 }
 
 export function ReportsPage() {
-  const { products, materials, accessories, invoices, orders, suppliers, inventoryRecords, productVariants } = useMockStore()
+  const { products, materials, accessories, invoices, orders, suppliers, inventoryRecords, productVariants } = useDataStore()
   // Margini e report li carica il contenitore "Costi, margini e report": è la stessa lista
   // che alimenta la scheda Costi e margini, quindi i due numeri non possono divergere.
   // I report restano calcolati dal server sui dati correnti, non una fotografia salvata.
