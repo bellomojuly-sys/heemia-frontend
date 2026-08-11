@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
+import { IntegrationsCard } from '../../components/settings/IntegrationsCard'
 import { NAV_GROUPS } from '../../components/layout/nav'
 import { canAccessModule, canEdit, ROLE_LABELS, type ModuleKey } from '../../lib/permissions'
 import { useMarginThreshold } from '../../hooks/useMarginThreshold'
@@ -33,8 +34,10 @@ export function SettingsPage() {
 
   return (
     <div>
+      <IntegrationsCard />
+
       <Card className="mb-6">
-        <CardHeader title="Ruolo attivo" subtitle="Selettore demo nell'header: sostituisce l'autenticazione reale in questa fase." />
+        <CardHeader title="Ruolo attivo" subtitle="Deciso dal server in base all'utente con cui hai fatto accesso: non si cambia dall'app." />
         <div className="p-5">
           <Badge variant="info">{ROLE_LABELS[role]}</Badge>
         </div>
@@ -81,7 +84,10 @@ export function SettingsPage() {
             className="font-mono-heemia w-24 rounded-heemia border border-heemia-border bg-heemia-surface px-3 py-1.5 text-sm text-heemia-black"
           />
           <span className="ml-2 text-sm text-heemia-grey">%</span>
-          <p className="mt-2 text-xs text-heemia-grey">Demo: modifica non persistita tra sessioni.</p>
+          <p className="mt-2 text-xs text-heemia-grey">
+            Valore letto dalle impostazioni del server, non da questa pagina: oggi si modifica solo lato
+            server, ed è il motivo per cui il campo è in sola lettura.
+          </p>
         </div>
       </Card>
 

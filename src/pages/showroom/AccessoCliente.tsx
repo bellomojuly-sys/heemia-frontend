@@ -12,12 +12,12 @@ const inputClass =
   'w-full rounded-heemia border border-heemia-border px-3 py-2 text-sm transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10'
 
 /**
- * Dati identificativi del titolare del trattamento. **Da compilare** con i dati reali di
- * Heemia (OQ-25): non stanno da nessuna parte nel progetto e inventarli in un documento
- * che leggono clienti veri non è un'opzione. Finché un campo resta vuoto, l'informativa
- * mostra al suo posto un segnaposto evidente invece di un dato falso.
+ * Dati identificativi del titolare del trattamento. **Completi dal 2026-08-11** (OQ-25
+ * chiusa): ragione sociale, sede con CAP, partita IVA e indirizzo di contatto arrivano
+ * tutti da Giulia — inventarli in un documento che leggono clienti veri non era un'opzione,
+ * ed è il motivo per cui il segnaposto qui sotto è rimasto in piedi fino ad allora.
  *
- * Quando li compili, alza anche `INFORMATIVA_VERSIONE` sul server
+ * Se un domani cambiano, alza anche `INFORMATIVA_VERSIONE` sul server
  * (`server/src/modules/showroom/service.ts`): la versione viene registrata su ogni visita,
  * così resta scritto quale testo ha letto ciascun cliente.
  */
@@ -36,7 +36,12 @@ function datoTitolare(valore: string, etichetta: string) {
  * `showroom_requests`, contatto in `customers`), né più né meno. Se un domani si raccoglie
  * un dato in più, questo testo va aggiornato **insieme** al codice che lo raccoglie.
  *
- * I tempi di conservazione sono una **proposta ragionata**, da confermare (OQ-25).
+ * I tempi di conservazione sono **confermati da Giulia il 2026-08-11** (OQ-25 chiusa,
+ * DEC-057): 24 mesi dall'ultimo contatto per contatto, accessi, capi visti e preferiti;
+ * 24 mesi per le richieste che non diventano ordine; 10 anni per ciò che è legato a ordini
+ * e documenti fiscali (obbligo di legge); consenso marketing fino a revoca. Cambiarli qui
+ * significa cambiare una promessa già fatta ai clienti che hanno letto questa versione:
+ * si alza anche `INFORMATIVA_VERSIONE` sul server, così resta scritto chi ha letto cosa.
  */
 function InformativaPrivacy({ onClose }: { onClose: () => void }) {
   return (

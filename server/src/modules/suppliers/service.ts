@@ -4,7 +4,8 @@ import { Prisma, type SupplierReqStato } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
 import { badRequest, conflict, notFound } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
-import { daImplementare, richiediConfigurata } from '../../core/integrations.js'
+import { richiediConfigurata } from '../../core/integrations.js'
+import { indirizzoValido, inviaEmail } from '../gmail/service.js'
 
 export function listSuppliers(filters: { categoria?: string; q?: string }) {
   const where: Prisma.SupplierWhereInput = {}
@@ -131,23 +132,69 @@ export async function updateSupplierRequestDraft(
 }
 
 // Invio email al fornitore (FR-06, DEC-028): Gmail messages.send, scope gmail.send.
+// Implementato il 2026-08-11 (Fase 15.1 punto 2) — prima era un 409 «non ancora scritto».
 //
-// ⚠️ Il pezzo che compone e spedisce il messaggio NON è ancora scritto (Fase 15.1 punto 2).
-// Prima questa funzione controllava solo le credenziali e poi marcava comunque la
-// richiesta come "inviata": il giorno in cui le credenziali Google fossero comparse
-// nell'ambiente, l'app avrebbe dichiarato inviate email che nessuno spediva, e il
-// fornitore sarebbe rimasto in attesa di una richiesta mai partita. Il secondo controllo
-// esiste per questo, e va tolto **insieme** al codice che invia davvero, non prima.
+// L'ordine delle operazioni è la cosa che conta, ed è deliberato: **prima si spedisce,
+// poi si scrive che è partita**. Il contrario — marcare "inviata" e poi provare a mandare —
+// è esattamente il difetto che questa funzione aveva prima di esistere davvero: lasciava
+// un fornitore in attesa di una richiesta mai spedita, e nessuno se ne accorgeva.
+// Un'azione verso l'esterno non è compiuta finché il servizio esterno non lo conferma.
 export async function sendSupplierRequest(id: string, userId: string) {
   const req = await prisma.supplierRequest.findUnique({ where: { id }, include: { supplier: true } })
   if (!req) throw notFound('Richiesta fornitore non trovata')
+
+  // Nessun doppio invio, e nessun invio da uno stato che non lo prevede. Il controllo sta
+  // qui e non dentro la macchina a stati perché deve valere **prima** che l'email parta:
+  // scoprire dopo che la transizione non era ammessa significherebbe averla già spedita.
+  if (req.stato === 'inviata') {
+    throw conflict(`Questa richiesta risulta già inviata${req.inviataIl ? ` il ${req.inviataIl.toLocaleDateString('it-IT')}` : ''}: non viene spedita una seconda volta.`)
+  }
+  if (req.stato !== 'approvata') {
+    throw conflict(
+      `Una richiesta si invia solo dopo l'approvazione (stato attuale: ${req.stato}). ` +
+        'Approvala e poi usa "Invia al fornitore".',
+    )
+  }
+  if (!indirizzoValido(req.supplier.email)) {
+    throw badRequest(
+      `Il fornitore "${req.supplier.nome}" non ha un indirizzo email valido in anagrafica: ` +
+        'aggiungilo prima di inviare la richiesta.',
+    )
+  }
+
   richiediConfigurata('gmail')
-  // TODO(Fase 15.1 punto 2): costruire il MIME (destinatario req.supplier.email, oggetto,
-  // corpo da req.testo) e chiamare gmail.users.messages.send con il refresh token del
-  // server; solo a invio riuscito passare lo stato a "inviata" e registrarlo nel log.
-  daImplementare(
-    'Invio della richiesta al fornitore via email',
-    'Fase 15.1 punto 2, API_Mapping §B2',
-  )
-  // Riga di arrivo quando l'invio esisterà: setSupplierRequestStatus(id, 'inviata', userId)
+
+  // Da qui in avanti l'email può essere partita davvero: quello che segue non deve più
+  // fallire per motivi nostri.
+  const esito = await inviaEmail({
+    a: req.supplier.email!.trim(),
+    oggetto: req.oggetto,
+    testo: req.testo,
+  })
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const updated = await tx.supplierRequest.update({
+        where: { id },
+        data: { stato: 'inviata', inviataIl: new Date() },
+      })
+      await logActivity(tx, {
+        userId, azione: 'invia_richiesta_fornitore', entita: 'supplier_request', entitaId: id,
+        valorePrecedente: req.stato,
+        // L'identificativo del messaggio è la traccia con cui ritrovare l'email in "Posta
+        // inviata" dell'account aziendale, il giorno in cui qualcuno chiederà se è partita.
+        valoreNuovo: `inviata a ${req.supplier.email} (messaggio Gmail ${esito.id})`,
+      })
+      return updated
+    })
+  } catch (err) {
+    // Caso raro ma non impossibile: posta partita, database non aggiornato. Dirlo è
+    // l'unica risposta onesta — se restasse "approvata" in silenzio, qualcuno la
+    // rimanderebbe, e il fornitore riceverebbe due volte la stessa richiesta.
+    throw conflict(
+      `L'email al fornitore È STATA INVIATA (messaggio Gmail ${esito.id}), ma lo stato della richiesta ` +
+        'non è stato aggiornato per un errore del database. Non reinviarla: portala a "Inviata" a mano ' +
+        `quando il problema è risolto. Dettaglio tecnico: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
 }
