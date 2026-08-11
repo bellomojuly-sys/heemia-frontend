@@ -1,10 +1,13 @@
+// Verifica pura della normalizzazione della proposta AI: nessun database, nessuna chiave
+// OpenAI. Si importa `proposta-ddt.js` e non `service.js` proprio per questo — `service.js`
+// carica la configurazione del server e pretenderebbe DATABASE_URL per un test di logica.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   normalizzaPropostaDdt,
   type DdtRientroContext,
   type DdtRientroProposal,
-} from '../src/modules/ai/service.js'
+} from '../src/modules/ai/proposta-ddt.js'
 
 const contesto: DdtRientroContext = {
   bollaId: '11111111-1111-4111-8111-111111111111',

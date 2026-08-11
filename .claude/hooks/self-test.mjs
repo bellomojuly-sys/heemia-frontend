@@ -112,12 +112,47 @@ try {
   fs.rmSync(stateDir, { recursive: true, force: true })
 }
 
-const manualVerification = spawnSync(process.execPath, [verifySkillScript, '--', '.claude', 'CLAUDE.md'], {
-  cwd: projectRoot,
-  env: { ...process.env, CLAUDE_PROJECT_DIR: projectRoot },
-  encoding: 'utf8',
-})
+function runVerify(paths) {
+  return spawnSync(process.execPath, [verifySkillScript, '--', ...paths], {
+    cwd: projectRoot,
+    env: { ...process.env, CLAUDE_PROJECT_DIR: projectRoot },
+    encoding: 'utf8',
+  })
+}
+
+function dirtyFiles() {
+  const result = spawnSync('git', ['-C', projectRoot, 'status', '--porcelain', '-z'], { encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr)
+  return new Set(result.stdout.split('\0').filter(Boolean).map((riga) => riga.slice(3)))
+}
+
+// verify.mjs verifica soltanto percorsi che contengono modifiche: su uno scope pulito si
+// rifiuta di proposito. Il self-test si crea quindi la propria modifica temporanea invece
+// di dipendere da come è messo il worktree. Prima non lo faceva, e il controllo passava
+// solo finché `.claude` non veniva committato: dopo il commit falliva per sempre.
+const scopeProbe = path.join(projectRoot, '.claude', 'self-test-scope.tmp')
+assert.ok(!fs.existsSync(scopeProbe), `File di prova già presente: ${scopeProbe}`)
+fs.writeFileSync(scopeProbe, 'File temporaneo del self-test degli hook. Se resta qui, cancellalo.\n')
+let manualVerification
+try {
+  manualVerification = runVerify(['.claude'])
+} finally {
+  fs.rmSync(scopeProbe, { force: true })
+}
 assert.equal(manualVerification.status, 0, manualVerification.stderr || manualVerification.stdout)
 assert.match(manualVerification.stdout, /Scope: documentazione\/configurazione/)
+
+// L'altra metà della garanzia: uno scope senza modifiche viene respinto, non verificato a
+// vuoto. Serve un percorso pulito davvero; se sono tutti sporchi il controllo si salta,
+// perché forzarne uno significherebbe toccare il lavoro in corso.
+const sporchi = dirtyFiles()
+const percorsoPulito = ['README.md', 'index.html', '.oxlintrc.json'].find((file) => !sporchi.has(file))
+if (percorsoPulito) {
+  const rifiuto = runVerify([percorsoPulito])
+  assert.equal(rifiuto.status, 2, `Scope pulito accettato invece che respinto: ${percorsoPulito}`)
+  assert.match(rifiuto.stderr, /non contiene modifiche Git correnti/)
+} else {
+  console.log('Hook Heemia: controllo dello scope pulito saltato, nessun file di riferimento intatto')
+}
 
 console.log('Hook Heemia: self-test superato')
