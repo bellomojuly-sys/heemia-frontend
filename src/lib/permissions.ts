@@ -26,6 +26,7 @@ export type ModuleKey =
   | 'ai-assistant'
   | 'activity-log'
   | 'impostazioni'
+  | 'utenti'
 
 const ADMIN_CEO: Role[] = ['admin', 'ceo']
 const ADMIN_CEO_TEAM_VIEWER: Role[] = ['admin', 'ceo', 'team', 'viewer']
@@ -61,6 +62,10 @@ const MODULE_ACCESS: Record<ModuleKey, Role[]> = {
   'ai-assistant': ADMIN_CEO_TEAM_VIEWER,
   'activity-log': ADMIN_CEO,
   impostazioni: ADMIN_CEO_TEAM_VIEWER,
+  // Utenti e accessi (2026-08-12): solo admin. Gemella della riga in
+  // server/src/core/permissions.ts, che resta l'autorità. Il cambio della *propria*
+  // password non passa da qui: è aperto a chiunque abbia una sessione.
+  utenti: ['admin'],
 }
 
 // Alert la cui visibilita' segue lo stesso gating del modulo economico corrispondente.

@@ -6,7 +6,7 @@ export type ModuleKey =
   | 'dashboard' | 'prodotti' | 'produzione' | 'inventario' | 'ordini' | 'fatture'
   | 'scadenze' | 'costi-margini' | 'fornitori' | 'clienti' | 'shopify' | 'report'
   | 'analytics' | 'alert' | 'ai-assistant' | 'activity-log' | 'impostazioni'
-  | 'richieste-showroom' | 'lavorazioni'
+  | 'richieste-showroom' | 'lavorazioni' | 'utenti'
 
 const ADMIN_CEO: Role[] = ['admin', 'ceo']
 const ALL_INTERNAL: Role[] = ['admin', 'ceo', 'team', 'viewer']
@@ -39,6 +39,11 @@ const MODULE_ACCESS: Record<ModuleKey, Role[]> = {
   'ai-assistant': ALL_INTERNAL,
   'activity-log': ADMIN_CEO,
   impostazioni: ALL_INTERNAL,
+  // Utenti e accessi (2026-08-12): **solo admin**, non admin+CEO come i moduli economici.
+  // Dare e togliere accessi è amministrazione del sistema, non direzione dell'azienda.
+  // Il cambio della *propria* password non passa da qui: è sotto /auth ed è aperto a
+  // chiunque abbia una sessione, viewer compreso.
+  utenti: ['admin'],
 }
 
 export function canAccessModule(role: Role, moduleKey: ModuleKey): boolean {

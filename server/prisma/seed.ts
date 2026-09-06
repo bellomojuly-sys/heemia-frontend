@@ -19,25 +19,37 @@ async function main() {
     create: { chiave: 'soglia_margine_percent', valore: '35' },
   })
 
-  // Primo utente admin (sostituisce il selettore demo del prototipo)
-  // Utente admin di partenza. La password viene RIALLINEATA a ogni deploy al valore di
-  // SEED_ADMIN_PASSWORD: è la via di recupero se la si dimentica (si cambia la variabile
-  // su Render e si rilancia il deploy). Prima l'upsert non toccava l'utente esistente,
-  // quindi cambiare la variabile non aveva alcun effetto e restare fuori era definitivo.
-  // Nota: finché non esiste il cambio password dentro l'app, il valore della variabile
-  // resta la fonte di verità per questo utente.
+  // Primo utente admin: serve solo a entrare la prima volta. Da lì in avanti gli utenti si
+  // creano dall'app (Impostazioni → Utenti e accessi) e ognuno cambia la propria password.
+  //
+  // ⚠️ Il seed NON riallinea più la password a ogni deploy. Lo faceva, ed era giusto finché
+  // il cambio password dentro l'app non esisteva: era l'unica via di recupero. Ora però
+  // significherebbe che ogni deploy riporta la password dell'amministratore al valore di
+  // una variabile Render, cancellando in silenzio quella che la persona ha scelto.
+  //
+  // La via di recupero resta, ma diventa esplicita: `SEED_ADMIN_FORCE_PASSWORD=true`
+  // riallinea la password al prossimo deploy. Si imposta quando serve e si toglie subito
+  // dopo — un'azione dichiarata, non un effetto collaterale silenzioso di ogni rilascio.
   const email = (process.env.SEED_ADMIN_EMAIL ?? 'admin@heemia.local').toLowerCase()
   const password = process.env.SEED_ADMIN_PASSWORD
+  const forzaPassword = process.env.SEED_ADMIN_FORCE_PASSWORD === 'true'
   if (password) {
     const passwordHash = await bcrypt.hash(password, 12)
-    await prisma.user.upsert({
-      where: { email },
-      update: { passwordHash, attivo: true, role: 'admin' },
-      create: { nome: 'Admin Heemia', email, role: 'admin', passwordHash },
-    })
-    console.log(`Utente admin pronto (password allineata a SEED_ADMIN_PASSWORD): ${email}`)
+    const esistente = await prisma.user.findUnique({ where: { email } })
+    if (!esistente) {
+      await prisma.user.create({ data: { nome: 'Admin Heemia', email, role: 'admin', passwordHash } })
+      console.log(`Utente admin creato: ${email}`)
+    } else if (forzaPassword) {
+      await prisma.user.update({ where: { email }, data: { passwordHash, attivo: true, role: 'admin' } })
+      console.log(
+        `Utente admin: password RIALLINEATA a SEED_ADMIN_PASSWORD (${email}). ` +
+          'Togli SEED_ADMIN_FORCE_PASSWORD dalle variabili, altrimenti succederà a ogni deploy.',
+      )
+    } else {
+      console.log(`Utente admin già presente (${email}): password lasciata com'è.`)
+    }
   } else {
-    console.log('SEED_ADMIN_PASSWORD non impostata: utente admin non creato/aggiornato.')
+    console.log('SEED_ADMIN_PASSWORD non impostata: utente admin non creato.')
   }
 
   // --- Da qui in giù: dati FINTI, solo per sviluppo ---

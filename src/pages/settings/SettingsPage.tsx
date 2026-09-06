@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { IntegrationsCard } from '../../components/settings/IntegrationsCard'
+import { ChangePasswordCard } from '../../components/settings/ChangePasswordCard'
 import { NAV_GROUPS } from '../../components/layout/nav'
 import { canAccessModule, canEdit, ROLE_LABELS, type ModuleKey } from '../../lib/permissions'
 import { useMarginThreshold } from '../../hooks/useMarginThreshold'
@@ -18,6 +19,7 @@ const NESTED_MODULES: { label: string; path: string; moduleKey: ModuleKey }[] = 
   { label: 'Shopify', path: '/ordini/shopify', moduleKey: 'shopify' },
   { label: 'Scadenze', path: '/fatture/scadenze', moduleKey: 'scadenze' },
   { label: 'Report economici', path: '/margini/report', moduleKey: 'report' },
+  { label: 'Utenti e accessi', path: '/impostazioni/utenti', moduleKey: 'utenti' },
   { label: 'Activity log', path: '/impostazioni/log', moduleKey: 'activity-log' },
   { label: 'Bolle e lavorazioni', path: '/fornitori/lavorazioni', moduleKey: 'lavorazioni' },
 ]
@@ -35,6 +37,10 @@ export function SettingsPage() {
   return (
     <div>
       <IntegrationsCard />
+
+      {/* Sta in cima e vale per tutti i ruoli: la pagina Utenti è degli amministratori,
+          la propria password è di chiunque abbia un accesso. */}
+      <ChangePasswordCard />
 
       <Card className="mb-6">
         <CardHeader title="Ruolo attivo" subtitle="Deciso dal server in base all'utente con cui hai fatto accesso: non si cambia dall'app." />

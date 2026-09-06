@@ -1,4 +1,4 @@
-import { ScrollText, Settings2 } from 'lucide-react'
+import { ScrollText, Settings2, Users } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { useDataStore } from '../../context/DataStore'
@@ -23,6 +23,13 @@ export function SettingsHubPage() {
       icon: Settings2,
       description: 'Ruolo, avvisi, soglia margine e matrice accessi',
       moduleKey: 'impostazioni',
+    },
+    {
+      to: 'utenti',
+      label: 'Utenti e accessi',
+      icon: Users,
+      description: 'Chi entra nel gestionale, con quale ruolo, e reimpostazione password',
+      moduleKey: 'utenti',
     },
     {
       to: 'log',

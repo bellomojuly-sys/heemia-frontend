@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { RoleProvider } from './context/RoleContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -6,36 +7,49 @@ import { LoginPage } from './pages/auth/LoginPage'
 import { AppLayout } from './components/layout/AppLayout'
 import { RoleGuard } from './components/layout/RoleGuard'
 
-import { Dashboard } from './pages/Dashboard'
-import { ProductList } from './pages/products/ProductList'
-import { ProductDetail } from './pages/products/ProductDetail'
-import { ProductionPipeline } from './pages/production/ProductionPipeline'
-import { InventoryPage } from './pages/inventory/InventoryPage'
-import { FabricsInventory } from './pages/inventory/FabricsInventory'
-import { AccessoriesInventory } from './pages/inventory/AccessoriesInventory'
-import { FinishedGoodsInventory } from './pages/inventory/FinishedGoodsInventory'
-import { LavorazioniPage } from './pages/lavorazioni/LavorazioniPage'
-import { BollaDetail } from './pages/lavorazioni/BollaDetail'
-import { OrdersPage } from './pages/orders/OrdersPage'
-import { SalesChannelsPage } from './pages/orders/SalesChannelsPage'
-import { RichiesteShowroomPage } from './pages/richieste/RichiesteShowroomPage'
-import { InvoicesDeadlinesPage } from './pages/invoices/InvoicesDeadlinesPage'
-import { InvoiceList } from './pages/invoices/InvoiceList'
-import { DeadlinesPage } from './pages/deadlines/DeadlinesPage'
-import { EconomicsPage } from './pages/margins/EconomicsPage'
-import { MarginsPage } from './pages/margins/MarginsPage'
-import { SupplierList } from './pages/suppliers/SupplierList'
-import { SupplierWorkPage } from './pages/suppliers/SupplierWorkPage'
-import { CustomerList } from './pages/customers/CustomerList'
-import { ShopifyPage } from './pages/shopify/ShopifyPage'
-import { ReportsPage } from './pages/reports/ReportsPage'
-import { AnalyticsPage } from './pages/analytics/AnalyticsPage'
-import { AlertsPage } from './pages/alerts/AlertsPage'
-import { AiAssistantPage } from './pages/assistant/AiAssistantPage'
-import { ActivityLogPage } from './pages/logs/ActivityLogPage'
-import { SettingsPage } from './pages/settings/SettingsPage'
-import { SettingsHubPage } from './pages/settings/SettingsHubPage'
-import { ShowroomApp } from './pages/showroom/ShowroomApp'
+
+// Ogni area operativa viene scaricata solo quando la sua rotta viene aperta. Prima il
+// router importava tutte le pagine (PDF, grafici e modali compresi) nel bundle iniziale:
+// anche la schermata di login pagava il costo dell'intero gestionale.
+const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })))
+const ProductList = lazy(() => import('./pages/products/ProductList').then((m) => ({ default: m.ProductList })))
+const ProductDetail = lazy(() => import('./pages/products/ProductDetail').then((m) => ({ default: m.ProductDetail })))
+const ProductionPipeline = lazy(() => import('./pages/production/ProductionPipeline').then((m) => ({ default: m.ProductionPipeline })))
+const InventoryPage = lazy(() => import('./pages/inventory/InventoryPage').then((m) => ({ default: m.InventoryPage })))
+const FabricsInventory = lazy(() => import('./pages/inventory/FabricsInventory').then((m) => ({ default: m.FabricsInventory })))
+const AccessoriesInventory = lazy(() => import('./pages/inventory/AccessoriesInventory').then((m) => ({ default: m.AccessoriesInventory })))
+const FinishedGoodsInventory = lazy(() => import('./pages/inventory/FinishedGoodsInventory').then((m) => ({ default: m.FinishedGoodsInventory })))
+const LavorazioniPage = lazy(() => import('./pages/lavorazioni/LavorazioniPage').then((m) => ({ default: m.LavorazioniPage })))
+const BollaDetail = lazy(() => import('./pages/lavorazioni/BollaDetail').then((m) => ({ default: m.BollaDetail })))
+const OrdersPage = lazy(() => import('./pages/orders/OrdersPage').then((m) => ({ default: m.OrdersPage })))
+const SalesChannelsPage = lazy(() => import('./pages/orders/SalesChannelsPage').then((m) => ({ default: m.SalesChannelsPage })))
+const RichiesteShowroomPage = lazy(() => import('./pages/richieste/RichiesteShowroomPage').then((m) => ({ default: m.RichiesteShowroomPage })))
+const InvoicesDeadlinesPage = lazy(() => import('./pages/invoices/InvoicesDeadlinesPage').then((m) => ({ default: m.InvoicesDeadlinesPage })))
+const InvoiceList = lazy(() => import('./pages/invoices/InvoiceList').then((m) => ({ default: m.InvoiceList })))
+const DeadlinesPage = lazy(() => import('./pages/deadlines/DeadlinesPage').then((m) => ({ default: m.DeadlinesPage })))
+const EconomicsPage = lazy(() => import('./pages/margins/EconomicsPage').then((m) => ({ default: m.EconomicsPage })))
+const MarginsPage = lazy(() => import('./pages/margins/MarginsPage').then((m) => ({ default: m.MarginsPage })))
+const SupplierList = lazy(() => import('./pages/suppliers/SupplierList').then((m) => ({ default: m.SupplierList })))
+const SupplierWorkPage = lazy(() => import('./pages/suppliers/SupplierWorkPage').then((m) => ({ default: m.SupplierWorkPage })))
+const CustomerList = lazy(() => import('./pages/customers/CustomerList').then((m) => ({ default: m.CustomerList })))
+const ShopifyPage = lazy(() => import('./pages/shopify/ShopifyPage').then((m) => ({ default: m.ShopifyPage })))
+const ReportsPage = lazy(() => import('./pages/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })))
+const AnalyticsPage = lazy(() => import('./pages/analytics/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })))
+const AlertsPage = lazy(() => import('./pages/alerts/AlertsPage').then((m) => ({ default: m.AlertsPage })))
+const AiAssistantPage = lazy(() => import('./pages/assistant/AiAssistantPage').then((m) => ({ default: m.AiAssistantPage })))
+const ActivityLogPage = lazy(() => import('./pages/logs/ActivityLogPage').then((m) => ({ default: m.ActivityLogPage })))
+const SettingsPage = lazy(() => import('./pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const SettingsHubPage = lazy(() => import('./pages/settings/SettingsHubPage').then((m) => ({ default: m.SettingsHubPage })))
+const UsersPage = lazy(() => import('./pages/settings/UsersPage').then((m) => ({ default: m.UsersPage })))
+const ShowroomApp = lazy(() => import('./pages/showroom/ShowroomApp').then((m) => ({ default: m.ShowroomApp })))
+
+function RouteLoading() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center bg-heemia-surface" aria-busy="true">
+      <p className="font-mono-heemia text-[11px] uppercase tracking-[0.18em] text-heemia-grey">Caricamento…</p>
+    </div>
+  )
+}
 
 /**
  * Gate di sessione (Fase 13): senza utente autenticato si vede solo il login.
@@ -63,6 +77,7 @@ export function AppRouter() {
       <AuthProvider>
       <RoleProvider>
         <DataStoreProvider>
+        <Suspense fallback={<RouteLoading />}>
         <Routes>
           <Route path="/showroom" element={<ShowroomApp />} />
 
@@ -120,11 +135,13 @@ export function AppRouter() {
             <Route path="/impostazioni" element={<RoleGuard moduleKey="impostazioni"><SettingsHubPage /></RoleGuard>}>
               <Route index element={<Navigate to="generali" replace />} />
               <Route path="generali" element={<SettingsPage />} />
+              <Route path="utenti" element={<RoleGuard moduleKey="utenti"><UsersPage /></RoleGuard>} />
               <Route path="log" element={<RoleGuard moduleKey="activity-log"><ActivityLogPage /></RoleGuard>} />
             </Route>
           </Route>
           </Route>
         </Routes>
+        </Suspense>
         </DataStoreProvider>
       </RoleProvider>
       </AuthProvider>
