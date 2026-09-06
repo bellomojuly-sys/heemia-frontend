@@ -74,14 +74,6 @@ services:
         sync: false
       - key: GMAIL_MITTENTE
         sync: false
-      # Fatture elettroniche via provider accreditato SDI (DEC-051): senza queste resta
-      # l'import manuale dello ZIP dell'area riservata, che funziona già.
-      - key: SDI_PROVIDER
-        sync: false
-      - key: SDI_API_KEY
-        sync: false
-      - key: SDI_WEBHOOK_SECRET
-        sync: false
       # Service account per leggere le cartelle Drive con le foto dei capi (DEC-052).
       # Può essere lo stesso di Analytics: in quel caso basta GA_CREDENTIALS_JSON.
       - key: GOOGLE_SERVICE_ACCOUNT_JSON
@@ -93,10 +85,16 @@ services:
         sync: false
       - key: GA_CREDENTIALS_JSON
         sync: false
-      # Password del primo amministratore, usata una sola volta dal seed.
+      # Password del primo amministratore, usata una sola volta dal seed: serve a entrare la
+      # prima volta. Dopo, gli utenti si creano dall'app e ognuno cambia la propria password.
       - key: SEED_ADMIN_EMAIL
         sync: false
       - key: SEED_ADMIN_PASSWORD
+        sync: false
+      # Via di recupero se la password dell'amministratore si perde: impostare a "true",
+      # rilanciare il deploy, poi RIMUOVERLA. Finché resta, ogni deploy sovrascrive la
+      # password scelta dalla persona con il valore di SEED_ADMIN_PASSWORD.
+      - key: SEED_ADMIN_FORCE_PASSWORD
         sync: false
 
   # --- Frontend: build statica Vite ---

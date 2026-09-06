@@ -15,7 +15,7 @@
 import { config } from './config.js'
 import { conflict } from './errors.js'
 
-export type IntegrazioneKey = 'openai' | 'gmail' | 'shopify' | 'analytics' | 'fatture-sdi' | 'drive'
+export type IntegrazioneKey = 'openai' | 'gmail' | 'shopify' | 'analytics' | 'drive'
 
 type Definizione = {
   /** Nome leggibile, usato nei messaggi mostrati in app. */
@@ -60,13 +60,6 @@ const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
     variabili: ['SHOPIFY_STORE_DOMAIN', 'SHOPIFY_ADMIN_API_TOKEN'],
     riferimento: 'Integrazioni_Setup.md §3',
     valori: () => [config.shopifyStoreDomain, config.shopifyAdminApiToken],
-  },
-  'fatture-sdi': {
-    nome: 'Fatture elettroniche (provider SDI)',
-    scopo: "arrivo automatico delle fatture dei fornitori, senza scaricarle dall'area riservata (FR-19/20)",
-    variabili: ['SDI_PROVIDER', 'SDI_API_KEY', 'SDI_WEBHOOK_SECRET'],
-    riferimento: 'Integrazioni_Setup.md §5',
-    valori: () => [config.sdiProvider, config.sdiApiKey, config.sdiWebhookSecret],
   },
   drive: {
     nome: 'Google Drive (foto dei capi)',

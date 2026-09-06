@@ -111,13 +111,11 @@ export const config = {
   // Firma dei webhook: senza, un webhook in arrivo non è distinguibile da una richiesta
   // qualunque. Si controlla quando i webhook verranno accesi, non all'avvio.
   shopifyWebhookSecret: process.env.SHOPIFY_WEBHOOK_SECRET ?? '',
-  // --- Fatture elettroniche ricevute: provider accreditato SDI (FR-19/20, API_Mapping §B6) ---
-  // Con queste variabili le fatture dei fornitori arrivano da sole via webhook, invece di
-  // essere caricate a mano dall'area riservata. L'import manuale funziona comunque e resta:
-  // il provider vale solo da quando viene registrato in avanti, per lo storico serve l'import.
-  // ⚠️ Registrare un provider **sposta l'indirizzo telematico** dove l'Agenzia consegna le
-  // fatture di Heemia: va concordato col commercialista prima di attivarlo.
-  sdiProvider: process.env.SDI_PROVIDER ?? '',
-  sdiApiKey: process.env.SDI_API_KEY ?? '',
-  sdiWebhookSecret: process.env.SDI_WEBHOOK_SECRET ?? '',
+  // --- Fatture elettroniche ricevute ---
+  // Il provider accreditato SDI **non si fa** (decisione di Giulia, 2026-08-13): le fatture
+  // arrivano ai commercialisti, e il gestionale non entra in quel flusso. Le variabili
+  // `SDI_*` sono state tolte da qui e da render.yaml perché una variabile che non serve
+  // più è una domanda a cui qualcuno risponderà per sbaglio.
+  // Resta l'import manuale dello ZIP (`POST /invoices/import-fatture-elettroniche`), che
+  // non richiede credenziali ed è quello che alimenta i costi dei materiali.
 }

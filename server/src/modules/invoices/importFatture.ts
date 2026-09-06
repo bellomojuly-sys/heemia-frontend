@@ -10,9 +10,10 @@
 // break-even dei capi.
 //
 // Nota di struttura: la lettura dell'XML sta in `fatturapa.ts`, separata e senza database.
-// Quando l'integrazione automatica sarà attiva (provider accreditato SDI che consegna le
-// fatture via webhook), il file arriverà da un'altra porta ma passerà **da qui**: cambia
-// come arriva, non come viene interpretato.
+// Questa è l'**unica** porta d'ingresso delle fatture: il provider accreditato SDI non si
+// fa (decisione di Giulia, 2026-08-13, le fatture arrivano ai commercialisti). Il caricamento
+// manuale dello ZIP non è più un ripiego in attesa di qualcosa: è il flusso definitivo, ed è
+// quello che porta dentro i costi da cui esce il break-even dei capi.
 import { Prisma, type CategoriaCosto, type InvoicePaese } from '@prisma/client'
 import JSZip from 'jszip'
 import { prisma } from '../../core/prisma.js'
@@ -78,7 +79,7 @@ function categoriaProposta(f: FatturaLetta): CategoriaCosto {
 /** Normalizza una partita IVA per il confronto: via spazi, punti e prefisso paese. */
 function normalizzaPiva(valore: string | null | undefined): string | null {
   if (!valore) return null
-  const pulita = valore.replace(/[\s.\-]/g, '').toUpperCase()
+  const pulita = valore.replace(/[\s.-]/g, '').toUpperCase()
   const senzaPrefisso = /^[A-Z]{2}\d+$/.test(pulita) ? pulita.slice(2) : pulita
   return senzaPrefisso || null
 }

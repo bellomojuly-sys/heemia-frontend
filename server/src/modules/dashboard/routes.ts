@@ -22,7 +22,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
     // Chi non ha accesso ai costi non riceve i KPI economici: nascosti alla fonte,
     // non solo nell'interfaccia.
     const vedeCosti = canAccessModule(req.user!.role, 'costi-margini')
-    const { margineSottoTarget, sottoBreakEven, fattureNonAssociate, ...neutri } = kpis
+    // I tre KPI economici si estraggono solo per lasciarli fuori da `neutri`: il prefisso
+    // `_` dice al linter che sparire è proprio il loro scopo.
+    const { margineSottoTarget: _m, sottoBreakEven: _b, fattureNonAssociate: _f, ...neutri } = kpis
 
     return {
       kpis: vedeCosti ? kpis : neutri,

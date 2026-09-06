@@ -13,7 +13,9 @@
     "prisma:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts"
+    "test": "NODE_ENV=test node --env-file=.env --import tsx --test --test-concurrency=1 test/*.test.ts",
+    "test:performance": "NODE_ENV=test node --env-file=.env --import tsx scripts/benchmark-health.mts",
+    "census:validate": "node --import tsx scripts/validate-census.mts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -5,10 +5,10 @@
 // in Heemia. Questo file fa quel passaggio: prende l'XML e ne ricava una fattura.
 //
 // È scritto come **funzione pura**, senza database e senza rete, per un motivo preciso:
-// lo stesso XML può arrivare in due modi — caricato a mano dall'area riservata
-// dell'Agenzia, oppure consegnato da un provider accreditato SDI via webhook quando
-// l'integrazione automatica sarà attiva ([[API_Mapping]] §B6). Cambia solo come arriva
-// il file: quello che lo interpreta resta questo, e va provato una volta sola.
+// interpretare un XML non ha bisogno di sapere da dove arriva, e una funzione senza
+// database né rete si prova per intero con un file d'esempio. Oggi il file arriva in un
+// modo solo — caricato a mano dall'area riservata dell'Agenzia — perché il provider
+// accreditato SDI non si fa (decisione di Giulia, 2026-08-13).
 import { XMLParser } from 'fast-xml-parser'
 
 /** Una riga di dettaglio della fattura. */
