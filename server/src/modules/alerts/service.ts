@@ -57,6 +57,25 @@ export async function computeAlerts(role: Role): Promise<AlertItem[]> {
     })
   }
 
+  // Promemoria di fine mese sulle fatture (spec Giulia 2026-08-13). Nell'app le fatture
+  // non servono al fisco — quello lo seguono i commercialisti — ma **solo** a riempire la
+  // colonna delle uscite del report economico. Se il mese chiuso non ne ha nessuna, quel
+  // report dice che è entrato tutto e non è uscito niente: un numero rassicurante e falso.
+  //
+  // Il segnale è grezzo per scelta: «zero fatture» si riconosce con certezza, «fatture
+  // incomplete» no — servirebbe sapere quante dovrebbero essercene, che l'app non può
+  // sapere. Stessa regola già usata per la chiusura di cassa qui sopra.
+  const fatturePrec = invoices.filter(
+    (i) => `${i.data.getUTCFullYear()}-${String(i.data.getUTCMonth() + 1).padStart(2, '0')}` === mesePrec,
+  )
+  if (fatturePrec.length === 0) {
+    alerts.push({
+      id: `alert-fatture-mese-${mesePrec}`, modulo: 'Fatture', livello: 'attenzione',
+      messaggio: `Nessuna fattura registrata per ${meseLabel(mesePrec)}: carica lo ZIP delle fatture pagate e da pagare, altrimenti il report economico del mese non ha le uscite`,
+      data: now, entitaId: mesePrec, link: '/fatture',
+    })
+  }
+
   // FR-29: ordine su misura dallo showroom da prendere in carico.
   for (const o of orders) {
     if (o.numero.startsWith('SM-') && o.stato === 'in_lavorazione') {

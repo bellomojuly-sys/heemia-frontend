@@ -435,8 +435,12 @@ body {
    visiva Heemia. Il resto dell'app viene escluso dalla stampa.
    --------------------------------------------------------------------------- */
 
+/* A schermo i documenti stampabili non si vedono: esistono nel DOM solo perché la stampa
+   possa trovarli già montati. Ogni nuovo documento va aggiunto QUI e nella regola dentro
+   @media print: dimenticare questa riga lo lascia in fondo alla pagina, visibile. */
 #sheet-print,
-#bolla-print {
+#bolla-print,
+#report-print {
   display: none;
 }
 
@@ -454,14 +458,16 @@ body {
      il documento da stampare. I documenti sono montati con un portal direttamente su
      <body>: devono restare FRATELLI di #root, non figli, altrimenti il display:none
      dell'antenato li nasconderebbe e l'export uscirebbe bianco.
-     Due documenti stampabili, mai contemporaneamente a schermo: la scheda tecnica
-     (#sheet-print) e la bolla di lavorazione esterna (#bolla-print). */
-  body > *:not(#sheet-print):not(#bolla-print) {
+     Tre documenti stampabili, mai contemporaneamente a schermo: la scheda tecnica
+     (#sheet-print), la bolla di lavorazione esterna (#bolla-print) e il report economico
+     mensile (#report-print). */
+  body > *:not(#sheet-print):not(#bolla-print):not(#report-print) {
     display: none !important;
   }
 
   #sheet-print,
-  #bolla-print {
+  #bolla-print,
+  #report-print {
     display: block;
     font-family: var(--font-sans);
     color: var(--color-heemia-black);
@@ -657,6 +663,25 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* Riga di spiegazione sotto una tabella: dice come va letto il numero sopra.
+     Piu' piccola del testo, ma non grigia al punto da sparire in fotocopia. */
+  .pdf-caption {
+    margin: 2mm 0 0;
+    font-size: 8pt;
+    color: var(--color-heemia-grey);
+  }
+
+  /* Avvisi in cima al report: cosa manca perche' il mese sia raccontato per intero. */
+  .pdf-note-list {
+    margin: 0;
+    padding-left: 4mm;
+    font-size: 9pt;
+  }
+
+  .pdf-note-list li {
+    margin-bottom: 1mm;
   }
 
   .pdf-footer {

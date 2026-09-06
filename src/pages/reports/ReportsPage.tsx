@@ -5,6 +5,7 @@ import { formatCurrency, formatPercent, formatDateIt } from '../../lib/format'
 import { EmptyState } from '../../components/ui/States'
 import { useDataStore } from '../../context/DataStore'
 import { useEconomicsOutlet } from '../margins/economicsOutlet'
+import { ReportEconomicoCard } from '../../components/reports/ReportEconomicoCard'
 
 function StatRow({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
@@ -83,7 +84,13 @@ export function ReportsPage() {
   return (
     <div>
       {/* Scheda dentro "Costi, margini e report": l'intestazione la mette il contenitore. */}
-      <p className="mb-4 text-sm text-heemia-grey">Report mensili generati automaticamente, con notifica alla data di generazione.</p>
+
+      {/* In cima perché è la domanda che ci si fa per prima ogni mese: quanto è entrato e
+          quanto è uscito. I report qui sotto rispondono a un'altra domanda — come stanno i
+          margini dei capi — e restano separati apposta. */}
+      <ReportEconomicoCard />
+
+      <p className="mb-4 text-sm text-heemia-grey">Report mensili sui margini dei capi, calcolati dai movimenti registrati.</p>
 
       {monthlyReports.length === 0 ? (
         <EmptyState title="Nessun report generato" description="I report si generano dai movimenti registrati: appena ci sono ordini o fatture, qui compare il mese corrispondente." />

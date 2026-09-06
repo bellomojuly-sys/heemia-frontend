@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { authenticate, requireModule } from '../../core/guards.js'
 import { badRequest } from '../../core/errors.js'
 import { generateReport, listReports } from './service.js'
+import { generateReportEconomico, mesiConMovimenti } from './economico.js'
 import { prisma } from '../../core/prisma.js'
 
 const generateSchema = z.object({ mese: z.string().regex(/^\d{4}-\d{2}$/, 'formato atteso YYYY-MM') })
@@ -32,6 +33,17 @@ export async function reportRoutes(app: FastifyInstance) {
     const { mese } = parse(generateSchema, req.body)
     return generateReport(mese)
   })
+
+  // Report economico del mese (spec Giulia 2026-08-13): entrate, uscite per categoria,
+  // quota dei costi fissi. È in GET perché non produce nulla: legge e basta, quindi si può
+  // ricaricare e mettere fra i preferiti.
+  app.get('/reports/economico', reportGuard, async (req) => {
+    const { mese } = parse(generateSchema, req.query)
+    return generateReportEconomico(mese)
+  })
+
+  /** I mesi che hanno movimenti: alimenta il selettore, senza mesi vuoti da scegliere. */
+  app.get('/reports/economico/mesi', reportGuard, async () => ({ mesi: await mesiConMovimenti() }))
 
   app.get('/activity-log', { preHandler: [authenticate, requireModule('activity-log')] }, async (req) => {
     const { limit, entita } = parse(logQuerySchema, req.query)
