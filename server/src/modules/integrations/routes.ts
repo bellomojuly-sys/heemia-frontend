@@ -1,16 +1,16 @@
-// Integrazioni esterne: Shopify (FR-17, DEC-009), OpenAI (FR-12/13/28, DEC-050) e la
-// prova d'invio Gmail (FR-06, DEC-028 — l'invio vero vive in suppliers/service.ts).
+// Quadro delle integrazioni, prova d'invio Gmail (FR-06, DEC-028 — l'invio vero vive in
+// suppliers/service.ts) e le tre funzioni AI conversazionali (FR-12/13/28, DEC-050).
 //
-// ⚠️ Stato reale: Shopify e le tre funzioni AI qui sotto NON sono ancora implementate. Richiedono credenziali che non sono state
-// ancora create (custom app Shopify, OPENAI_API_KEY) — vedi API_Mapping §B1/§B4 e
-// Integrazioni_Setup.md. Gli endpoint esistono per non lasciare buchi nel contratto API
+// ⚠️ Stato reale: le tre funzioni AI qui sotto NON sono ancora implementate — richiedono
+// `OPENAI_API_KEY`, che l'azienda non ha ancora creato (API_Mapping §B4,
+// Integrazioni_Setup.md §1). Gli endpoint esistono per non lasciare buchi nel contratto API
 // e rispondono 409 CONFLICT con una ragione leggibile: meglio un errore esplicito che un
 // endpoint che finge di funzionare. Le due ragioni sono distinte apposta — «manca la
-// credenziale» e «la credenziale c'è ma il codice non è ancora scritto» — perché in
-// Fase 15.1 la seconda diventerà l'unica che resta.
+// credenziale» e «la credenziale c'è ma il codice non è ancora scritto».
 //
-// Quando si costruirà il client Shopify vanno previsti retry/backoff, timeout,
-// idempotenza delle scritture e verifica HMAC dei webhook (API_Mapping §B1, nota).
+// Nota: le **letture documentali** AI (schede tecniche, DDT di rientro, proposta misure)
+// sono invece scritte e vivono in `modules/ai/`. Shopify ha lasciato questo file il
+// 2026-08-12: sta in `modules/shopify/`.
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate, requireModule, requireEdit, requireRole } from '../../core/guards.js'
@@ -20,9 +20,7 @@ import { logActivity } from '../../core/activityLog.js'
 import { config } from '../../core/config.js'
 import { inviaEmail } from '../gmail/service.js'
 import {
-  configurata,
   daImplementare,
-  messaggioNonConfigurata,
   richiediConfigurata,
   statoIntegrazioni,
 } from '../../core/integrations.js'
@@ -34,8 +32,6 @@ const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
 }
 
 export async function integrationRoutes(app: FastifyInstance) {
-  const shopifyRead = { preHandler: [authenticate, requireModule('shopify')] }
-  const shopifyWrite = { preHandler: [authenticate, requireModule('shopify'), requireEdit] }
   // Volutamente SENZA `requireEdit`: l'assistente risponde a domande e non modifica dati,
   // e la matrice dei permessi apre `ai-assistant` a tutti i ruoli interni, viewer compreso.
   // Si chiamava `aiWrite`, nome che prometteva un controllo di scrittura che non c'è mai
@@ -78,28 +74,8 @@ export async function integrationRoutes(app: FastifyInstance) {
     },
   )
 
-  // Stato pubblicazione/divergenze: la parte calcolabile dai dati locali funziona già;
-  // "ultima riconciliazione" resta null finché il sync non esiste.
-  app.get('/shopify/status', shopifyRead, async () => {
-    const [pubblicati, nonPubblicati, divergenze] = await Promise.all([
-      prisma.product.count({ where: { statoPubblicazioneShopify: 'pubblicato' } }),
-      prisma.product.count({ where: { statoPubblicazioneShopify: { not: 'pubblicato' } } }),
-      prisma.inventoryRecord.count({ where: { divergenzaShopify: true } }),
-    ])
-    return {
-      configurato: configurata('shopify'),
-      pubblicati,
-      nonPubblicati,
-      divergenzeStock: divergenze,
-      ultimaRiconciliazione: null,
-      nota: configurata('shopify') ? undefined : messaggioNonConfigurata('shopify'),
-    }
-  })
-
-  app.post('/shopify/sync', shopifyWrite, async () => {
-    richiediConfigurata('shopify')
-    daImplementare('Sincronizzazione Shopify', 'Fase 15.1 punto 3, API_Mapping §B1')
-  })
+  // Shopify: stato, riconciliazione, scritture e webhook vivono nel proprio modulo
+  // (`modules/shopify/`), scritto il 2026-08-12. Qui non resta niente di Shopify.
 
   // --- AI (FR-12/13/28) ---
   const assistantSchema = z.object({ domanda: z.string().min(1).max(2000), sessionId: z.string().uuid().optional() })
