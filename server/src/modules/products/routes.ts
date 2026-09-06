@@ -22,7 +22,6 @@ const createSchema = z.object({
   linea: z.enum(['tessile', 'maglieria']),
   categoria: z.string().optional(),
   collezione: z.string().optional(),
-  stagione: z.string().optional(),
   prezzoVendita: z.number().nonnegative().optional(),
   prezzoNettoIva: z.number().nonnegative().optional(),
   // Attributi commerciali che decidono la vista cliente (spec 2026-08-06, DEC-044):
@@ -284,7 +283,6 @@ export async function productRoutes(app: FastifyInstance) {
       linea: d.linea,
       categoria: d.categoria,
       collezione: d.collezione,
-      stagione: d.stagione,
       prezzoVendita: d.prezzoVendita ? new Prisma.Decimal(d.prezzoVendita) : undefined,
       prezzoNettoIva: d.prezzoNettoIva ? new Prisma.Decimal(d.prezzoNettoIva) : undefined,
       // I due attributi commerciali della vista cliente si impostano già alla creazione

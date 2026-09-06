@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '../ui/Button'
 import { Modal, Field, FormActions, SiNoField, campoClass, fieldClass } from '../ui/Modal'
+import { prezzoSito } from '../../lib/prezzi'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Linea, Product } from '../../types'
 
@@ -21,7 +22,6 @@ export function EditProductForm({
     codiceProdotto: product.codiceProdotto,
     categoria: product.categoria,
     collezione: product.collezione,
-    stagione: product.stagione,
     linea: product.linea,
     vestibilita: product.vestibilita ?? '',
     taglie: product.taglieDisponibili.join(', '),
@@ -62,7 +62,6 @@ export function EditProductForm({
         codiceProdotto: form.codiceProdotto.trim(),
         categoria: form.categoria.trim(),
         collezione: form.collezione.trim(),
-        stagione: form.stagione.trim(),
         linea: form.linea,
         vestibilita: form.vestibilita.trim() || undefined,
         taglieDisponibili: splitList(form.taglie),
@@ -125,9 +124,6 @@ export function EditProductForm({
         <Field label="Collezione">
           <input className={fieldClass} value={form.collezione} onChange={(e) => setForm({ ...form, collezione: e.target.value })} />
         </Field>
-        <Field label="Stagione">
-          <input className={fieldClass} value={form.stagione} onChange={(e) => setForm({ ...form, stagione: e.target.value })} />
-        </Field>
         <Field label="Linea">
           <select className={fieldClass} value={form.linea} onChange={(e) => setForm({ ...form, linea: e.target.value as Linea })}>
             <option value="tessile">Tessile</option>
@@ -153,7 +149,15 @@ export function EditProductForm({
             onChange={(e) => { setForm({ ...form, prezzoVendita: e.target.value }); pulisci('prezzoVendita') }}
           />
         </Field>
-        <Field label="Prezzo showroom (€)" error={errori.prezzoShowroom}>
+        <Field
+          label="Prezzo showroom (€)"
+          error={errori.prezzoShowroom}
+          hint={
+            Number(form.prezzoShowroom) > 0
+              ? `Sul sito diventa ${prezzoSito(Number(form.prezzoShowroom)).toFixed(2)} € (+10%).`
+              : 'È il prezzo ufficiale del capo. Quello del sito si calcola da qui, +10%.'
+          }
+        >
           <input
             type="number"
             min="0"

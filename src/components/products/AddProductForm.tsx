@@ -10,7 +10,6 @@ const emptyForm = {
   codiceProdotto: '',
   categoria: '',
   collezione: '',
-  stagione: '',
   linea: 'tessile' as Linea,
   // Attributi commerciali della vista cliente (DEC-044). Partono da "No": un capo appena
   // creato non è ancora appeso in showroom né confermato come su misura.
@@ -42,7 +41,6 @@ export function AddProductForm({
         codiceProdotto: form.codiceProdotto.trim(),
         categoria: form.categoria.trim(),
         collezione: form.collezione.trim(),
-        stagione: form.stagione.trim(),
         linea: form.linea,
         visibileShowroom: form.visibileShowroom,
         personalizzabileSuMisura: form.personalizzabileSuMisura,
@@ -81,9 +79,6 @@ export function AddProductForm({
         </Field>
         <Field label="Collezione">
           <input className={fieldClass} value={form.collezione} onChange={(e) => setForm({ ...form, collezione: e.target.value })} />
-        </Field>
-        <Field label="Stagione">
-          <input className={fieldClass} value={form.stagione} onChange={(e) => setForm({ ...form, stagione: e.target.value })} placeholder="FW26" />
         </Field>
         <Field label="Linea">
           <select className={fieldClass} value={form.linea} onChange={(e) => setForm({ ...form, linea: e.target.value as Linea })}>

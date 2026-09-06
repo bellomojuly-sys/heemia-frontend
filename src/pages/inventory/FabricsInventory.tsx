@@ -24,7 +24,6 @@ const emptyForm = {
   prezzoAlMetro: '',
   metriAcquistati: '',
   sogliaMinima: '',
-  stagione: '',
 }
 
 function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewMaterialInput) => void | Promise<unknown> }) {
@@ -54,7 +53,6 @@ function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
         prezzoAlMetro: Number(form.prezzoAlMetro || 0),
         metriAcquistati: Number(form.metriAcquistati || 0),
         sogliaMinima: Number(form.sogliaMinima || 0),
-        stagione: form.stagione.trim(),
       })
       onClose()
     },
@@ -80,9 +78,6 @@ function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
         </Field>
         <Field label="Composizione">
           <input className={fieldClass} value={form.composizione} onChange={(e) => setForm({ ...form, composizione: e.target.value })} placeholder="100% Cotone" />
-        </Field>
-        <Field label="Stagione">
-          <input className={fieldClass} value={form.stagione} onChange={(e) => setForm({ ...form, stagione: e.target.value })} placeholder="FW26" />
         </Field>
         <Field label="Altezza (cm)" error={errori.altezzaCm}>
           <input type="number" min="0" className={campoClass(errori.altezzaCm)} value={form.altezzaCm} onChange={(e) => { setForm({ ...form, altezzaCm: e.target.value }); pulisci('altezzaCm') }} />
@@ -212,7 +207,6 @@ export function FabricsInventory() {
               <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Composizione</p><p className="mt-0.5 text-heemia-black">{m.composizione}</p></div>
               <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Altezza</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{m.altezzaCm ? `${m.altezzaCm} cm` : '–'}</p></div>
               <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Data acquisto</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{formatDateIt(m.dataAcquisto)}</p></div>
-              <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Stagione</p><p className="mt-0.5 text-heemia-black">{m.stagione}</p></div>
               <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Acquistati / utilizzati</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{m.metriAcquistati} / {m.metriUtilizzati} {m.unitaMisura}</p></div>
               <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Scampoli riutilizzabili</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{m.metriScampoli} {m.unitaMisura}</p></div>
               <div><p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Presso lavoranti</p><p className="font-mono-heemia mt-0.5 text-heemia-black">{m.metriPressoTerzisti} {m.unitaMisura}</p></div>

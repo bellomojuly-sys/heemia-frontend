@@ -143,7 +143,6 @@ export interface NewProductInput {
   codiceProdotto: string
   categoria: string
   collezione: string
-  stagione: string
   linea: Linea
   /** Attributi commerciali della vista cliente (DEC-044): si scelgono già alla creazione. */
   visibileShowroom: boolean
@@ -160,7 +159,6 @@ export interface NewMaterialInput {
   prezzoAlMetro: number
   metriAcquistati: number
   sogliaMinima: number
-  stagione: string
 }
 
 export interface NewAccessoryInput {
@@ -363,7 +361,7 @@ interface DataStoreValue {
   addSupplierRequest: (input: { materialId?: string; accessoryId?: string }) => Promise<SupplierRequest | null>
   /** FR-19: associa una fattura a prodotti/materiali (aggiorna anche il flag `associata`). */
   updateInvoiceAssociations: (id: string, prodottiIds: string[], materialiIds: string[]) => Promise<void>
-  /** FR-40: registra la quota corrente nello storico per stagione/periodo. */
+  /** FR-40: registra la quota corrente nello storico per periodo. */
   saveQuotaSnapshot: (periodo: string, nota?: string) => Promise<void>
   /** FR-41: registra la chiusura di cassa di un mese dall'export scontrini Billy. */
   addCashClosure: (input: NewCashClosureInput) => Promise<CashClosure>

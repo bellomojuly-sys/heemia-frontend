@@ -64,7 +64,6 @@ export interface Product {
   codiceProdotto: string
   categoria: string
   collezione: string
-  stagione: string
   linea: Linea
   stato: ProductStage
   descrizioneBreve?: string
@@ -354,7 +353,6 @@ export interface Material {
   metriScampoli: number
   fatturaId?: string
   dataAcquisto: string
-  stagione: string
   prodottiCollegatiIds: string[]
   consigliLavaggio?: string
   noteTecniche?: string
@@ -655,7 +653,7 @@ export interface FixedCostItem {
   importoAnnuo: number
 }
 
-// Registrazione storica della quota per stagione/periodo (FR-40): il valore corrente si può
+// Registrazione storica della quota per periodo (FR-40): il valore corrente si può
 // salvare esplicitamente, mai sovrascritto in silenzio.
 export interface QuotaHistoryEntry {
   id: string

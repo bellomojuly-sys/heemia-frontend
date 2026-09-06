@@ -29,9 +29,8 @@ import {
 // che sostituisce le tre liste di alert separate (attenzione richiesta, alert materiali,
 // alert operativi) che prima ripetevano le stesse informazioni in forme diverse.
 // Tolti di proposito: prodotti totali, margine sotto target, scadenze, report pronti,
-// collezioni, pronti per e-commerce, stock overview e i conteggi per categoria/stagione —
-// numeri senza una domanda operativa dietro. Il campo `stagione` resta nel modello dati
-// (serve alla storicizzazione della quota costi fissi, FR-40): sparisce solo il riquadro.
+// collezioni, pronti per e-commerce, stock overview e i conteggi per categoria — numeri
+// senza una domanda operativa dietro.
 export function Dashboard() {
   const { role } = useRole()
   const { products, materials, accessories, invoices, orders, productVariants, productionSteps, supplierRequests, inventoryRecords, caricamento } = useDataStore()

@@ -145,11 +145,11 @@ function FixedCostsCard() {
           </div>
         </div>
 
-        {/* FR-40: la quota va storicizzata per stagione/periodo, mai sovrascritta in silenzio. */}
+        {/* FR-40: la quota va storicizzata per periodo, mai sovrascritta in silenzio. */}
         <div className="mt-5 border-t border-heemia-border pt-4">
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <div className="flex-1">
-              <span className="font-mono-heemia mb-1 block text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Registra la quota corrente per stagione/periodo</span>
+              <span className="font-mono-heemia mb-1 block text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Registra la quota corrente per periodo</span>
               <input
                 type="text"
                 value={periodo}

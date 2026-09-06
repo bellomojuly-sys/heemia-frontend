@@ -39,16 +39,10 @@ export function getMaterialAlerts(src: DashboardSources = {}): MaterialAlertRow[
   return [...tessuti, ...acc].sort((a, b) => rank[a.stato] - rank[b.stato])
 }
 
-// "Per categoria" / "Per stagione" (FR-30 §5): conteggio neutro prodotti, nessun colore semantico.
+// "Per categoria" (FR-30 §5): conteggio neutro prodotti, nessun colore semantico.
 export function getProductsByCategoria(products: Product[] = []): { label: string; count: number }[] {
   const counts = new Map<string, number>()
   for (const p of products) counts.set(p.categoria, (counts.get(p.categoria) ?? 0) + 1)
-  return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count)
-}
-
-export function getProductsByStagione(products: Product[] = []): { label: string; count: number }[] {
-  const counts = new Map<string, number>()
-  for (const p of products) counts.set(p.stagione, (counts.get(p.stagione) ?? 0) + 1)
   return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count)
 }
 

@@ -105,10 +105,11 @@ export async function getTopSellingProducts(limit = 5) {
     .slice(0, limit)
 }
 
-// Conteggi neutri per categoria/stagione (FR-30 §5).
+// Conteggi neutri per categoria (FR-30 §5). La ripartizione per stagione e' stata tolta
+// il 2026-08-13: i capi non si organizzano piu' per stagione.
 export async function getProductBreakdowns() {
-  const products = await prisma.product.findMany({ select: { categoria: true, stagione: true } })
-  const count = (key: 'categoria' | 'stagione') => {
+  const products = await prisma.product.findMany({ select: { categoria: true } })
+  const count = (key: 'categoria') => {
     const map = new Map<string, number>()
     for (const p of products) {
       const label = p[key] ?? 'Non specificata'
@@ -116,5 +117,5 @@ export async function getProductBreakdowns() {
     }
     return [...map.entries()].map(([label, c]) => ({ label, count: c })).sort((a, b) => b.count - a.count)
   }
-  return { perCategoria: count('categoria'), perStagione: count('stagione') }
+  return { perCategoria: count('categoria') }
 }

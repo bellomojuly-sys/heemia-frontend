@@ -23,7 +23,6 @@ const materialCreate = z.object({
   metriAcquistati: z.number().nonnegative().optional(),
   metriUtilizzati: z.number().nonnegative().optional(),
   dataAcquisto: z.string().date().optional(),
-  stagione: z.string().optional(),
   consigliLavaggio: z.string().optional(),
   noteTecniche: z.string().optional(),
   sogliaMinima: z.number().nonnegative().optional(),

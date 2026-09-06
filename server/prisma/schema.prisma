@@ -520,7 +520,6 @@ model Product {
   codiceProdotto            String               @unique @map("codice_prodotto")
   categoria                 String?
   collezione                String?
-  stagione                  String?
   linea                     Linea
   stato                     ProductStage         @default(idea)
   descrizioneBreve          String?              @map("descrizione_breve")
@@ -647,7 +646,6 @@ model Material {
   ///   scampoli              = questo campo                                         (usabile, ma spezzato)
   metriScampoli       Decimal       @default(0) @map("metri_scampoli") @db.Decimal(10, 2)
   dataAcquisto        DateTime?     @map("data_acquisto") @db.Date
-  stagione            String?
   consigliLavaggio    String?       @map("consigli_lavaggio")
   noteTecniche        String?       @map("note_tecniche")
   sogliaMinima        Decimal       @default(0) @map("soglia_minima") @db.Decimal(10, 2)

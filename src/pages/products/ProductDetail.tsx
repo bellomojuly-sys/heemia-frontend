@@ -20,6 +20,7 @@ import { SampleApproval } from '../../components/production/SampleApproval'
 import { StatusBadge } from '../../lib/statusBadge'
 import { checkAdvance, stageLabel } from '../../lib/production'
 import { formatCurrency, formatDateIt } from '../../lib/format'
+import { prezzoSito } from '../../lib/prezzi'
 import { TODAY } from '../../lib/alerts'
 import { computeQuotaPerCapo, recomputeMargin } from '../../lib/margins'
 import { computeSheetCost } from '../../lib/sheetCost'
@@ -303,7 +304,7 @@ export function ProductDetail() {
 
       <PageHeader
         title={product.nome}
-        subtitle={`${product.codiceProdotto} · ${product.categoria} · ${product.collezione} · ${product.stagione}`}
+        subtitle={`${product.codiceProdotto} · ${product.categoria} · ${product.collezione}`}
         action={
           <div className="flex items-center gap-2">
             <Badge variant="neutral">{product.linea === 'tessile' ? 'Tessile' : 'Maglieria'}</Badge>
@@ -787,6 +788,10 @@ export function ProductDetail() {
               <DetailField label="Prezzo vendita (IVA incl.)"><span className="font-mono-heemia">{product.prezzoVendita > 0 ? formatCurrency(product.prezzoVendita) : '–'}</span></DetailField>
               <DetailField label="Prezzo netto IVA"><span className="font-mono-heemia">{product.prezzoNettoIva > 0 ? formatCurrency(product.prezzoNettoIva) : '–'}</span></DetailField>
               <DetailField label="Prezzo showroom"><span className="font-mono-heemia">{product.prezzoShowroom > 0 ? formatCurrency(product.prezzoShowroom) : '–'}</span></DetailField>
+              {/* Non è un campo: è lo showroom più il 10% (regola 2026-08-13). Si mostra qui
+                  perché è il prezzo che il cliente vede online, e nasconderlo obbligherebbe
+                  a rifare il conto a mente ogni volta. */}
+              <DetailField label="Prezzo sito (showroom +10%)"><span className="font-mono-heemia">{prezzoSito(product.prezzoShowroom) > 0 ? formatCurrency(prezzoSito(product.prezzoShowroom)) : '–'}</span></DetailField>
               <DetailField label="Prezzo consigliato"><span className="font-mono-heemia">{product.prezzoConsigliato > 0 ? formatCurrency(product.prezzoConsigliato) : '–'}</span></DetailField>
             </div>
             <div className="mt-5 border-t border-heemia-border pt-4">
