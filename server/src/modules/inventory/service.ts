@@ -3,7 +3,7 @@
 // dal server (mai inviati dal client).
 import type { InventoryStato, InventoryMovementType, Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
-import { notFound, badRequest } from '../../core/errors.js'
+import { notFound, badRequest, conflict } from '../../core/errors.js'
 import { bloccaRisorsa } from '../../core/lock.js'
 import { logActivity } from '../../core/activityLog.js'
 
@@ -537,15 +537,30 @@ export async function chiudiLavorazione(
     }
 
     await bloccaRisorsa(tx, 'inventory_record', lavorazione.variantId)
+
+    // ⚠️ La chiusura si scrive PRIMA di toccare le giacenze, e con `updateMany` condizionato
+    // allo stato — non con `update`. Il controllo qui sopra non basta: la lettura della
+    // lavorazione avviene fuori dal lock, quindi due richieste contemporanee (un doppio clic,
+    // o due persone sulla stessa riga) leggevano entrambe "in_produzione", passavano
+    // entrambe, e accreditavano DUE VOLTE gli stessi capi in laboratorio. Con dieci capi in
+    // giacenza e quattro in lavorazione se ne ritrovavano quattordici, e l'inventario non
+    // aveva più modo di accorgersene.
+    // `updateMany` aggiorna una riga sola: la seconda richiesta ne aggiorna zero e si ferma
+    // qui, senza aver toccato nulla. È lo stesso rimedio già usato per l'emissione delle
+    // bolle in lavorazioni/service.ts.
+    const chiusura = await tx.stockCommitment.updateMany({
+      where: { id, stato: 'in_produzione' },
+      data: { stato: esito, chiusoIl: new Date() },
+    })
+    if (chiusura.count === 0) {
+      throw conflict('Questa lavorazione è appena stata chiusa da un\'altra operazione: ricarica la pagina.')
+    }
+
     const record = await tx.inventoryRecord.findUnique({ where: { variantId: lavorazione.variantId } })
     if (!record) throw notFound('Record di inventario non trovato')
 
     const qtaLaboratorio = record.qtaLaboratorio + lavorazione.quantita
     const calcolo = calcolaDisponibilita({ ...record, qtaLaboratorio })
-    await tx.stockCommitment.update({
-      where: { id },
-      data: { stato: esito, chiusoIl: new Date() },
-    })
     await tx.inventoryRecord.update({
       where: { variantId: lavorazione.variantId },
       data: { qtaLaboratorio, stato: calcolo.stato, divergenzaShopify: calcolo.divergenzaShopify },
