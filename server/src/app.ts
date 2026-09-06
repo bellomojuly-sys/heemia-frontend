@@ -9,6 +9,7 @@ import { reportError } from './core/reportError.js'
 import { prisma } from './core/prisma.js'
 import './core/types.js'
 import { authRoutes } from './modules/auth/routes.js'
+import { userRoutes } from './modules/users/routes.js'
 import { productRoutes } from './modules/products/routes.js'
 import { marginsRoutes } from './modules/margins/routes.js'
 import { materialRoutes } from './modules/materials/routes.js'
@@ -23,6 +24,7 @@ import { alertRoutes } from './modules/alerts/routes.js'
 import { dashboardRoutes } from './modules/dashboard/routes.js'
 import { reportRoutes } from './modules/reports/routes.js'
 import { integrationRoutes } from './modules/integrations/routes.js'
+import { shopifyRoutes, shopifyWebhookRoutes } from './modules/shopify/routes.js'
 import { showroomRoutes } from './modules/showroom/routes.js'
 import { showroomRequestRoutes } from './modules/showroomRequests/routes.js'
 import { aiRoutes } from './modules/ai/routes.js'
@@ -38,8 +40,21 @@ export async function buildApp() {
   // bodyLimit alzato a 30 MB: le letture AI ricevono PDF o immagini codificati in base64
   // (che pesano ~1/3 in più del file originale).
   const app = Fastify({
-    logger: { level: config.isProd ? 'info' : 'debug' },
+    logger: config.env === 'test' ? false : { level: config.isProd ? 'info' : 'debug' },
     bodyLimit: 30 * 1024 * 1024,
+    // Su Render nessuna richiesta arriva qui direttamente: passa dal proxy di bordo e, per
+    // il rewrite `/api/*` del sito statico (render.yaml, DEC-048), da un secondo passaggio.
+    // Senza questa riga `request.ip` era l'indirizzo del proxy, uguale per tutti: il limite
+    // globale di 300 richieste al minuto e quello di 10 accessi al minuto erano **un solo
+    // contatore per tutta l'azienda**. Bastava che una persona sbagliasse password qualche
+    // volta per lasciare fuori chiunque altro, e nei log ogni richiesta risultava partita
+    // dallo stesso indirizzo.
+    //
+    // In cambio l'indirizzo ora viene da un'intestazione, cioè da fuori: chi attacca può
+    // cambiarlo a ogni richiesta per non farsi contare. Per questo la difesa vera del login
+    // non è più il limite per IP ma il conteggio per email in auth/tentativiLogin.ts, che
+    // non si può falsificare senza cambiare bersaglio.
+    trustProxy: true,
   })
 
   // Intestazioni di sicurezza (Fase 15). Vanno registrate per prime, così valgono anche
@@ -127,6 +142,7 @@ export async function buildApp() {
   })
 
   await app.register(authRoutes, { prefix: API_PREFIX })
+  await app.register(userRoutes, { prefix: API_PREFIX })
   await app.register(productRoutes, { prefix: API_PREFIX })
   await app.register(marginsRoutes, { prefix: API_PREFIX })
   await app.register(materialRoutes, { prefix: API_PREFIX })
@@ -141,6 +157,10 @@ export async function buildApp() {
   await app.register(dashboardRoutes, { prefix: API_PREFIX })
   await app.register(reportRoutes, { prefix: API_PREFIX })
   await app.register(integrationRoutes, { prefix: API_PREFIX })
+  await app.register(shopifyRoutes, { prefix: API_PREFIX })
+  // Scope a sé: i webhook hanno un parser del corpo dedicato (serve il grezzo per l'HMAC)
+  // che NON deve valere per il resto dell'API — vedi la nota CSRF più sopra.
+  await app.register(shopifyWebhookRoutes, { prefix: API_PREFIX })
   await app.register(aiRoutes, { prefix: API_PREFIX })
   await app.register(analyticsRoutes, { prefix: API_PREFIX })
   await app.register(driveRoutes, { prefix: API_PREFIX })

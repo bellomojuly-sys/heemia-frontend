@@ -4,6 +4,7 @@ import { prisma } from '../../core/prisma.js'
 import { badRequest, unauthorized } from '../../core/errors.js'
 import { verifyPassword } from './password.js'
 import { SESSION_COOKIE, createSession, revokeSession } from './session.js'
+import { azzeraTentativi, registraFallimento, verificaTentativi } from './tentativiLogin.js'
 import { logActivity } from '../../core/activityLog.js'
 import { authenticate } from '../../core/guards.js'
 import { config } from '../../core/config.js'
@@ -38,11 +39,23 @@ export async function authRoutes(app: FastifyInstance) {
     if (!parsed.success) throw badRequest('Email o password non validi')
     const { email, password } = parsed.data
 
+    // Freno per email, prima di toccare il database: è la difesa che regge davvero contro
+    // chi prova password a raffica, perché il limite per IP si aggira cambiando indirizzo
+    // (vedi il commento su trustProxy in app.ts).
+    verificaTentativi(email)
+
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
     // Messaggio identico per utente inesistente o password errata (no user enumeration).
-    if (!user || !user.attivo || !user.passwordHash) throw unauthorized('Credenziali non valide')
+    if (!user || !user.attivo || !user.passwordHash) {
+      registraFallimento(email)
+      throw unauthorized('Credenziali non valide')
+    }
     const ok = await verifyPassword(password, user.passwordHash)
-    if (!ok) throw unauthorized('Credenziali non valide')
+    if (!ok) {
+      registraFallimento(email)
+      throw unauthorized('Credenziali non valide')
+    }
+    azzeraTentativi(email)
 
     const session = await createSession(user.id, user.role)
     await logActivity(prisma, { userId: user.id, azione: 'login', entita: 'user', entitaId: user.id })
