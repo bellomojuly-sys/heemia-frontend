@@ -13,6 +13,7 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { PrismaClient } from '@prisma/client'
+import { tessutoConosciuto } from '../src/core/tessuti.js'
 
 const censusDir = fileURLToPath(
   new URL('../../../03_Technical_Specification/Censimento_Dati/', import.meta.url),
@@ -65,7 +66,13 @@ const prisma = new PrismaClient()
 const codici = prodotti.map((p) => p.codice_prodotto)
 const sku = varianti.map((v) => v.sku)
 
-const [capiDb, variantiDb, giacenzeDb, fornitoriDb, pezziLab, pezziMag, daConfermare, fuoriFase] =
+const conDescrizione = prodotti.filter((p) => (p.descrizione_breve ?? '').trim()).length
+// I capi il cui tessuto sta nella tabella approvata: solo quelli devono avere composizione
+// e consigli di cura. I foderati restano vuoti di proposito (DEC-064).
+const conTessutoNoto = prodotti.filter((p) => tessutoConosciuto(p.tessuto)).length
+
+const [capiDb, variantiDb, giacenzeDb, fornitoriDb, pezziLab, pezziMag, daConfermare, fuoriFase,
+       descrizioniDb, composizioniDb, curaApprovataDb] =
   await Promise.all([
     prisma.product.count({ where: { codiceProdotto: { in: codici } } }),
     prisma.productVariant.count({ where: { sku: { in: sku } } }),
@@ -75,6 +82,9 @@ const [capiDb, variantiDb, giacenzeDb, fornitoriDb, pezziLab, pezziMag, daConfer
     prisma.inventoryRecord.aggregate({ _sum: { qtaMagazzino: true }, where: { variant: { sku: { in: sku } } } }),
     prisma.inventoryRecord.count({ where: { variant: { sku: { in: sku } }, migrazioneCompletata: false } }),
     prisma.product.count({ where: { codiceProdotto: { in: codici }, stato: { not: 'in_vendita' } } }),
+    prisma.product.count({ where: { codiceProdotto: { in: codici }, descrizioneBreve: { not: null } } }),
+    prisma.product.count({ where: { codiceProdotto: { in: codici }, composizione: { not: null } } }),
+    prisma.product.count({ where: { codiceProdotto: { in: codici }, consigliCuraStato: 'approvata' } }),
   ])
 
 const doppiCodice = await prisma.$queryRaw<unknown[]>`SELECT codice_prodotto FROM products GROUP BY 1 HAVING count(*) > 1`
@@ -91,6 +101,9 @@ const controlli: Controllo[] = [
   { cosa: 'pezzi in magazzino (deve essere 0)', atteso: 0, trovato: pezziMag._sum.qtaMagazzino ?? 0 },
   { cosa: 'distribuzioni da confermare', atteso: varianti.length, trovato: daConfermare },
   { cosa: 'capi fuori dalla fase Vendita', atteso: 0, trovato: fuoriFase },
+  { cosa: 'descrizioni sui capi', atteso: conDescrizione, trovato: descrizioniDb },
+  { cosa: 'composizioni ricavate dal tessuto', atteso: conTessutoNoto, trovato: composizioniDb },
+  { cosa: 'consigli di cura approvati', atteso: conTessutoNoto, trovato: curaApprovataDb },
   { cosa: 'codici prodotto duplicati', atteso: 0, trovato: doppiCodice.length },
   { cosa: 'SKU duplicati', atteso: 0, trovato: doppiSku.length },
   { cosa: 'fornitori in anagrafica (almeno)', atteso: `≥ ${fornitori.length}`, trovato: fornitoriDb },
