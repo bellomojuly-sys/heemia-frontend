@@ -16,7 +16,8 @@
     "test": "NODE_ENV=test node --env-file=.env --import tsx --test --test-concurrency=1 test/*.test.ts",
     "test:performance": "NODE_ENV=test node --env-file=.env --import tsx scripts/benchmark-health.mts",
     "census:validate": "node --import tsx scripts/validate-census.mts",
-    "census:import": "node --env-file=.env --import tsx scripts/import-censimento.mts"
+    "census:import": "node --env-file=.env --import tsx scripts/import-censimento.mts",
+    "census:verifica": "node --env-file=.env --import tsx scripts/verifica-censimento.mts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
