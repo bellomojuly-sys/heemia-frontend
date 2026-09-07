@@ -25,7 +25,7 @@ import { Prisma, SupplierCategoria, type ProductStage, type PubblicazioneShopify
 import { prisma } from '../../core/prisma.js'
 import { badRequest } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
-import { tessutoConosciuto } from '../../core/tessuti.js'
+import { derivatoDaTabella, tessutoConosciuto } from '../../core/tessuti.js'
 
 /** Annulla la transazione di simulazione senza farla passare per un guasto. */
 class AnnullaSimulazione extends Error {
@@ -87,6 +87,8 @@ export interface EsitoImport {
   descrizioni: { inserite: number; riscritte: number; invariate: number }
   /** Capi a cui la tabella dei tessuti ha compilato composizione e consigli di cura. */
   curaCompilata: number
+  /** Capi a cui è stato **tolto** un valore derivato da una regola non più valida. */
+  curaRimossa: number
   /** Capi il cui tessuto non è nella tabella: restano senza composizione né consigli. */
   tessutoSconosciuto: { nome: string; tessuto: string }[]
   /** Capi senza costo diretto: entrano lo stesso, ma per loro il margine non si calcola. */
@@ -193,6 +195,7 @@ export async function importaCensimento(
           giacenze: { create: 0, aggiornate: 0, pezzi: 0 },
           descrizioni: { inserite: 0, riscritte: 0, invariate: 0 },
           curaCompilata: 0,
+          curaRimossa: 0,
           tessutoSconosciuto: [],
           senzaCostoDiretto: [],
           saltate: [],
@@ -254,7 +257,7 @@ export async function importaCensimento(
 
           const gia = await tx.product.findUnique({
             where: { codiceProdotto: codice },
-            select: { id: true, descrizioneBreve: true, descrizioneTecnica: true },
+            select: { id: true, descrizioneBreve: true, descrizioneTecnica: true, composizione: true, consigliCura: true },
           })
 
           // Le descrizioni si scrivono solo se il censimento ne ha una: un campo vuoto nel
@@ -271,6 +274,16 @@ export async function importaCensimento(
             esito.curaCompilata += 1
           } else if ((p.tessuto ?? '').trim()) {
             esito.tessutoSconosciuto.push({ nome: p.nome.trim(), tessuto: (p.tessuto ?? '').trim() })
+            // Un tessuto può **uscire** dalla tabella, come è successo alla viscosa il
+            // 2026-09-07: la regola era sbagliata. In quel caso i valori che avevamo
+            // derivato restano a database e diventano un'etichetta di lavaggio falsa, che è
+            // peggio di un campo vuoto. Si tolgono — ma **solo** se combaciano esattamente
+            // con una riga della tabella, cioè solo se li avevamo messi noi: un testo
+            // scritto a mano da una persona non si tocca.
+            if (gia && derivatoDaTabella(gia.composizione, gia.consigliCura)) {
+              Object.assign(dati, { composizione: null, consigliCura: null, consigliCuraStato: 'bozza' as const })
+              esito.curaRimossa += 1
+            }
           }
 
           const breve = (p.descrizione_breve ?? '').trim()

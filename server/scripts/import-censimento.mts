@@ -110,6 +110,9 @@ riga('giacenze create / aggiornate', `${esito.giacenze.create} / ${esito.giacenz
 riga('pezzi caricati in laboratorio', esito.giacenze.pezzi)
 riga('descrizioni inserite / riscritte', `${esito.descrizioni.inserite} / ${esito.descrizioni.riscritte}`)
 riga('composizioni e consigli di cura', esito.curaCompilata)
+if (esito.curaRimossa > 0) {
+  riga('composizioni RIMOSSE (regola non valida)', esito.curaRimossa)
+}
 if (esito.tessutoSconosciuto.length > 0) {
   console.log(`     ${esito.tessutoSconosciuto.length} capi con un tessuto fuori tabella, senza composizione:`)
   for (const t of esito.tessutoSconosciuto) console.log(`       ${t.nome} (${t.tessuto})`)

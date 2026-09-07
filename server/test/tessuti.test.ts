@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 import { buildApp } from '../src/app.js'
-import { TESSUTI, tessutoConosciuto } from '../src/core/tessuti.js'
+import { TESSUTI, derivatoDaTabella, tessutoConosciuto } from '../src/core/tessuti.js'
 import { _svuotaRegistro } from '../src/modules/auth/tentativiLogin.js'
 
 const prisma = new PrismaClient()
@@ -46,6 +46,23 @@ after(async () => {
 })
 
 describe('Tessuti, composizione e consigli di cura', () => {
+  test('la viscosa NON è il filato cremoso: sono due filati diversi', () => {
+    // Correzione di Giulia, 2026-09-07. La riga «65% Viscosa - 35% Poliammide» è del
+    // filato cremoso; la composizione della viscosa non è documentata da nessuna parte,
+    // quindi quei capi restano senza e l'app li segnala.
+    assert.equal(tessutoConosciuto('viscosa'), null)
+    assert.equal(tessutoConosciuto('cremoso')?.composizione, '65% Viscosa - 35% Poliammide')
+  })
+
+  test('si riconosce un valore messo dalla tabella, per poterlo togliere se la regola cade', () => {
+    const cremoso = tessutoConosciuto('cremoso')!
+    assert.equal(derivatoDaTabella(cremoso.composizione, cremoso.consigliCura), true)
+    // Un testo scritto da una persona non combacia, e infatti non si tocca.
+    assert.equal(derivatoDaTabella(cremoso.composizione, 'Lavare come viene'), false)
+    assert.equal(derivatoDaTabella('60% lino', cremoso.consigliCura), false)
+    assert.equal(derivatoDaTabella(null, null), false)
+  })
+
   test('la tabella copre i dodici tessuti e nessuno resta senza testo', () => {
     assert.equal(TESSUTI.length, 12)
     for (const t of TESSUTI) {

@@ -34,11 +34,12 @@ export const TESSUTI: Tessuto[] = [
     ].join('\n'),
   },
   {
-    // Sulla tabella questa riga è indicata come «filato cremoso». Nel censimento e nel
-    // database Notion il tessuto si chiama «viscosa», ed è lo stesso: la descrizione di
-    // Cali («Pantalone cargo unisex in cremoso») ha il tessuto «viscosa». Da confermare
-    // con Giulia se un giorno i due nomi dovessero separarsi.
-    nome: 'viscosa',
+    // ⚠️ Questa riga è del **filato cremoso**, non della viscosa: sono due filati diversi
+    // (Giulia, 2026-09-07). Il 2026-09-07 erano stati trattati come lo stesso, perché la
+    // descrizione di Cali dice «in cremoso» mentre il suo tessuto è «viscosa» — un errore,
+    // corretto lo stesso giorno. La **viscosa non ha una riga**: finché non arriva, i capi
+    // in viscosa restano senza composizione e l'app li segnala.
+    nome: 'cremoso',
     composizione: '65% Viscosa - 35% Poliammide',
     consigliCura: [
       'Lavare a mano in acqua fredda (max 30°C) con detersivo delicato.',
@@ -150,14 +151,29 @@ export const TESSUTI: Tessuto[] = [
 const PER_NOME = new Map(TESSUTI.map((t) => [t.nome.toLowerCase(), t]))
 
 /**
+ * Riconosce una coppia composizione+consigli **prodotta da questa tabella**. Serve a una
+ * cosa sola: quando un tessuto esce dalla tabella — perché la regola era sbagliata, come è
+ * successo alla viscosa — i valori che avevamo derivato vanno tolti, mentre un testo scritto
+ * a mano da una persona non si tocca. Combaciare esattamente su entrambi i campi è un
+ * segnale forte che il valore l'abbiamo messo noi.
+ */
+export function derivatoDaTabella(composizione: string | null, consigliCura: string | null): boolean {
+  if (!composizione || !consigliCura) return false
+  return TESSUTI.some((t) => t.composizione === composizione && t.consigliCura === consigliCura)
+}
+
+/**
  * Composizione e consigli per un tessuto. Restituisce `null` per un tessuto che la tabella
- * non conosce — e sono due i casi noti:
+ * non conosce — e i casi noti sono tre:
  *
- *   - **`fodera`**: nella tabella non c'è, perché non è mai il tessuto principale di un capo
- *     ma un accompagnamento (i capi foderati nel censimento hanno «gigiotto+fodera»).
- *   - **combinazioni** come `gigiotto+fodera`: la composizione di un capo foderato non è
- *     quella del solo tessuto esterno, e nessun documento dice come scriverla. Restano da
- *     compilare a mano: meglio vuoto che un'etichetta di lavaggio inventata.
+ *   - **`viscosa`** (9 capi): la riga «filato cremoso» è di un altro filato. La composizione
+ *     della viscosa non è documentata da nessuna parte.
+ *   - **`fodera`**: non è mai il tessuto principale di un capo, ma un accompagnamento.
+ *   - **combinazioni** come `gigiotto+fodera` (3 capi): la composizione di un capo foderato
+ *     non è quella del solo tessuto esterno, e nessun documento dice come scriverla.
+ *
+ * In tutti e tre i casi il campo resta vuoto e l'app lo segnala fra le azioni richieste:
+ * meglio un buco visibile che un'etichetta di lavaggio inventata.
  */
 export function tessutoConosciuto(nome: string | null | undefined): Tessuto | null {
   return PER_NOME.get((nome ?? '').trim().toLowerCase()) ?? null

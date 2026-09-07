@@ -9,6 +9,7 @@ import test, { after, before, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { PrismaClient } from '@prisma/client'
 import { importaCensimento, type Censimento } from '../src/modules/migration/importCensimento.js'
+import { tessutoConosciuto } from '../src/core/tessuti.js'
 
 const prisma = new PrismaClient()
 const RUN = `TEST-IMP-${Date.now().toString(36).toUpperCase()}`

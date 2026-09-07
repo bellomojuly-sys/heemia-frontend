@@ -185,6 +185,23 @@ export async function computeAlerts(role: Role): Promise<AlertItem[]> {
         data: now, entitaId: p.id, link: `/prodotti/${p.id}`,
       })
     }
+    // Composizione mancante (Giulia, 2026-09-07). La composizione e i consigli di cura si
+    // ricavano dal tessuto (core/tessuti.ts), ma tre casi non hanno una regola: la viscosa,
+    // i capi foderati e qualunque tessuto nuovo. Lì il campo resta vuoto di proposito —
+    // un'etichetta di lavaggio inventata è peggio — e va compilato a mano.
+    //
+    // Senza questo avviso quei capi resterebbero incompleti in silenzio: nessuno riapre 93
+    // schede per controllare, e il buco si scopre quando il capo è già addosso a un cliente.
+    if (p.stato !== 'idea' && p.stato !== 'archivio' && !p.composizione) {
+      alerts.push({
+        id: `alert-nocomposizione-${p.id}`, modulo: 'Anagrafica', livello: 'attenzione',
+        messaggio: p.tessuto
+          ? `${p.nome}: composizione da scrivere a mano — per il tessuto «${p.tessuto}» non c'è una regola`
+          : `${p.nome}: nessun tessuto indicato, quindi niente composizione né consigli di cura`,
+        data: now, entitaId: p.id, link: `/prodotti/${p.id}`,
+      })
+    }
+
     const sheets = p.technicalSheets
     if (sheets.length === 0 && p.stato !== 'idea') {
       alerts.push({
