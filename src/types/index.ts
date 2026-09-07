@@ -70,6 +70,9 @@ export interface Product {
   descrizioneBreveStato: 'bozza' | 'approvata'
   descrizioneEcommerce?: string
   descrizioneTecnica?: string
+  /** Tessuto principale: è la chiave da cui il server ricava i due campi qui sotto. */
+  tessuto?: string
+  composizione?: string
   consigliCura?: string
   consigliCuraStato: 'bozza' | 'approvata'
   vestibilita?: string

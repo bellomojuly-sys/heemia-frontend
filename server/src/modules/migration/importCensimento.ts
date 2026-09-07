@@ -25,6 +25,7 @@ import { Prisma, SupplierCategoria, type ProductStage, type PubblicazioneShopify
 import { prisma } from '../../core/prisma.js'
 import { badRequest } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
+import { tessutoConosciuto } from '../../core/tessuti.js'
 
 /** Annulla la transazione di simulazione senza farla passare per un guasto. */
 class AnnullaSimulazione extends Error {
@@ -37,6 +38,7 @@ export interface RigaProdotto {
   codice_prodotto: string
   nome: string
   categoria: string
+  tessuto?: string
   taglie_disponibili: string
   colori_disponibili: string
   prezzo_vendita: string
@@ -83,6 +85,10 @@ export interface EsitoImport {
   varianti: { create: number; aggiornate: number }
   giacenze: { create: number; aggiornate: number; pezzi: number }
   descrizioni: { inserite: number; riscritte: number; invariate: number }
+  /** Capi a cui la tabella dei tessuti ha compilato composizione e consigli di cura. */
+  curaCompilata: number
+  /** Capi il cui tessuto non è nella tabella: restano senza composizione né consigli. */
+  tessutoSconosciuto: { nome: string; tessuto: string }[]
   /** Capi senza costo diretto: entrano lo stesso, ma per loro il margine non si calcola. */
   senzaCostoDiretto: string[]
   /** Righe non scritte e perché: nessuna riga sparisce in silenzio. */
@@ -186,6 +192,8 @@ export async function importaCensimento(
           varianti: { create: 0, aggiornate: 0 },
           giacenze: { create: 0, aggiornate: 0, pezzi: 0 },
           descrizioni: { inserite: 0, riscritte: 0, invariate: 0 },
+          curaCompilata: 0,
+          tessutoSconosciuto: [],
           senzaCostoDiretto: [],
           saltate: [],
           simulazione,
@@ -237,6 +245,7 @@ export async function importaCensimento(
             prezzoNettoIva: dec(prezzo > 0 ? nettoIva(prezzo) : 0),
             prezzoShowroom: dec(num(p.prezzo_showroom) ?? 0),
             vestibilita: p.vestibilita.trim() || undefined,
+            tessuto: (p.tessuto ?? '').trim() || undefined,
             // I capi del censimento sono già prodotti e pronti alla vendita (DEC-061 §10):
             // entrano in Vendita senza passare dalle fasi produttive.
             stato: censimento.faseIniziale,
@@ -252,6 +261,18 @@ export async function importaCensimento(
           // CSV significa «non lo so», e non deve cancellare un testo scritto dall'app.
           // Lo **stato** di approvazione non si tocca mai: se una persona ha approvato un
           // testo, non è questo file a poterlo decidere.
+          // Composizione e consigli di cura si ricavano dal tessuto (core/tessuti.ts, dalla
+          // pagina Notion «CONSIGLI DEL TEAM»). Un tessuto che la tabella non conosce — le
+          // combinazioni con fodera — resta senza: un'etichetta di lavaggio inventata e'
+          // peggio di un campo vuoto.
+          const tessuto = tessutoConosciuto(p.tessuto)
+          if (tessuto) {
+            Object.assign(dati, { composizione: tessuto.composizione, consigliCura: tessuto.consigliCura })
+            esito.curaCompilata += 1
+          } else if ((p.tessuto ?? '').trim()) {
+            esito.tessutoSconosciuto.push({ nome: p.nome.trim(), tessuto: (p.tessuto ?? '').trim() })
+          }
+
           const breve = (p.descrizione_breve ?? '').trim()
           const tecnica = (p.descrizione_tecnica ?? '').trim()
           if (breve || tecnica) {
@@ -264,9 +285,14 @@ export async function importaCensimento(
               esito.descrizioni.invariate += 1
             }
           }
+          // I testi di Notion sono gia' stati controllati dall'azienda (Giulia, 2026-09-07):
+          // entrano come **approvati**, non come bozza. Vale solo per i testi che arrivano
+          // dal censimento: un campo vuoto non tocca nulla, stato compreso.
           Object.assign(dati, {
             descrizioneBreve: breve || undefined,
             descrizioneTecnica: tecnica || undefined,
+            ...(breve ? { descrizioneBreveStato: 'approvata' as const } : {}),
+            ...(tessuto ? { consigliCuraStato: 'approvata' as const } : {}),
           })
 
           let productId: string
@@ -349,6 +375,7 @@ export async function importaCensimento(
             `${esito.varianti.create} varianti create e ${esito.varianti.aggiornate} aggiornate · ` +
             `${esito.giacenze.pezzi} pezzi in laboratorio · ` +
             `${esito.descrizioni.inserite + esito.descrizioni.riscritte} descrizioni scritte · ` +
+            `${esito.curaCompilata} composizioni e consigli di cura · ` +
             `${esito.fornitori.creati} fornitori creati e ${esito.fornitori.aggiornati} aggiornati`,
         })
         return esito

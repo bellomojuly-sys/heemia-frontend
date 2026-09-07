@@ -147,6 +147,8 @@ export interface NewProductInput {
   /** Attributi commerciali della vista cliente (DEC-044): si scelgono già alla creazione. */
   visibileShowroom: boolean
   personalizzabileSuMisura: boolean
+  /** Da qui il server ricava composizione e consigli di cura (core/tessuti.ts). */
+  tessuto?: string
 }
 
 export interface NewMaterialInput {

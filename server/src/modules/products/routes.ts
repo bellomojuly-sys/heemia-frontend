@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { authenticate, requireModule, requireEdit, requireRole } from '../../core/guards.js'
 import { badRequest } from '../../core/errors.js'
+import { TESSUTI, tessutoConosciuto } from '../../core/tessuti.js'
 import {
   checkProductDeletion, createProduct, createVariant, deleteProduct, getProduct, listProducts,
   updateProduct, updateVariantQuantities,
@@ -28,6 +29,11 @@ const createSchema = z.object({
   // si impostano già alla creazione, non solo in modifica.
   visibileShowroom: z.boolean().optional(),
   personalizzabileSuMisura: z.boolean().optional(),
+  // Il tessuto è la chiave da cui il server ricava composizione e consigli di cura
+  // (core/tessuti.ts). `composizione` si può comunque passare esplicita: vince su quella
+  // derivata, perché un capo foderato ne ha una sua.
+  tessuto: z.string().max(80).optional(),
+  composizione: z.string().max(500).optional(),
 })
 
 // Query param delle liste validati come il body: valori fuori enum -> 400 (non 500 da Prisma).
@@ -246,6 +252,12 @@ export async function productRoutes(app: FastifyInstance) {
   const read = { preHandler: [authenticate, requireModule('prodotti')] }
   const write = { preHandler: [authenticate, requireModule('prodotti'), requireEdit] }
 
+  // Tessuti con composizione e consigli di cura (pagina Notion «CONSIGLI DEL TEAM»).
+  // La tabella sta **solo qui**: il client la legge da questo endpoint invece di tenerne una
+  // copia. Sono quattro righe di testo per dodici tessuti, e due copie che divergono
+  // significherebbero due capi con lo stesso tessuto e istruzioni di lavaggio diverse.
+  app.get('/tessuti', { preHandler: [authenticate, requireModule('prodotti')] }, async () => TESSUTI)
+
   app.get('/products', read, async (req) => {
     const parsed = listQuerySchema.safeParse(req.query)
     if (!parsed.success) throw badRequest(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '))
@@ -290,7 +302,25 @@ export async function productRoutes(app: FastifyInstance) {
       // o verrebbero scartati in silenzio.
       visibileShowroom: d.visibileShowroom,
       personalizzabileSuMisura: d.personalizzabileSuMisura,
+      tessuto: d.tessuto,
+      composizione: d.composizione,
     }
+
+    // Capo nuovo: scelto il tessuto, composizione e consigli di cura si compilano da soli
+    // dalla tabella approvata (core/tessuti.ts). È la regola che su Notion era una formula.
+    //
+    // La derivazione sta **sul server** e non solo nel form: così vale per qualunque via si
+    // crei un capo, e due capi con lo stesso tessuto non possono finire con istruzioni di
+    // lavaggio diverse. Chi passa un valore esplicito vince — un capo foderato ha una
+    // composizione sua — e i consigli nascono **approvati**, perché il testo è quello
+    // controllato dall'azienda, non una bozza da rileggere.
+    const tessuto = tessutoConosciuto(d.tessuto)
+    if (tessuto) {
+      if (data.composizione === undefined) data.composizione = tessuto.composizione
+      data.consigliCura = tessuto.consigliCura
+      data.consigliCuraStato = 'approvata'
+    }
+
     const created = await createProduct(data, req.user!.id)
     reply.code(201)
     return created

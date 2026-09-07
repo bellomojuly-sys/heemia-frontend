@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '../ui/Button'
 import { Modal, Field, FormActions, SiNoField, campoClass, fieldClass } from '../ui/Modal'
+import { useTessuti } from '../../hooks/useTessuti'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
 import type { Linea } from '../../types'
 import type { NewProductInput } from '../../context/DataStore'
@@ -10,6 +11,7 @@ const emptyForm = {
   codiceProdotto: '',
   categoria: '',
   collezione: '',
+  tessuto: '',
   linea: 'tessile' as Linea,
   // Attributi commerciali della vista cliente (DEC-044). Partono da "No": un capo appena
   // creato non è ancora appeso in showroom né confermato come su misura.
@@ -26,7 +28,10 @@ export function AddProductForm({
   onClose: () => void
   onSubmit: (input: NewProductInput) => void | Promise<unknown>
 }) {
+  const tessuti = useTessuti()
   const [form, setForm] = useState(emptyForm)
+
+  const tessutoScelto = tessuti.find((t) => t.nome === form.tessuto)
 
   const { errori, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'codiceProdotto'>(
     () => ({
@@ -41,6 +46,7 @@ export function AddProductForm({
         codiceProdotto: form.codiceProdotto.trim(),
         categoria: form.categoria.trim(),
         collezione: form.collezione.trim(),
+        tessuto: form.tessuto.trim() || undefined,
         linea: form.linea,
         visibileShowroom: form.visibileShowroom,
         personalizzabileSuMisura: form.personalizzabileSuMisura,
@@ -79,6 +85,30 @@ export function AddProductForm({
         </Field>
         <Field label="Collezione">
           <input className={fieldClass} value={form.collezione} onChange={(e) => setForm({ ...form, collezione: e.target.value })} />
+        </Field>
+        {/* Scelto il tessuto, il server compila composizione e consigli di cura dalla
+            tabella approvata. Qui si mostra cosa succederà: chi crea il capo lo vede
+            prima di salvare, invece di scoprirlo dopo nella scheda. */}
+        <Field
+          label="Tessuto"
+          hint={
+            tessutoScelto
+              ? `Composizione: ${tessutoScelto.composizione}. I consigli di cura si compilano da soli.`
+              : form.tessuto
+                ? 'Tessuto fuori tabella: composizione e consigli restano da scrivere a mano.'
+                : 'Da qui si ricavano composizione e consigli di cura.'
+          }
+        >
+          <select
+            className={fieldClass}
+            value={form.tessuto}
+            onChange={(e) => setForm({ ...form, tessuto: e.target.value })}
+          >
+            <option value="">—</option>
+            {tessuti.map((t) => (
+              <option key={t.nome} value={t.nome}>{t.nome}</option>
+            ))}
+          </select>
         </Field>
         <Field label="Linea">
           <select className={fieldClass} value={form.linea} onChange={(e) => setForm({ ...form, linea: e.target.value as Linea })}>

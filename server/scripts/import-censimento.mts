@@ -109,6 +109,11 @@ riga('varianti create / aggiornate', `${esito.varianti.create} / ${esito.variant
 riga('giacenze create / aggiornate', `${esito.giacenze.create} / ${esito.giacenze.aggiornate}`)
 riga('pezzi caricati in laboratorio', esito.giacenze.pezzi)
 riga('descrizioni inserite / riscritte', `${esito.descrizioni.inserite} / ${esito.descrizioni.riscritte}`)
+riga('composizioni e consigli di cura', esito.curaCompilata)
+if (esito.tessutoSconosciuto.length > 0) {
+  console.log(`     ${esito.tessutoSconosciuto.length} capi con un tessuto fuori tabella, senza composizione:`)
+  for (const t of esito.tessutoSconosciuto) console.log(`       ${t.nome} (${t.tessuto})`)
+}
 if (esito.descrizioni.riscritte > 0) {
   console.log('     Attenzione: descrizioni già a database sostituite con quelle di Notion.')
 }

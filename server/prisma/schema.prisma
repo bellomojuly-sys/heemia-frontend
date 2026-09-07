@@ -526,6 +526,13 @@ model Product {
   descrizioneBreveStato     BozzaStato           @default(bozza) @map("descrizione_breve_stato")
   descrizioneEcommerce      String?              @map("descrizione_ecommerce")
   descrizioneTecnica        String?              @map("descrizione_tecnica")
+  /// Tessuto principale del capo, con il nome commerciale che usa l'azienda (piquè,
+  /// gigiotto, luis…). È la CHIAVE da cui si ricavano composizione e consigli di cura:
+  /// vedi `core/tessuti.ts`, che riporta la tabella approvata «CONSIGLI DEL TEAM».
+  tessuto                   String?
+  /// Composizione in fibre, ricavata dal tessuto ma modificabile: un capo può avere una
+  /// composizione sua (per esempio quando è foderato) e allora vince quella scritta qui.
+  composizione              String?
   consigliCura              String?              @map("consigli_cura")
   consigliCuraStato         BozzaStato           @default(bozza) @map("consigli_cura_stato")
   vestibilita               String?

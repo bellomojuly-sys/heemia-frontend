@@ -23,6 +23,8 @@ export function toProduct(r: Row): Product {
     codiceProdotto: s(r.codiceProdotto),
     categoria: s(r.categoria),
     collezione: s(r.collezione),
+    tessuto: r.tessuto ? s(r.tessuto) : undefined,
+    composizione: r.composizione ? s(r.composizione) : undefined,
     linea: r.linea as Product['linea'],
     stato: r.stato as Product['stato'],
     descrizioneBreve: r.descrizioneBreve ? s(r.descrizioneBreve) : undefined,
