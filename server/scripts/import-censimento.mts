@@ -108,6 +108,10 @@ riga('capi creati / aggiornati', `${esito.prodotti.creati} / ${esito.prodotti.ag
 riga('varianti create / aggiornate', `${esito.varianti.create} / ${esito.varianti.aggiornate}`)
 riga('giacenze create / aggiornate', `${esito.giacenze.create} / ${esito.giacenze.aggiornate}`)
 riga('pezzi caricati in laboratorio', esito.giacenze.pezzi)
+riga('descrizioni inserite / riscritte', `${esito.descrizioni.inserite} / ${esito.descrizioni.riscritte}`)
+if (esito.descrizioni.riscritte > 0) {
+  console.log('     Attenzione: descrizioni già a database sostituite con quelle di Notion.')
+}
 console.log('')
 riga('capi senza costo diretto', esito.senzaCostoDiretto.length)
 if (esito.senzaCostoDiretto.length > 0) {

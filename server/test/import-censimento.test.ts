@@ -23,6 +23,8 @@ const prodotto = (n: string, extra: Partial<Record<string, string>> = {}) => ({
   prezzo_vendita: '122',
   prezzo_showroom: '122',
   su_shopify: 'false',
+  descrizione_breve: 'Maglia in cotone',
+  descrizione_tecnica: 'Lavorazione a costina',
   costo_diretto: '40',
   vestibilita: 'Regular',
   stock_totale: '7',
@@ -162,6 +164,43 @@ describe('Import del censimento', () => {
       /non è nel censimento/,
     )
     assert.deepEqual(await conteggi(), prima)
+  })
+
+  test('le descrizioni di Notion arrivano sul capo, senza toccarne l\'approvazione', async () => {
+    const capo = await prisma.product.findUniqueOrThrow({ where: { codiceProdotto: `${RUN}-A` } })
+    assert.equal(capo.descrizioneBreve, 'Maglia in cotone')
+    assert.equal(capo.descrizioneTecnica, 'Lavorazione a costina')
+    // Lo stato di approvazione resta quello di partenza: non è un file a decidere che un
+    // testo è approvato.
+    assert.equal(capo.descrizioneBreveStato, 'bozza')
+  })
+
+  test('una descrizione vuota nel censimento NON cancella quella già a database', async () => {
+    await prisma.product.update({
+      where: { codiceProdotto: `${RUN}-B` },
+      data: { descrizioneBreve: 'Scritta a mano dall\'app', descrizioneBreveStato: 'approvata' },
+    })
+    await importaCensimento(
+      censimento({ prodotti: [prodotto('B', { descrizione_breve: '', descrizione_tecnica: '' })], varianti: [] }),
+      userId,
+    )
+    const capo = await prisma.product.findUniqueOrThrow({ where: { codiceProdotto: `${RUN}-B` } })
+    assert.equal(capo.descrizioneBreve, 'Scritta a mano dall\'app', 'il vuoto significa «non lo so», non «cancella»')
+    assert.equal(capo.descrizioneBreveStato, 'approvata', 'l\'approvazione non si tocca mai')
+  })
+
+  test('una descrizione diversa viene riscritta, ma il conteggio lo dichiara', async () => {
+    await prisma.product.update({
+      where: { codiceProdotto: `${RUN}-A` },
+      data: { descrizioneBreve: 'Testo vecchio' },
+    })
+    const esito = await importaCensimento(
+      censimento({ prodotti: [prodotto('A')], varianti: [] }),
+      userId,
+    )
+    assert.equal(esito.descrizioni.riscritte, 1, 'la sostituzione non deve passare in silenzio')
+    const capo = await prisma.product.findUniqueOrThrow({ where: { codiceProdotto: `${RUN}-A` } })
+    assert.equal(capo.descrizioneBreve, 'Maglia in cotone')
   })
 
   test('una categoria fornitore sconosciuta ferma l\'import invece di indovinare', async () => {

@@ -45,6 +45,9 @@ export interface RigaProdotto {
   costo_diretto: string
   vestibilita: string
   stock_totale: string
+  /** Testi scritti dall'azienda su Notion (2026-09-07): qui si trasportano, non si riscrivono. */
+  descrizione_breve?: string
+  descrizione_tecnica?: string
 }
 
 export interface RigaVariante {
@@ -79,6 +82,7 @@ export interface EsitoImport {
   prodotti: { creati: number; aggiornati: number }
   varianti: { create: number; aggiornate: number }
   giacenze: { create: number; aggiornate: number; pezzi: number }
+  descrizioni: { inserite: number; riscritte: number; invariate: number }
   /** Capi senza costo diretto: entrano lo stesso, ma per loro il margine non si calcola. */
   senzaCostoDiretto: string[]
   /** Righe non scritte e perché: nessuna riga sparisce in silenzio. */
@@ -181,6 +185,7 @@ export async function importaCensimento(
           prodotti: { creati: 0, aggiornati: 0 },
           varianti: { create: 0, aggiornate: 0 },
           giacenze: { create: 0, aggiornate: 0, pezzi: 0 },
+          descrizioni: { inserite: 0, riscritte: 0, invariate: 0 },
           senzaCostoDiretto: [],
           saltate: [],
           simulazione,
@@ -238,7 +243,32 @@ export async function importaCensimento(
             statoPubblicazioneShopify: statoShopify(p.su_shopify),
           }
 
-          const gia = await tx.product.findUnique({ where: { codiceProdotto: codice }, select: { id: true } })
+          const gia = await tx.product.findUnique({
+            where: { codiceProdotto: codice },
+            select: { id: true, descrizioneBreve: true, descrizioneTecnica: true },
+          })
+
+          // Le descrizioni si scrivono solo se il censimento ne ha una: un campo vuoto nel
+          // CSV significa «non lo so», e non deve cancellare un testo scritto dall'app.
+          // Lo **stato** di approvazione non si tocca mai: se una persona ha approvato un
+          // testo, non è questo file a poterlo decidere.
+          const breve = (p.descrizione_breve ?? '').trim()
+          const tecnica = (p.descrizione_tecnica ?? '').trim()
+          if (breve || tecnica) {
+            if (!gia || (!gia.descrizioneBreve && !gia.descrizioneTecnica)) esito.descrizioni.inserite += 1
+            else if (breve !== (gia.descrizioneBreve ?? '') || tecnica !== (gia.descrizioneTecnica ?? '')) {
+              // Un testo che cambia va detto: chi rilancia l'import deve sapere che una
+              // descrizione già a database è stata sostituita da quella di Notion.
+              esito.descrizioni.riscritte += 1
+            } else {
+              esito.descrizioni.invariate += 1
+            }
+          }
+          Object.assign(dati, {
+            descrizioneBreve: breve || undefined,
+            descrizioneTecnica: tecnica || undefined,
+          })
+
           let productId: string
           if (gia) {
             await tx.product.update({ where: { id: gia.id }, data: dati })
@@ -318,6 +348,7 @@ export async function importaCensimento(
             `${esito.prodotti.creati} capi creati e ${esito.prodotti.aggiornati} aggiornati · ` +
             `${esito.varianti.create} varianti create e ${esito.varianti.aggiornate} aggiornate · ` +
             `${esito.giacenze.pezzi} pezzi in laboratorio · ` +
+            `${esito.descrizioni.inserite + esito.descrizioni.riscritte} descrizioni scritte · ` +
             `${esito.fornitori.creati} fornitori creati e ${esito.fornitori.aggiornati} aggiornati`,
         })
         return esito
