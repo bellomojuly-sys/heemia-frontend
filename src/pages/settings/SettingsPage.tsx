@@ -3,27 +3,12 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { IntegrationsCard } from '../../components/settings/IntegrationsCard'
 import { ChangePasswordCard } from '../../components/settings/ChangePasswordCard'
-import { NAV_GROUPS } from '../../components/layout/nav'
-import { canAccessModule, canEdit, ROLE_LABELS, type ModuleKey } from '../../lib/permissions'
+import { PermissionMatrix } from '../../components/settings/PermissionMatrix'
+import { canWrite, ROLE_LABELS } from '../../lib/permissions'
 import { useMarginThreshold } from '../../hooks/useMarginThreshold'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { isGoatSoundMuto, playGoatBleat, setGoatSoundMuto } from '../../lib/goatSound'
-import type { Role } from '../../types'
-
-const ROLES: Role[] = ['admin', 'ceo', 'team', 'viewer']
-// Le voci fuse nella sidebar restano moduli distinti per il controllo accessi: la matrice
-// deve mostrarle anche quando non hanno più una voce di navigazione autonoma.
-const NESTED_MODULES: { label: string; path: string; moduleKey: ModuleKey }[] = [
-  { label: 'Richieste showroom', path: '/ordini/showroom', moduleKey: 'richieste-showroom' },
-  { label: 'Shopify', path: '/ordini/shopify', moduleKey: 'shopify' },
-  { label: 'Scadenze', path: '/fatture/scadenze', moduleKey: 'scadenze' },
-  { label: 'Report economici', path: '/margini/report', moduleKey: 'report' },
-  { label: 'Utenti e accessi', path: '/impostazioni/utenti', moduleKey: 'utenti' },
-  { label: 'Activity log', path: '/impostazioni/log', moduleKey: 'activity-log' },
-  { label: 'Bolle e lavorazioni', path: '/fornitori/lavorazioni', moduleKey: 'lavorazioni' },
-]
-const ALL_ITEMS = [...NAV_GROUPS.flatMap((g) => g.items), ...NESTED_MODULES]
 
 export function SettingsPage() {
   const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
@@ -85,7 +70,7 @@ export function SettingsPage() {
           <input
             type="number"
             value={MARGIN_THRESHOLD_PERCENT}
-            disabled={!canEdit(role)}
+            disabled={!canWrite(role, 'impostazioni')}
             readOnly
             className="font-mono-heemia w-24 rounded-heemia border border-heemia-border bg-heemia-surface px-3 py-1.5 text-sm text-heemia-black"
           />
@@ -97,37 +82,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card>
-        <CardHeader title="Matrice ruolo × modulo" subtitle="Nessuna schermata è raggiungibile da un ruolo non autorizzato, nemmeno via URL diretto." />
-        <div className="overflow-x-auto p-5">
-          <table className="w-full min-w-max text-sm">
-            <thead>
-              <tr className="font-mono-heemia border-b border-heemia-border-strong text-left text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
-                <th className="py-2 pr-4 font-medium">Modulo</th>
-                {ROLES.map((r) => (
-                  <th key={r} className="px-3 py-2 text-center font-medium">{ROLE_LABELS[r]}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ALL_ITEMS.map((item) => (
-                <tr key={item.path} className="border-b border-heemia-border last:border-0">
-                  <td className="py-2 pr-4 text-heemia-black">{item.label}</td>
-                  {ROLES.map((r) => (
-                    <td key={r} className="px-3 py-2 text-center">
-                      {canAccessModule(r, item.moduleKey) ? (
-                        <span className="text-heemia-black">✓</span>
-                      ) : (
-                        <span className="text-heemia-grey-light">–</span>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      <PermissionMatrix />
     </div>
   )
 }

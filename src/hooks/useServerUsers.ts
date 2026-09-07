@@ -30,6 +30,20 @@ function toUtente(r: Row): UtenteApp {
   }
 }
 
+/** Cosa si perde eliminando un utente (GET /users/:id/deletion-check). */
+export interface VerificaEliminazioneUtente {
+  nome: string
+  email: string
+  /** Falso quando c'è un blocco assoluto: il proprio account, o l'ultimo admin attivo. */
+  eliminabile: boolean
+  blocchi: string[]
+  /** Vero quando l'account ha firmato qualcosa: serve una conferma in più. */
+  haStorico: boolean
+  avvertenze: string[]
+  conseguenze: { firmeAnonime: number; documentiSenzaAutore: number; sessioniChiuse: number }
+  alternativa: string
+}
+
 export interface NuovoUtente {
   nome: string
   email: string
@@ -81,7 +95,21 @@ export function useServerUsers() {
     await ricarica()
   }, [ricarica])
 
-  return { utenti, caricamento, errore, ricarica, crea, aggiorna, reimpostaPassword }
+  // Cosa comporta eliminare: si chiede al server PRIMA di mostrare la conferma, perché
+  // solo lui sa quante operazioni ha firmato quell'account e se è l'ultimo amministratore.
+  const verificaEliminazione = useCallback(
+    (id: string) => api.get<VerificaEliminazioneUtente>(`/users/${id}/deletion-check`),
+    [],
+  )
+
+  // `confermaStorico` è il secondo sì. Le protezioni vere — il proprio account e l'ultimo
+  // amministratore attivo — stanno sul server e non si aggirano da qui.
+  const elimina = useCallback(async (id: string, confermaStorico: boolean) => {
+    await api.del(`/users/${id}${confermaStorico ? '?conferma=storico' : ''}`)
+    await ricarica()
+  }, [ricarica])
+
+  return { utenti, caricamento, errore, ricarica, crea, aggiorna, reimpostaPassword, verificaEliminazione, elimina }
 }
 
 /** Cambio della **propria** password: non passa dal modulo utenti, vale per qualunque ruolo. */

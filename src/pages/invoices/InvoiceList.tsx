@@ -18,7 +18,7 @@ import {
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
-import { canEdit } from '../../lib/permissions'
+import { canWrite } from '../../lib/permissions'
 import { AZIENDA } from '../../lib/azienda'
 
 // FR-41: parsing "best-effort" dell'export scontrini di Billy. Formato non ancora verificato
@@ -308,7 +308,7 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
           </div>
         )}
       </div>
-      {canEdit(role) ? (
+      {canWrite(role, 'fatture') ? (
         <>
           <CheckList
             label="Prodotti collegati"
@@ -495,7 +495,7 @@ function ImportFattureSection() {
         title="Fatture dei fornitori dall'Agenzia delle Entrate"
         subtitle="Le fatture arrivano già da sole all'Agenzia quando il fornitore le emette. Qui le porti dentro Heemia: scarica lo ZIP dall'area riservata (Fatture e Corrispettivi) e caricalo."
         action={
-          canEdit(role) ? (
+          canWrite(role, 'fatture') ? (
             <>
               <input
                 ref={fileRef}
@@ -578,7 +578,7 @@ function CashClosureSection() {
       <CardHeader
         title="Chiusura di cassa mensile"
         subtitle="Vendiamo con scontrino, non con fattura: qui carichi una volta al mese l'export scontrini da Billy per sapere quanto hai incassato."
-        action={canEdit(role) ? <Button onClick={() => setOpen(true)}>Registra chiusura del mese</Button> : undefined}
+        action={canWrite(role, 'fatture') ? <Button onClick={() => setOpen(true)}>Registra chiusura del mese</Button> : undefined}
       />
       <div className="space-y-4 p-4">
         {mancaPrec && (
@@ -707,7 +707,7 @@ export function InvoiceList() {
         <p className="text-sm text-heemia-grey">
           Fatture fornitori, clienti, materiali e costi aziendali centralizzati. Apri una riga per allegato e associazioni.
         </p>
-        {canEdit(role) && <Button onClick={() => setModalOpen(true)}>Aggiungi fattura</Button>}
+        {canWrite(role, 'fatture') && <Button onClick={() => setModalOpen(true)}>Aggiungi fattura</Button>}
       </div>
 
       <ImportFattureSection />

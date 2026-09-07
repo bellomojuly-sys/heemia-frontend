@@ -10,6 +10,7 @@ import { prisma } from './core/prisma.js'
 import './core/types.js'
 import { authRoutes } from './modules/auth/routes.js'
 import { userRoutes } from './modules/users/routes.js'
+import { permissionRoutes } from './modules/permissions/routes.js'
 import { productRoutes } from './modules/products/routes.js'
 import { marginsRoutes } from './modules/margins/routes.js'
 import { materialRoutes } from './modules/materials/routes.js'
@@ -143,6 +144,7 @@ export async function buildApp() {
 
   await app.register(authRoutes, { prefix: API_PREFIX })
   await app.register(userRoutes, { prefix: API_PREFIX })
+  await app.register(permissionRoutes, { prefix: API_PREFIX })
   await app.register(productRoutes, { prefix: API_PREFIX })
   await app.register(marginsRoutes, { prefix: API_PREFIX })
   await app.register(materialRoutes, { prefix: API_PREFIX })

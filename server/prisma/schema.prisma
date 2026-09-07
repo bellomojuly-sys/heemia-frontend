@@ -19,6 +19,16 @@ enum Role {
   showroom
 }
 
+/// Fasi del capo. **L'ordine di questa enum e' quello storico del database, non quello
+/// della pipeline**: la sequenza autorevole e' `PRODUCT_STAGES` in
+/// `modules/production/service.ts` (e la gemella in `src/types/index.ts`).
+///
+/// 2026-09-07 — via la fase «In vendita». Essere in vendita non e' una lavorazione: e'
+/// il risultato di giacenza + attributi commerciali (`statoPubblicazioneShopify`,
+/// `disponibilitaOnline`, `visibileShowroom`). Il valore e' stato **rinominato**, non
+/// cancellato, in `completato`: i 93 capi del censimento restano dove sono e nessuna
+/// riga viene toccata. `completato` significa una cosa sola e vera: la produzione e'
+/// finita, il capo e' uscito dalla pipeline ed e' entrato nello stock.
 enum ProductStage {
   idea
   concept
@@ -31,7 +41,7 @@ enum ProductStage {
   foto_contenuti
   scheda_ecommerce
   pubblicato_shopify
-  in_vendita
+  completato
   archivio
 }
 
@@ -443,6 +453,33 @@ model AppSetting {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("app_settings")
+}
+
+/// Matrice permessi ruolo x modulo, modificabile dall'amministratore (2026-09-07).
+///
+/// Prima esisteva solo nel codice (`core/permissions.ts`) ed era un vero/falso per modulo:
+/// «vedi» oppure «non vedi». Qui diventa un dato, con quattro azioni distinte, e il codice
+/// resta la **riga di partenza**: una riga in tabella vale piu' del valore predefinito, ma
+/// se la riga non c'e' vale il valore predefinito. Cosi' un modulo nuovo funziona il giorno
+/// in cui viene scritto, senza dover ricordarsi di popolare la tabella.
+///
+/// L'autorita' resta il server: `core/guards.ts` legge questa matrice a ogni richiesta
+/// (con cache invalidata a ogni salvataggio), quindi togliere un permesso chiude davvero
+/// l'endpoint, non solo il pulsante.
+model RolePermission {
+  role          Role
+  /// Chiave del modulo (`ModuleKey` in core/permissions.ts): stringa e non enum, perche'
+  /// i moduli nascono nel codice e una migrazione per ogni modulo nuovo sarebbe un peso
+  /// senza contropartita.
+  moduleKey     String   @map("module_key")
+  puoVedere     Boolean  @default(false) @map("puo_vedere")
+  puoCreare     Boolean  @default(false) @map("puo_creare")
+  puoModificare Boolean  @default(false) @map("puo_modificare")
+  puoEliminare  Boolean  @default(false) @map("puo_eliminare")
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@id([role, moduleKey])
+  @@map("role_permissions")
 }
 
 model ActivityLog {
@@ -986,6 +1023,9 @@ model ProductionStep {
   productId    String       @map("product_id") @db.Uuid
   product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
   fase         ProductStage
+  /// DEPRECATO 2026-09-07: la pipeline non assegna piu' un responsabile di fase (chi ha
+  /// fatto cosa sta nell'activity log, che non si puo' riscrivere). La colonna resta per
+  /// non perdere i valori gia' registrati; nessuna scrittura nuova la valorizza.
   responsabile String?
   dataInizio   DateTime?    @map("data_inizio") @db.Date
   dataFine     DateTime?    @map("data_fine") @db.Date
@@ -1115,8 +1155,12 @@ model CostAllocation {
 
 model FixedCostItem {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nome         String
+  nome         String   @unique
   importoAnnuo Decimal  @default(0) @map("importo_annuo") @db.Decimal(12, 2)
+  /// Nota della voce come sta nel documento di origine (es. «Media bollette 2025»,
+  /// «Attrezzatura, acquisto una tantum»). Si trasporta, non si riscrive: senza, un
+  /// importo una tantum diventa indistinguibile da una spesa ricorrente.
+  nota         String?
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

@@ -206,7 +206,8 @@ export function toSupplier(r: Row): Supplier {
     id: s(r.id),
     nome: s(r.nome),
     categoria: s(r.categoria).replace(/_/g, ' ') as Supplier['categoria'],
-    citta: s(r.citta),
+    partitaIva: r.partitaIva ? s(r.partitaIva) : undefined,
+    citta: r.citta ? s(r.citta) : undefined,
     paese: s(r.paese),
     email: r.email ? s(r.email) : undefined,
     referente: r.referente ? s(r.referente) : undefined,
@@ -216,6 +217,7 @@ export function toSupplier(r: Row): Supplier {
     note: r.note ? s(r.note) : undefined,
     materialiIds: [],
     accessoriIds: [],
+    campiMancanti: (r.campiMancanti as Supplier['campiMancanti']) ?? undefined,
   } as Supplier
 }
 
@@ -284,7 +286,6 @@ export function toProductionStep(r: Row): ProductionStep {
     id: s(r.id),
     productId: s(r.productId),
     fase: r.fase as ProductionStep['fase'],
-    responsabile: s(r.responsabile),
     dataInizio: isoDate(r.dataInizio),
     dataFine: r.dataFine ? isoDate(r.dataFine) : undefined,
     note: r.note ? s(r.note) : undefined,
@@ -467,7 +468,12 @@ export function toPatternDocument(r: Row): PatternDocument {
 }
 
 export function toFixedCostItem(r: Row): FixedCostItem {
-  return { id: s(r.id), nome: s(r.nome), importoAnnuo: num(r.importoAnnuo) } as FixedCostItem
+  return {
+    id: s(r.id),
+    nome: s(r.nome),
+    importoAnnuo: num(r.importoAnnuo),
+    nota: r.nota ? s(r.nota) : undefined,
+  } as FixedCostItem
 }
 
 export function toQuotaHistory(r: Row): QuotaHistoryEntry {

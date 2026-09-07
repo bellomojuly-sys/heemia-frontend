@@ -11,7 +11,7 @@ import type { Material } from '../../types'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
-import { canEdit } from '../../lib/permissions'
+import { canWrite } from '../../lib/permissions'
 import { useDataStore, type NewMaterialInput } from '../../context/DataStore'
 
 const emptyForm = {
@@ -143,7 +143,7 @@ export function FabricsInventory() {
     {
       header: '',
       accessor: (m) =>
-        canEdit(role) && (m.stato === 'sotto_soglia' || m.stato === 'esaurito') ? (
+        canWrite(role, 'inventario') && (m.stato === 'sotto_soglia' || m.stato === 'esaurito') ? (
           <button
             type="button"
             onClick={async (e) => {
@@ -172,7 +172,7 @@ export function FabricsInventory() {
     <div>
       <div className="mb-4 flex items-center justify-between gap-4">
         <p className="text-sm text-heemia-grey">Scorte, soglie minime e fornitori collegati. Apri una riga per la scheda completa.</p>
-        {canEdit(role) && <Button onClick={() => setAddOpen(true)}>Aggiungi tessuto</Button>}
+        {canWrite(role, 'inventario') && <Button onClick={() => setAddOpen(true)}>Aggiungi tessuto</Button>}
       </div>
       <Toolbar
         search={search}

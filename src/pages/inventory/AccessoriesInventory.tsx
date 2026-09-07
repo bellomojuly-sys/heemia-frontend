@@ -11,7 +11,7 @@ import type { Accessory } from '../../types'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
-import { canEdit } from '../../lib/permissions'
+import { canWrite } from '../../lib/permissions'
 import { useDataStore, type NewAccessoryInput } from '../../context/DataStore'
 
 const emptyForm = {
@@ -132,7 +132,7 @@ export function AccessoriesInventory() {
     {
       header: '',
       accessor: (a) =>
-        canEdit(role) && (a.stato === 'sotto_soglia' || a.stato === 'esaurito') ? (
+        canWrite(role, 'inventario') && (a.stato === 'sotto_soglia' || a.stato === 'esaurito') ? (
           <button
             type="button"
             onClick={async (e) => {
@@ -161,7 +161,7 @@ export function AccessoriesInventory() {
     <div>
       <div className="mb-4 flex items-center justify-between gap-4">
         <p className="text-sm text-heemia-grey">Bottoni, zip, etichette, packaging e altri accessori. Apri una riga per la scheda completa.</p>
-        {canEdit(role) && <Button onClick={() => setAddOpen(true)}>Aggiungi accessorio</Button>}
+        {canWrite(role, 'inventario') && <Button onClick={() => setAddOpen(true)}>Aggiungi accessorio</Button>}
       </div>
       <Toolbar
         search={search}

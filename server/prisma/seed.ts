@@ -82,7 +82,7 @@ async function main() {
       nome: 'Maiorca Top',
       codiceProdotto: 'DEMO-001',
       linea: 'tessile',
-      stato: 'in_vendita',
+      stato: 'completato',
       prezzoVendita: 120,
       prezzoNettoIva: 98.36,
     },

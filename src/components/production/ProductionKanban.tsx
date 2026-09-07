@@ -1,16 +1,18 @@
 import { useState, type DragEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { PRODUCT_STAGES, type ProductionStep, type ProductStage } from '../../types'
+import { FASI_PIPELINE, PRODUCT_STAGES, ULTIMA_FASE_PIPELINE, type ProductionStep, type ProductStage } from '../../types'
 import { checkAdvance, stageLabel } from '../../lib/production'
 import { useDataStore } from '../../context/DataStore'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { Button } from '../ui/Button'
 
-// FR-31: colonne per fase, non barra lineare. Le colonne restano le 13 fasi FR-07 esistenti
-// (Product.stato / ProductionStep.fase) — non le 10 fasi nominate nel testo FR-31 ("Fitting",
-// "Quality Control" ecc.), che non esistono nel modello dati e non vengono introdotte qui
-// (vedi Decision_Log). "Archivio" resta escluso, come nella vista precedente.
-const KANBAN_STAGES = PRODUCT_STAGES.filter((s) => s.id !== 'archivio')
+// FR-31: colonne per fase, non barra lineare. Dal 2026-09-07 le colonne sono **solo le
+// fasi di lavorazione** (FASI_PIPELINE): idea → produzione. Prima erano dodici, comprese
+// «Foto e contenuti», «Scheda e-commerce», «Pubblicato su Shopify» e «In vendita», che
+// non sono lavorazioni: un capo pubblicato sul sito non sta attraversando un processo
+// produttivo, e tenerlo in una colonna del kanban lo faceva contare fra i capi in
+// produzione. Quelle fasi restano nel percorso del capo e si vedono nella sua scheda.
+const KANBAN_STAGES = PRODUCT_STAGES.filter((s) => FASI_PIPELINE.includes(s.id))
 
 /**
  * Trascinamento delle card fra colonne.
@@ -90,6 +92,7 @@ export function ProductionKanban({
       {canAct && (
         <p className="mb-2 text-xs text-heemia-grey-light">
           Trascina una card sulla colonna successiva per far avanzare il capo, oppure usa il pulsante sulla card.
+          Dall'ultima colonna il capo esce dalla pipeline ed entra nello stock.
         </p>
       )}
 
@@ -152,7 +155,6 @@ export function ProductionKanban({
                           <Link to={`/prodotti/${step.productId}`} className="font-display block text-sm font-medium text-heemia-black hover:underline">
                             {product?.nome ?? step.productId}
                           </Link>
-                          <p className="mt-0.5 text-[10px] text-heemia-grey">{step.responsabile}</p>
                           {step.bloccata && (
                             <p className="mt-1.5 border-l-2 border-heemia-carmine bg-heemia-carmine-light px-1.5 py-1 text-[10px] text-heemia-carmine">
                               {step.motivoBlocco ?? 'Bloccata'}
@@ -172,11 +174,17 @@ export function ProductionKanban({
                             >
                               {inCorso === step.id
                                 ? 'Spostamento…'
-                                : check.ok
-                                  ? `Sposta a "${stageLabel(check.next!)}" →`
-                                  : check.next === null
+                                : !check.ok
+                                  ? check.next === null
                                     ? 'Ultima fase'
-                                    : 'Bloccata'}
+                                    : 'Bloccata'
+                                  : // L'ultima colonna non «sposta» da nessuna parte: chiude la
+                                    // produzione e fa uscire il capo dalla pipeline. Chiamarla
+                                    // «Sposta a Produzione completata» descriverebbe il
+                                    // meccanismo invece di quello che succede davvero.
+                                    step.fase === ULTIMA_FASE_PIPELINE
+                                    ? 'Completa produzione ed esci ✓'
+                                    : `Sposta a "${stageLabel(check.next!)}" →`}
                             </Button>
                           )}
                         </div>

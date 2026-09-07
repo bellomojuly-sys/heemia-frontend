@@ -7,6 +7,7 @@ import { SESSION_COOKIE, createSession, revokeSession } from './session.js'
 import { azzeraTentativi, registraFallimento, verificaTentativi } from './tentativiLogin.js'
 import { logActivity } from '../../core/activityLog.js'
 import { authenticate } from '../../core/guards.js'
+import { matriceRuolo } from '../../core/permissions.js'
 import { config } from '../../core/config.js'
 
 const loginSchema = z.object({
@@ -61,7 +62,7 @@ export async function authRoutes(app: FastifyInstance) {
     await logActivity(prisma, { userId: user.id, azione: 'login', entita: 'user', entitaId: user.id })
 
     reply.setCookie(SESSION_COOKIE, session.id, SESSION_COOKIE_OPTIONS)
-    return { id: user.id, nome: user.nome, email: user.email, role: user.role }
+    return { id: user.id, nome: user.nome, email: user.email, role: user.role, permessi: await matriceRuolo(user.role) }
   })
 
   app.post('/auth/logout', { preHandler: authenticate }, async (req, reply) => {
@@ -76,8 +77,13 @@ export async function authRoutes(app: FastifyInstance) {
   // `req.user` contiene anche l'id di sessione, che qui NON esce: il cookie è httpOnly
   // proprio perché JavaScript non debba poterlo leggere, e restituirlo nel corpo della
   // risposta annullerebbe metà di quella protezione. Al client servono identità e ruolo.
+  // Chi sono **e cosa posso fare**. I permessi viaggiano insieme all'utente perché il
+  // client li usa a ogni render (menu, pulsanti, colonne): chiederli con una seconda
+  // chiamata significherebbe disegnare il primo fotogramma con la matrice sbagliata, cioè
+  // mostrare per un istante voci che il ruolo non ha. L'autorità resta il server: questo
+  // è ciò che il client usa per nascondere, non per decidere.
   app.get('/auth/me', { preHandler: authenticate }, async (req) => {
     const { sessionId: _sessionId, ...utente } = req.user!
-    return utente
+    return { ...utente, permessi: await matriceRuolo(utente.role) }
   })
 }

@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/Button'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Modal, Field, FormActions, campoClass, fieldClass } from '../../components/ui/Modal'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
+import { Pencil } from 'lucide-react'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatDateIt } from '../../lib/format'
 import type { Accessory, Material, Supplier, SupplierCategoria, SupplierRequest } from '../../types'
@@ -12,7 +13,7 @@ import { useDataStore, type NewSupplierInput } from '../../context/DataStore'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
-import { canApproveEmailDrafts, canEdit } from '../../lib/permissions'
+import { canApproveEmailDrafts, canWrite } from '../../lib/permissions'
 
 const textareaClass =
   'w-full rounded-heemia border border-heemia-border p-3 text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10'
@@ -29,22 +30,69 @@ function suppliedItems(supplier: Supplier, materials: Material[], accessories: A
   return [...mats, ...accs].join(', ') || '–'
 }
 
+/**
+ * Scheda fornitore: **lo stesso form serve a creare e a modificare**.
+ *
+ * Prima esisteva solo la creazione, e una volta salvato un fornitore non si poteva più
+ * toccare: una partita IVA arrivata dopo, un referente cambiato, un'email sbagliata si
+ * correggevano dal database. Erano proprio i casi più frequenti, perché l'anagrafica del
+ * censimento è entrata volutamente incompleta (DEC-061: «i fornitori senza partita IVA
+ * entrano lo stesso, il dato si completa dopo») — e quel «dopo» non aveva una schermata.
+ *
+ * Obbligatori restano **nome e categoria**, e basta: sono quello che rende riconoscibile
+ * un fornitore. Tutto il resto si può lasciare vuoto oggi e completare domani, che è la
+ * seconda richiesta esplicita. Un campo svuotato viene svuotato davvero sul server (la
+ * stringa vuota diventa `null`), altrimenti un dato messo per sbaglio resterebbe lì.
+ */
 const emptySupplierForm = {
   nome: '',
   categoria: 'Tessuti' as SupplierCategoria,
+  partitaIva: '',
   citta: '',
   email: '',
   paese: 'IT',
+  referente: '',
+  telefono: '',
+  condizioniPagamento: '',
+  note: '',
   tempiMediConsegnaGiorni: '',
 }
 
-function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewSupplierInput) => void | Promise<unknown> }) {
-  const [form, setForm] = useState(emptySupplierForm)
+function datiDaFornitore(s: Supplier): typeof emptySupplierForm {
+  return {
+    nome: s.nome,
+    categoria: s.categoria,
+    partitaIva: s.partitaIva ?? '',
+    citta: s.citta ?? '',
+    email: s.email ?? '',
+    paese: s.paese || 'IT',
+    referente: s.referente ?? '',
+    telefono: s.telefono ?? '',
+    condizioniPagamento: s.condizioniPagamento ?? '',
+    note: s.note ?? '',
+    tempiMediConsegnaGiorni: s.tempiMediConsegnaGiorni != null ? String(s.tempiMediConsegnaGiorni) : '',
+  }
+}
 
-  const { errori, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'citta' | 'email' | 'tempi'>(
+function SupplierForm({
+  fornitore,
+  onClose,
+  onSubmit,
+}: {
+  /** Assente = nuovo fornitore. Presente = modifica di quello esistente. */
+  fornitore?: Supplier
+  onClose: () => void
+  onSubmit: (input: NewSupplierInput) => void | Promise<unknown>
+}) {
+  const [form, setForm] = useState(() => (fornitore ? datiDaFornitore(fornitore) : emptySupplierForm))
+  const modifica = Boolean(fornitore)
+
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'email' | 'tempi'>(
     () => ({
+      // Solo il nome è obbligatorio (la categoria ha sempre un valore scelto).
       nome: regole.obbligatorio(form.nome, 'Il nome del fornitore'),
-      citta: regole.obbligatorio(form.citta, 'La città'),
+      // L'email resta facoltativa, ma se c'è deve essere valida: accettarne una storta
+      // significherebbe scoprirlo il giorno in cui una richiesta di riordino non parte.
       email: regole.email(form.email),
       tempi: regole.numeroPositivo(form.tempiMediConsegnaGiorni, 'I tempi di consegna'),
     }),
@@ -52,42 +100,92 @@ function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
       await onSubmit({
         nome: form.nome.trim(),
         categoria: form.categoria,
+        partitaIva: form.partitaIva.trim(),
         citta: form.citta.trim(),
-        email: form.email.trim() || undefined,
-        paese: form.paese,
+        email: form.email.trim(),
+        paese: form.paese.trim() || 'IT',
+        referente: form.referente.trim(),
+        telefono: form.telefono.trim(),
+        condizioniPagamento: form.condizioniPagamento.trim(),
+        note: form.note.trim(),
+        // Campo vuoto = «non lo so»: si scrive null, non zero. Zero giorni di consegna
+        // sarebbe un'informazione, e sbagliata.
         tempiMediConsegnaGiorni: form.tempiMediConsegnaGiorni ? Number(form.tempiMediConsegnaGiorni) : undefined,
       })
       onClose()
     },
   )
 
+  const campo = (chiave: keyof typeof emptySupplierForm) => ({
+    value: form[chiave] as string,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [chiave]: e.target.value }),
+  })
+
   return (
-    <Modal title="Aggiungi fornitore" onClose={onClose}>
+    <Modal
+      title={modifica ? `Modifica ${fornitore!.nome}` : 'Aggiungi fornitore'}
+      subtitle="Servono nome e categoria. Tutto il resto si può completare quando il dato arriva."
+      onClose={onClose}
+    >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nome" required error={errori.nome}>
-          <input className={campoClass(errori.nome)} value={form.nome} onChange={(e) => { setForm({ ...form, nome: e.target.value }); pulisci('nome') }} />
+          <input
+            className={campoClass(errori.nome)}
+            value={form.nome}
+            onChange={(e) => { setForm({ ...form, nome: e.target.value }); pulisci('nome') }}
+          />
         </Field>
         <Field label="Categoria">
           <select className={fieldClass} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value as SupplierCategoria })}>
             {SUPPLIER_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </Field>
-        <Field label="Città" required error={errori.citta}>
-          <input className={campoClass(errori.citta)} value={form.citta} onChange={(e) => { setForm({ ...form, citta: e.target.value }); pulisci('citta') }} />
+        <Field label="Partita IVA" hint="È la chiave con cui l'import delle fatture elettroniche riconosce il fornitore.">
+          <input className={fieldClass} {...campo('partitaIva')} />
+        </Field>
+        <Field label="Referente">
+          <input className={fieldClass} {...campo('referente')} />
+        </Field>
+        <Field label="Email" error={errori.email} hint="Serve per inviare le richieste di riordino.">
+          <input
+            type="email"
+            className={campoClass(errori.email)}
+            value={form.email}
+            onChange={(e) => { setForm({ ...form, email: e.target.value }); pulisci('email') }}
+          />
+        </Field>
+        <Field label="Telefono">
+          <input className={fieldClass} {...campo('telefono')} />
+        </Field>
+        <Field label="Città">
+          <input className={fieldClass} {...campo('citta')} />
         </Field>
         <Field label="Paese">
-          <input className={fieldClass} value={form.paese} onChange={(e) => setForm({ ...form, paese: e.target.value })} />
-        </Field>
-        <Field label="Email" error={errori.email} hint="Serve per le bozze email materiali.">
-          <input type="email" className={campoClass(errori.email)} value={form.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); pulisci('email') }} />
+          <input className={fieldClass} {...campo('paese')} />
         </Field>
         <Field label="Tempi consegna (gg)" error={errori.tempi}>
-          <input type="number" min="0" className={campoClass(errori.tempi)} value={form.tempiMediConsegnaGiorni} onChange={(e) => { setForm({ ...form, tempiMediConsegnaGiorni: e.target.value }); pulisci('tempi') }} />
+          <input
+            type="number"
+            min="0"
+            className={campoClass(errori.tempi)}
+            value={form.tempiMediConsegnaGiorni}
+            onChange={(e) => { setForm({ ...form, tempiMediConsegnaGiorni: e.target.value }); pulisci('tempi') }}
+          />
         </Field>
+        <Field label="Condizioni di pagamento" hint="Es. «30 giorni data fattura».">
+          <input className={fieldClass} {...campo('condizioniPagamento')} />
+        </Field>
+        <div className="sm:col-span-2">
+          <Field label="Note">
+            <input className={fieldClass} {...campo('note')} />
+          </Field>
+        </div>
       </div>
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
-        <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva fornitore'}</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>
+          {inCorso ? 'Salvataggio…' : modifica ? 'Salva modifiche' : 'Salva fornitore'}
+        </Button>
       </FormActions>
     </Modal>
   )
@@ -95,7 +193,7 @@ function AddSupplierForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 
 export function SupplierList() {
   const { role } = useRole()
-  const { suppliers, materials, accessories, addSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft, sendSupplierRequest, caricamento } = useDataStore()
+  const { suppliers, materials, accessories, addSupplier, updateSupplier, supplierRequests, setSupplierRequestStatus, updateSupplierRequestDraft, sendSupplierRequest, caricamento } = useDataStore()
   const { avvisa } = useGoatAlert()
   const [openId, setOpenId] = useState<string | null>(supplierRequests[0]?.id ?? null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -103,17 +201,57 @@ export function SupplierList() {
   const [respondingId, setRespondingId] = useState<string | null>(null)
   const [responseText, setResponseText] = useState('')
   const [addOpen, setAddOpen] = useState(false)
+  // Il fornitore aperto in modifica. Un solo stato per «quale scheda sto correggendo»:
+  // il form è lo stesso della creazione, cambia solo cosa gli si passa.
+  const [daModificare, setDaModificare] = useState<Supplier | null>(null)
 
   const canApprove = canApproveEmailDrafts(role)
-  const canModify = canEdit(role)
+  const canModify = canWrite(role, 'fornitori')
 
   const supplierColumns: DataTableColumn<Supplier>[] = [
-    { header: 'Fornitore', accessor: (s) => <span className="font-display font-medium text-heemia-black">{s.nome}</span> },
+    {
+      header: 'Fornitore',
+      accessor: (s) => (
+        <div>
+          <p className="font-display font-medium text-heemia-black">{s.nome}</p>
+          {s.partitaIva && <p className="font-mono-heemia text-[11px] text-heemia-grey">P.IVA {s.partitaIva}</p>}
+        </div>
+      ),
+    },
     { header: 'Categoria', accessor: (s) => s.categoria },
-    { header: 'Città', accessor: (s) => s.citta },
+    { header: 'Città', accessor: (s) => s.citta || '–' },
     { header: 'Contatto', accessor: (s) => <span className="font-mono-heemia text-xs">{s.email ?? '–'}</span> },
     { header: 'Fornisce', accessor: (s) => suppliedItems(s, materials, accessories) },
     { header: 'Tempi consegna', accessor: (s) => (s.tempiMediConsegnaGiorni ? `${s.tempiMediConsegnaGiorni}gg` : '–'), align: 'right' },
+    {
+      // Cosa manca alla scheda, calcolato dal server. Il conteggio da solo direbbe poco:
+      // il titolo elenca i campi, così si sa se vale la pena aprirla adesso.
+      header: 'Completezza',
+      accessor: (s) => {
+        const mancanti = s.campiMancanti ?? []
+        if (mancanti.length === 0) return <Badge variant="success">Completa</Badge>
+        return (
+          <span title={mancanti.map((m) => `${m.etichetta}: ${m.perche}`).join('\n')}>
+            <Badge variant="warning-outline">
+              {mancanti.length === 1 ? 'Manca 1 campo' : `Mancano ${mancanti.length} campi`}
+            </Badge>
+          </span>
+        )
+      },
+    },
+    ...(canModify
+      ? [
+          {
+            header: '',
+            accessor: (s: Supplier) => (
+              <Button variant="ghost" onClick={() => setDaModificare(s)}>
+                <Pencil aria-hidden className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
+                Modifica
+              </Button>
+            ),
+          },
+        ]
+      : []),
   ]
 
   const startEdit = (r: SupplierRequest) => {
@@ -173,10 +311,23 @@ export function SupplierList() {
       </div>
 
       <Card className="mb-6">
-        <CardHeader title="Anagrafica fornitori" subtitle={`${suppliers.length} fornitori attivi`} />
+        <CardHeader
+          title="Anagrafica fornitori"
+          subtitle={(() => {
+            const incompleti = suppliers.filter((s) => (s.campiMancanti ?? []).length > 0).length
+            return incompleti === 0
+              ? `${suppliers.length} fornitori, tutte le schede complete`
+              : `${suppliers.length} fornitori · ${incompleti} ${incompleti === 1 ? 'scheda da completare' : 'schede da completare'}`
+          })()}
+        />
         <div className="p-5">
           <DataTable
-            loading={caricamento} columns={supplierColumns} rows={suppliers} keyExtractor={(s) => s.id} />
+            loading={caricamento}
+            columns={supplierColumns}
+            rows={suppliers}
+            keyExtractor={(s) => s.id}
+            onRowClick={canModify ? (s) => setDaModificare(s) : undefined}
+          />
         </div>
       </Card>
 
@@ -282,7 +433,26 @@ export function SupplierList() {
         </ul>
       </Card>
 
-      {addOpen && <AddSupplierForm onClose={() => setAddOpen(false)} onSubmit={addSupplier} />}
+      {addOpen && <SupplierForm onClose={() => setAddOpen(false)} onSubmit={addSupplier} />}
+
+      {daModificare && (
+        <SupplierForm
+          fornitore={daModificare}
+          onClose={() => setDaModificare(null)}
+          onSubmit={async (input) => {
+            try {
+              await updateSupplier(daModificare.id, input)
+            } catch (e) {
+              // Il salvataggio non riuscito non deve chiudere il form: chi ha appena
+              // scritto dieci campi non deve riscriverli per leggere l'errore.
+              avvisa('salvataggio', {
+                testo: e instanceof ApiError ? e.message : 'Non è stato possibile salvare il fornitore.',
+              })
+              throw e
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

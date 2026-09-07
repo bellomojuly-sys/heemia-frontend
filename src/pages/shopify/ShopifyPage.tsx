@@ -9,7 +9,7 @@ import { formatCurrency, formatDateIt } from '../../lib/format'
 import { useDataStore } from '../../context/DataStore'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { useRole } from '../../context/RoleContext'
-import { canEdit } from '../../lib/permissions'
+import { canWrite } from '../../lib/permissions'
 import { useServerShopify } from '../../hooks/useServerShopify'
 
 // FR-17. Da qui si fanno le tre cose che l'integrazione permette (DEC-009 bidirezionale):
@@ -31,7 +31,7 @@ export function ShopifyPage() {
   const { role } = useRole()
   const [inCorso, setInCorso] = useState<string | null>(null)
   const shopifyOrders = orders.filter((o) => o.canale === 'shopify')
-  const modificabile = canEdit(role)
+  const modificabile = canWrite(role, 'shopify')
 
   /** Ogni azione parla con Shopify: l'esito va detto, e un errore non deve restare muto. */
   async function esegui(nome: string, azione: () => Promise<string>) {

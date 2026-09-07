@@ -7,7 +7,7 @@ import { Modal, Field, FormActions, fieldClass } from '../../components/ui/Modal
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt, formatDateTimeIt } from '../../lib/format'
 import { useRole } from '../../context/RoleContext'
-import { canEdit } from '../../lib/permissions'
+import { canWrite } from '../../lib/permissions'
 import type { PatchRichiesta } from '../../hooks/useServerShowroomRequests'
 import type { ShowroomRequest, StatoRichiestaShowroom } from '../../types'
 import { useSalesChannelsOutlet } from '../orders/salesChannelsOutlet'
@@ -308,7 +308,7 @@ export function RichiesteShowroomPage() {
       {aperta && (
         <DettaglioRichiesta
           richiesta={aperta}
-          modificabile={canEdit(role)}
+          modificabile={canWrite(role, 'richieste-showroom')}
           onClose={() => setApertaId(null)}
           onSalva={(patch) => aggiorna(aperta.id, patch)}
         />

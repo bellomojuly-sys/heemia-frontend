@@ -132,6 +132,22 @@ function toSheetPayload(patch?: Partial<TechnicalSheet>): Record<string, unknown
 // questo stato come sorgente, così i record creati in sessione compaiono ovunque. Le azioni
 // critiche vengono registrate in activityLogs (FR-18) con il ruolo attivo come utente.
 
+/**
+ * Dal form all'API. Due traduzioni, entrambe storiche e nessuna delle due indovinabile:
+ * la categoria viaggia col nome enum di Prisma («Asole_Bottoni») mentre l'interfaccia usa
+ * l'etichetta leggibile, e i giorni di consegna si chiamano `tempiMediConsegnaGg` sul
+ * server. Sta in una funzione sola perché creazione e modifica devono tradurre allo
+ * stesso modo: quando erano due copie, la modifica non esisteva e il problema non si
+ * poneva — ora sì.
+ */
+function payloadFornitore(input: Partial<NewSupplierInput>): Record<string, unknown> {
+  const { tempiMediConsegnaGiorni, categoria, ...resto } = input
+  const payload: Record<string, unknown> = { ...resto }
+  if (categoria !== undefined) payload.categoria = categoria.replace(/[ /]/g, '_')
+  if (tempiMediConsegnaGiorni !== undefined) payload.tempiMediConsegnaGg = tempiMediConsegnaGiorni
+  return payload
+}
+
 let idCounter = 0
 function genId(prefix: string): string {
   idCounter += 1
@@ -216,11 +232,25 @@ export interface EsitoImportFatture {
 export interface NewSupplierInput {
   nome: string
   categoria: SupplierCategoria
-  citta: string
+  /**
+   * Tutto ciò che non è nome e categoria è facoltativo: un fornitore si registra con
+   * quello che si sa oggi e si completa quando il resto arriva (DEC-061 §«i fornitori
+   * senza partita IVA entrano lo stesso»). Prima città e nome erano entrambi obbligatori
+   * nel form, e chi non aveva la città non poteva salvare.
+   */
+  partitaIva?: string
+  citta?: string
   email?: string
-  paese: string
+  paese?: string
+  referente?: string
+  telefono?: string
+  condizioniPagamento?: string
+  note?: string
   tempiMediConsegnaGiorni?: number
 }
+
+/** Modifica di un fornitore: ogni campo è facoltativo, la stringa vuota svuota il campo. */
+export type SupplierPatch = Partial<NewSupplierInput>
 
 export interface NewCustomerInput {
   nome: string
@@ -292,6 +322,25 @@ export interface VerificaEliminazioneProdotto {
     documentiModellista: number
     fasiPipeline: number
     pezziInGiacenza: number
+  }
+}
+
+/**
+ * Cosa comporta eliminare un cliente (GET /customers/:id/deletion-check).
+ * `avvertenze` è già scritto in italiano dal server: la UI lo mostra così com'è.
+ */
+export interface VerificaEliminazioneCliente {
+  nome: string
+  eliminabile: boolean
+  /** Vero se ci sono ordini o fatture: serve una conferma in più. */
+  haStorico: boolean
+  avvertenze: string[]
+  conseguenze: {
+    ordiniSenzaCliente: number
+    fattureSenzaCliente: number
+    visiteShowroom: number
+    preferitiShowroom: number
+    richiesteShowroom: number
   }
 }
 
@@ -443,7 +492,13 @@ interface DataStoreValue {
   addAccessory: (input: NewAccessoryInput) => Promise<Accessory>
   addInvoice: (input: NewInvoiceInput) => Promise<Invoice>
   addSupplier: (input: NewSupplierInput) => Promise<Supplier>
+  /** Correzione o completamento di un fornitore già registrato. */
+  updateSupplier: (id: string, patch: SupplierPatch) => Promise<void>
   addCustomer: (input: NewCustomerInput) => Promise<Customer>
+  /** Verifica preventiva: dice cosa resta orfano e cosa sparisce insieme al cliente. */
+  checkCustomerDeletion: (id: string) => Promise<VerificaEliminazioneCliente>
+  /** `confermaStorico` è il secondo sì, obbligatorio se ci sono ordini o fatture. */
+  deleteCustomer: (id: string, confermaStorico: boolean) => Promise<void>
   addOrder: (input: NewOrderInput) => Promise<Order>
 
   updateFixedCostItem: (id: string, importoAnnuo: number) => Promise<void>
@@ -534,8 +589,10 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       setMaterials(materialiRaw.map(toMaterial))
       setAccessories(accessoriRaw.map(toAccessory))
       setSuppliers(fornitoriRaw.map(toSupplier))
-      // /production restituisce una riga per prodotto con l'ultimo step (`ultimoStep`).
-      // Se un prodotto non ha ancora uno step registrato ne costruiamo uno dalla sua fase
+      // /production restituisce una riga per **ogni capo ancora in lavorazione** — dal
+      // 2026-09-07 il server filtra sulle fasi della pipeline, quindi i capi già prodotti
+      // (93 su 94, dopo il censimento) non arrivano più qui e non risultano «in produzione».
+      // Se un capo non ha ancora uno step registrato ne costruiamo uno dalla sua fase
       // corrente, così compare comunque nel kanban: l'avanzamento usa `productId`, non l'id.
       setProductionSteps(
         produzioneRaw.map((riga) => {
@@ -545,7 +602,6 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
             id: `pipeline-${String(riga.productId)}`,
             productId: String(riga.productId),
             fase: riga.fase as ProductionStep['fase'],
-            responsabile: 'Da assegnare',
             dataInizio: '',
             bloccata: false,
           } as ProductionStep
@@ -886,16 +942,12 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       },
 
       addSupplier: async (input) => {
-        const { tempiMediConsegnaGiorni, categoria, ...resto } = input
-        const creato = await persisti(
-          api.post<Row>('/suppliers', {
-            ...resto,
-            // L'API usa i nomi enum di Prisma ("Asole_Bottoni"), l'UI le etichette leggibili.
-            categoria: categoria.replace(/[ /]/g, '_'),
-            tempiMediConsegnaGg: tempiMediConsegnaGiorni,
-          }),
-        )
+        const creato = await persisti(api.post<Row>('/suppliers', payloadFornitore(input)))
         return toSupplier(creato)
+      },
+
+      updateSupplier: async (id, patch) => {
+        await persisti(api.patch<Row>(`/suppliers/${id}`, payloadFornitore(patch)))
       },
 
       // La deduplica per email è server-side: una email già presente restituisce
@@ -903,6 +955,14 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       addCustomer: async (input) => {
         const creato = await persisti(api.post<Row>('/customers', input))
         return toCustomer(creato)
+      },
+
+      // Cosa comporta eliminare un cliente: si chiede al server PRIMA di mostrare la
+      // conferma, perché solo lui sa quanti ordini e quante fatture lo citano.
+      checkCustomerDeletion: (id) => api.get<VerificaEliminazioneCliente>(`/customers/${id}/deletion-check`),
+
+      deleteCustomer: async (id, confermaStorico) => {
+        await persisti(api.del(`/customers/${id}${confermaStorico ? '?conferma=storico' : ''}`))
       },
 
       // Il server aggiorna anche numero ordini e valore acquistato del cliente.

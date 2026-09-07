@@ -22,12 +22,23 @@ export type ProductStage =
   | 'prototipo'
   | 'campionario'
   | 'produzione'
+  | 'completato'
   | 'foto_contenuti'
   | 'scheda_ecommerce'
   | 'pubblicato_shopify'
-  | 'in_vendita'
   | 'archivio'
 
+// Il percorso di un capo, in due tratti. La divisione non è grafica: decide chi sta nella
+// pipeline di produzione e chi no (gemella di PRODUCT_STAGES in
+// server/src/modules/production/service.ts).
+//
+//   idea → … → produzione        lavorazione in corso: è QUI che vive la pipeline
+//   completato                   produzione finita, il capo è nello stock
+//   foto_contenuti → … → archivio  lavoro commerciale su un capo già prodotto
+//
+// «In vendita» non è più una fase (2026-09-07): essere in vendita è il risultato di
+// giacenza più attributi commerciali, non una lavorazione. Il valore è stato rinominato
+// in `completato`, e nessun capo è stato spostato.
 export const PRODUCT_STAGES: { id: ProductStage; label: string }[] = [
   { id: 'idea', label: 'Idea' },
   { id: 'concept', label: 'Disegno / concept' },
@@ -37,12 +48,25 @@ export const PRODUCT_STAGES: { id: ProductStage; label: string }[] = [
   { id: 'prototipo', label: 'Prototipo' },
   { id: 'campionario', label: 'Campionario' },
   { id: 'produzione', label: 'Produzione' },
+  { id: 'completato', label: 'Produzione completata' },
   { id: 'foto_contenuti', label: 'Foto e contenuti' },
   { id: 'scheda_ecommerce', label: 'Scheda e-commerce' },
   { id: 'pubblicato_shopify', label: 'Pubblicato su Shopify' },
-  { id: 'in_vendita', label: 'In vendita' },
   { id: 'archivio', label: 'Archivio' },
 ]
+
+/** Le fasi in cui c'è una lavorazione in corso: sono queste, e solo queste, la pipeline. */
+export const FASI_PIPELINE: ProductStage[] = [
+  'idea', 'concept', 'sviluppo_modello', 'scelta_tessuto', 'scelta_accessori',
+  'prototipo', 'campionario', 'produzione',
+]
+
+/** Ultima fase della pipeline: completarla porta il capo fuori, nello stock. */
+export const ULTIMA_FASE_PIPELINE: ProductStage = 'produzione'
+
+export function inPipeline(fase: ProductStage): boolean {
+  return FASI_PIPELINE.includes(fase)
+}
 
 export type Linea = 'tessile' | 'maglieria'
 
@@ -326,7 +350,6 @@ export interface ProductionStep {
   id: string
   productId: string
   fase: ProductStage
-  responsabile: string
   dataInizio?: string
   dataFine?: string
   note?: string
@@ -513,7 +536,9 @@ export interface Supplier {
   id: string
   nome: string
   categoria: SupplierCategoria
-  citta: string
+  /** Chiave con cui l'import delle fatture elettroniche riconosce il fornitore (FR-19). */
+  partitaIva?: string
+  citta?: string
   email?: string
   referente?: string
   telefono?: string
@@ -523,6 +548,13 @@ export interface Supplier {
   tempiMediConsegnaGiorni?: number
   condizioniPagamento?: string
   note?: string
+  /**
+   * Cosa manca ancora a questa scheda, calcolato dal server (`suppliers/service.ts`).
+   * Sta qui e non nell'interfaccia perché la stessa risposta serve alla pagina Fornitori
+   * e all'AI Assistant: due elenchi di «campi obbligatori» che divergono sarebbero due
+   * risposte diverse alla stessa domanda.
+   */
+  campiMancanti?: { campo: string; etichetta: string; perche: string }[]
 }
 
 // ---------------------------------------------------------------------------
@@ -654,6 +686,13 @@ export interface FixedCostItem {
   id: string
   nome: string
   importoAnnuo: number
+  /**
+   * Nota della voce come sta nel documento di origine («Media bollette 2025»,
+   * «Attrezzatura, acquisto una tantum»…). Si trasporta, non si riscrive: senza, un
+   * acquisto una tantum diventa indistinguibile da una spesa ricorrente e continua a
+   * pesare ogni anno sulla quota per capo senza che si veda perché.
+   */
+  nota?: string
 }
 
 // Registrazione storica della quota per periodo (FR-40): il valore corrente si può

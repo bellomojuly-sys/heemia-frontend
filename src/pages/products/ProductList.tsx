@@ -15,8 +15,13 @@ import { coverImageUrl } from '../../lib/driveImage'
 import { stageLabel } from '../../lib/production'
 import { formatCurrency, formatPercent } from '../../lib/format'
 import { PRODUCT_STAGES, type Product, type ProductStage } from '../../types'
+import {
+  ORDINAMENTI, RAGGRUPPAMENTI, ordinaProdotti, ordinaVarianti, raggruppaProdotti,
+  type Ordinamento, type Raggruppamento,
+} from '../../lib/catalogo'
+import { CatalogoRaggruppato } from '../../components/products/CatalogoRaggruppato'
 import { useRole } from '../../context/RoleContext'
-import { canAccessModule, canDeleteProducts, canEdit } from '../../lib/permissions'
+import { canAccessModule, canDeleteProducts, canWrite } from '../../lib/permissions'
 import { useDataStore } from '../../context/DataStore'
 import { useLiveMargins } from '../../hooks/useLiveMargins'
 
@@ -47,6 +52,18 @@ export function ProductList() {
   const [daEliminare, setDaEliminare] = useState<Product | null>(null)
   const puoEliminare = canDeleteProducts(role)
 
+  // Ordinamento e raggruppamento stanno nell'indirizzo insieme ai filtri, come già la
+  // vista galleria: un catalogo ordinato in un certo modo si passa a qualcuno con un link,
+  // e il tasto Indietro del browser riporta alla vista di prima.
+  const ordinamento = (searchParams.get('ordina') ?? 'alfabetico') as Ordinamento
+  const raggruppamento = (searchParams.get('raggruppa') ?? 'nessuno') as Raggruppamento
+  const cambiaParam = (chiave: string, valore: string, predefinito: string) => {
+    const p = new URLSearchParams(searchParams)
+    if (valore === predefinito) p.delete(chiave)
+    else p.set(chiave, valore)
+    setSearchParams(p, { replace: true })
+  }
+
   const vista = VISTE[searchParams.get('vista') ?? '']
   // Catalogo interno (galleria) o elenco operativo (tabella). Sta nell'indirizzo insieme
   // ai filtri, così un catalogo filtrato si può passare a qualcuno con un link.
@@ -59,14 +76,26 @@ export function ProductList() {
   }
 
   const rows = useMemo(() => {
-    return products.filter((p) => {
+    const filtrati = products.filter((p) => {
       if (vista && !vista.test(p)) return false
       if (search && !`${p.nome} ${p.codiceProdotto}`.toLowerCase().includes(search.toLowerCase())) return false
       if (stato && p.stato !== stato) return false
       if (linea && p.linea !== linea) return false
       return true
     })
-  }, [products, vista, search, stato, linea])
+    return ordinaProdotti(filtrati, ordinamento, PRODUCT_STAGES.map((f) => f.id))
+  }, [products, vista, search, stato, linea, ordinamento])
+
+  const gruppi = useMemo(
+    () => raggruppaProdotti(rows, raggruppamento, productVariants),
+    [rows, raggruppamento, productVariants],
+  )
+
+  /** Le varianti di un capo, ordinate per colore e poi per taglia (vista «per prodotto»). */
+  const variantiDi = useMemo(
+    () => (productId: string) => ordinaVarianti(productVariants.filter((v) => v.productId === productId)),
+    [productVariants],
+  )
 
   const columns: DataTableColumn<Product>[] = [
     {
@@ -148,7 +177,7 @@ export function ProductList() {
       <PageHeader
         title="Anagrafica prodotti"
         subtitle="Scheda prodotto completa: dati, varianti, prezzi e stato pubblicazione."
-        action={canEdit(role) ? <Button onClick={() => setAddOpen(true)}>Nuovo prodotto</Button> : undefined}
+        action={canWrite(role, 'prodotti') ? <Button onClick={() => setAddOpen(true)}>Nuovo prodotto</Button> : undefined}
       />
 
       {vista && (
@@ -188,10 +217,28 @@ export function ProductList() {
         ]}
       />
 
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs text-heemia-grey">
-          {rows.length} {rows.length === 1 ? 'capo' : 'capi'}
-        </p>
+      {/* Come si legge il catalogo: ordine e raggruppamento. Sono due domande distinte —
+          «in che ordine» e «raggruppati come» — e tenerle separate evita l'elenco unico di
+          combinazioni («per categoria A→Z», «per categoria Z→A», …) che cresce moltiplicando. */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <SelettoreCampo
+            etichetta="Ordina per"
+            valore={ordinamento}
+            onChange={(v) => cambiaParam('ordina', v, 'alfabetico')}
+            opzioni={ORDINAMENTI.map((o) => ({ value: o.id, label: o.label }))}
+          />
+          <SelettoreCampo
+            etichetta="Raggruppa"
+            valore={raggruppamento}
+            onChange={(v) => cambiaParam('raggruppa', v, 'nessuno')}
+            opzioni={RAGGRUPPAMENTI.map((r) => ({ value: r.id, label: r.label }))}
+            titolo={RAGGRUPPAMENTI.find((r) => r.id === raggruppamento)?.descrizione}
+          />
+          <p className="text-xs text-heemia-grey">
+            {rows.length} {rows.length === 1 ? 'capo' : 'capi'}
+          </p>
+        </div>
         <div className="flex rounded-heemia-sm border border-heemia-border bg-white p-0.5">
           <SelettoreModo attivo={!galleria} onClick={() => cambiaModo('lista')} titolo="Vista elenco">
             <ListIcon className="h-3.5 w-3.5" /> Elenco
@@ -204,7 +251,7 @@ export function ProductList() {
 
       {galleria ? (
         <ProductGallery products={rows} caricamento={caricamento} onOpen={(p) => navigate(`/prodotti/${p.id}`)} />
-      ) : (
+      ) : raggruppamento === 'nessuno' ? (
         <DataTable
           loading={caricamento}
           columns={columns}
@@ -213,6 +260,14 @@ export function ProductList() {
           onRowClick={(p) => navigate(`/prodotti/${p.id}`)}
           emptyTitle="Nessun prodotto trovato"
           emptyDescription="Nessun capo corrisponde ai filtri selezionati. Prova a modificare fase o linea."
+        />
+      ) : (
+        <CatalogoRaggruppato
+          gruppi={gruppi}
+          conVarianti={raggruppamento === 'prodotto'}
+          varianti={variantiDi}
+          caricamento={caricamento}
+          onApri={(p) => navigate(`/prodotti/${p.id}`)}
         />
       )}
 
@@ -231,6 +286,40 @@ export function ProductList() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Selettore compatto con etichetta a sinistra. Non è un filtro (che toglie righe): decide
+ * come si legge quello che c'è, e per questo sta accanto al conteggio dei capi e non nella
+ * barra dei filtri, dove sembrerebbe restringere il catalogo.
+ */
+function SelettoreCampo({
+  etichetta,
+  valore,
+  onChange,
+  opzioni,
+  titolo,
+}: {
+  etichetta: string
+  valore: string
+  onChange: (v: string) => void
+  opzioni: { value: string; label: string }[]
+  titolo?: string
+}) {
+  return (
+    <label title={titolo} className="flex items-center gap-1.5 rounded-heemia-sm border border-heemia-border bg-white py-1 pl-2.5 pr-1">
+      <span className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">{etichetta}</span>
+      <select
+        value={valore}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-transparent py-0.5 pr-1 text-xs font-medium text-heemia-black focus:outline-none"
+      >
+        {opzioni.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </label>
   )
 }
 

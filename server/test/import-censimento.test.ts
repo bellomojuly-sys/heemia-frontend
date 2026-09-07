@@ -51,7 +51,7 @@ function censimento(over: Partial<Censimento> = {}): Censimento {
       { nome: `${RUN} Bottonificio`, categoria: 'Asole/Bottoni', piva: '', citta: '', telefono: '', email: '' },
     ],
     esclusiDallInventario: [`${RUN} ESCLUSO`],
-    faseIniziale: 'in_vendita',
+    faseIniziale: 'completato',
     ...over,
   }
 }
@@ -115,7 +115,7 @@ describe('Import del censimento', () => {
 
   test('i capi entrano nella fase decisa, non nella prima della pipeline', async () => {
     const capo = await prisma.product.findUniqueOrThrow({ where: { codiceProdotto: `${RUN}-A` } })
-    assert.equal(capo.stato, 'in_vendita')
+    assert.equal(capo.stato, 'completato')
     // Il prezzo netto IVA si calcola: 122 / 1,22 = 100.
     assert.equal(Number(capo.prezzoNettoIva), 100)
     assert.deepEqual(capo.taglieDisponibili, ['S', 'M', 'L'])

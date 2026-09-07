@@ -61,7 +61,16 @@ function FixedCostsCard() {
         <ul className="mb-4 divide-y divide-heemia-border">
           {fixedCostItems.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-              <span className="text-heemia-black">{item.nome}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-heemia-black">{item.nome}</span>
+                <span className="font-mono-heemia block text-[11px] text-heemia-grey">
+                  {formatCurrency(item.importoAnnuo / 12)}/mese
+                  {totaleAnnuo > 0 && ` · ${Math.round((item.importoAnnuo / totaleAnnuo) * 1000) / 10}% del fisso`}
+                  {/* La nota arriva dal documento di origine: dice, per esempio, che quella
+                      voce è un acquisto una tantum e non una spesa che tornerà l'anno prossimo. */}
+                  {item.nota && <span className="text-heemia-grey-light"> · {item.nota}</span>}
+                </span>
+              </span>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
                   <span className="font-mono-heemia text-xs text-heemia-grey">€</span>
@@ -122,6 +131,9 @@ function FixedCostsCard() {
           <div>
             <p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Totale costi fissi annui</p>
             <p className="font-mono-heemia mt-0.5 text-lg text-heemia-black">{formatCurrency(totaleAnnuo)}</p>
+            {/* Il mensile non è un secondo dato ma lo stesso letto come lo si guarda: i
+                costi fissi si confrontano con l'incasso del mese, non con quello dell'anno. */}
+            <p className="font-mono-heemia text-[11px] text-heemia-grey">{formatCurrency(totaleAnnuo / 12)} al mese</p>
           </div>
           <div>
             <label className="font-mono-heemia mb-0.5 block text-[10px] uppercase tracking-[0.06em] text-heemia-grey" htmlFor="capi-prodotti-annui">

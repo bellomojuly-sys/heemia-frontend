@@ -6,11 +6,19 @@ import { authenticate, requireModule, requireEdit } from '../../core/guards.js'
 import { badRequest, notFound } from '../../core/errors.js'
 import {
   computeAllMargins, computeProductMargin, computeQuotaPerCapo, createFixedCost, deleteFixedCost,
-  listFixedCosts, listQuotaHistory, saveQuotaSnapshot, setSetting, updateFixedCost,
+  listFixedCosts, listQuotaHistory, riepilogoCostiFissi, saveQuotaSnapshot, setSetting,
+  updateFixedCost,
 } from './service.js'
 
-const fixedCostCreate = z.object({ nome: z.string().min(1), importoAnnuo: z.number().nonnegative() })
-const fixedCostUpdate = z.object({ importoAnnuo: z.number().nonnegative() })
+const fixedCostCreate = z.object({
+  nome: z.string().min(1, 'Il nome della voce è obbligatorio').max(200),
+  importoAnnuo: z.number().nonnegative(),
+  /** Nota della fonte: «Media bollette 2025», «acquisto una tantum»… Si trasporta, non si inventa. */
+  nota: z.string().max(500).optional(),
+})
+const fixedCostUpdate = fixedCostCreate.partial().refine((d) => Object.keys(d).length > 0, {
+  message: 'Nessuna modifica indicata',
+})
 const capiAnnuiSchema = z.object({ capiProdottiAnnui: z.number().int().positive() })
 const sogliaSchema = z.object({ sogliaMarginePercent: z.number().min(0).max(100) })
 const quotaSnapshotSchema = z.object({
@@ -43,17 +51,20 @@ export async function marginsRoutes(app: FastifyInstance) {
   // --- Voci di costo fisso (DEC-022) ---
   app.get('/fixed-costs', guard, async () => listFixedCosts())
 
+  // Riepilogo pronto per le letture economiche (totale annuo e mensile, peso di ogni voce,
+  // quota per capo). Un solo posto dove il calcolo esiste: dashboard, break-even, report e
+  // AI Assistant leggono questo invece di rifarlo ciascuno a modo proprio.
+  app.get('/fixed-costs/riepilogo', guard, async () => riepilogoCostiFissi())
+
   app.post('/fixed-costs', write, async (req, reply) => {
-    const d = parse(fixedCostCreate, req.body)
-    const created = await createFixedCost(d.nome, d.importoAnnuo, req.user!.id)
+    const created = await createFixedCost(parse(fixedCostCreate, req.body), req.user!.id)
     reply.code(201)
     return created
   })
 
   app.patch('/fixed-costs/:id', write, async (req) => {
     const { id } = req.params as { id: string }
-    const d = parse(fixedCostUpdate, req.body)
-    return updateFixedCost(id, d.importoAnnuo, req.user!.id)
+    return updateFixedCost(id, parse(fixedCostUpdate, req.body), req.user!.id)
   })
 
   app.delete('/fixed-costs/:id', write, async (req) => {

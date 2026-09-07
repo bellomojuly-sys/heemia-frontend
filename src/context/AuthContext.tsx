@@ -3,12 +3,30 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Role } from '../types'
 import { api, ApiError, setSessioneScadutaHandler } from '../lib/api'
+import { applicaMatriceUtente, type MatriceRuolo } from '../lib/permissions'
 
 export interface AuthUser {
   id: string
   nome: string
   email: string
   role: Role
+  /**
+   * La matrice dei permessi del proprio ruolo, così come la calcola il server
+   * (`GET /auth/me`). Viaggia insieme all'identità e non con una seconda chiamata: il
+   * primo fotogramma dell'app deve essere già quello giusto, altrimenti chi ha un ruolo
+   * ristretto vedrebbe per un istante voci che non ha.
+   */
+  permessi?: MatriceRuolo
+}
+
+/**
+ * Installa la matrice appena arriva. È l'unico punto in cui `src/lib/permissions.ts`
+ * smette di usare i valori predefiniti scritti nel codice e passa a quelli veri, decisi
+ * dall'amministratore. Con `null` si torna ai predefiniti: succede al logout, e conta,
+ * perché la schermata di accesso non deve conservare i permessi di chi è appena uscito.
+ */
+function installaPermessi(u: AuthUser | null) {
+  applicaMatriceUtente(u?.role ?? null, u?.permessi ?? null)
 }
 
 interface AuthContextValue {
@@ -19,6 +37,12 @@ interface AuthContextValue {
   sessioneScaduta: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  /**
+   * Rilegge identità e permessi dal server. Serve dopo che un amministratore ha salvato la
+   * matrice: senza, l'interfaccia continuerebbe a nascondere (o mostrare) secondo i
+   * permessi di prima fino al prossimo accesso, e la modifica sembrerebbe non aver preso.
+   */
+  ricaricaPermessi: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -39,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessioneScadutaHandler(() => {
       if (!userRef.current) return
       userRef.current = null
+      installaPermessi(null)
       setUser(null)
       setSessioneScaduta(true)
     })
@@ -51,14 +76,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let annullato = false
     api
       .get<AuthUser>('/auth/me')
-      .then((u) => { if (!annullato) setUser(u) })
-      .catch(() => { if (!annullato) setUser(null) })
+      .then((u) => { if (!annullato) { installaPermessi(u); setUser(u) } })
+      .catch(() => { if (!annullato) { installaPermessi(null); setUser(null) } })
       .finally(() => { if (!annullato) setLoading(false) })
     return () => { annullato = true }
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {
     const u = await api.post<AuthUser>('/auth/login', { email, password })
+    installaPermessi(u)
     setSessioneScaduta(false)
     setUser(u)
   }, [])
@@ -71,13 +97,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!(e instanceof ApiError && e.isAuthError)) throw e
     }
     // Uscita voluta: nessun avviso di sessione scaduta nel login.
+    installaPermessi(null)
     setSessioneScaduta(false)
     setUser(null)
   }, [])
 
+  const ricaricaPermessi = useCallback(async () => {
+    const u = await api.get<AuthUser>('/auth/me')
+    installaPermessi(u)
+    setUser(u)
+  }, [])
+
   const value = useMemo(
-    () => ({ user, loading, sessioneScaduta, login, logout }),
-    [user, loading, sessioneScaduta, login, logout],
+    () => ({ user, loading, sessioneScaduta, login, logout, ricaricaPermessi }),
+    [user, loading, sessioneScaduta, login, logout, ricaricaPermessi],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

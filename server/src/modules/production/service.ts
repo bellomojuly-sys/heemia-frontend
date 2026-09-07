@@ -6,7 +6,20 @@ import { prisma } from '../../core/prisma.js'
 import { badRequest, conflict, notFound } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
 
-// Ordine pipeline: stesso di PRODUCT_STAGES in src/types (prototipo) e dell'enum product_stage.
+// Ordine delle fasi: stesso di PRODUCT_STAGES in src/types (client). È **questa** la
+// sequenza autorevole, non l'ordine interno dell'enum Postgres, che è storico.
+//
+// 2026-09-07 — il percorso di un capo è diviso in due tratti, e la divisione non è
+// grafica: decide chi sta nella pipeline e chi no.
+//
+//   idea → … → produzione        lavorazione in corso: è QUI che vive la pipeline
+//   completato                   la produzione è finita, il capo è nello stock
+//   foto_contenuti → … → archivio  lavoro commerciale su un capo già prodotto
+//
+// «In vendita» non è più una fase (vedi la migrazione 20260907140000): essere in vendita
+// è il risultato di giacenza più attributi commerciali, non una lavorazione che qualcuno
+// esegue. Il valore è stato rinominato in `completato`, che dice l'unica cosa vera del
+// momento in cui un capo esce dalla pipeline.
 export const PRODUCT_STAGES: { id: ProductStage; label: string }[] = [
   { id: 'idea', label: 'Idea' },
   { id: 'concept', label: 'Concept' },
@@ -16,12 +29,32 @@ export const PRODUCT_STAGES: { id: ProductStage; label: string }[] = [
   { id: 'prototipo', label: 'Prototipo' },
   { id: 'campionario', label: 'Campionario' },
   { id: 'produzione', label: 'Produzione' },
+  { id: 'completato', label: 'Produzione completata' },
   { id: 'foto_contenuti', label: 'Foto e contenuti' },
   { id: 'scheda_ecommerce', label: 'Scheda e-commerce' },
   { id: 'pubblicato_shopify', label: 'Pubblicato su Shopify' },
-  { id: 'in_vendita', label: 'In vendita' },
   { id: 'archivio', label: 'Archivio' },
 ]
+
+/**
+ * Le fasi che stanno nella pipeline di produzione: quelle in cui c'è una lavorazione in
+ * corso. Un capo che le ha superate è finito, è entrato nello stock ed è consultabile
+ * dall'inventario e dall'anagrafica — dalla pipeline esce.
+ */
+export const FASI_PIPELINE: ProductStage[] = [
+  'idea', 'concept', 'sviluppo_modello', 'scelta_tessuto', 'scelta_accessori',
+  'prototipo', 'campionario', 'produzione',
+]
+
+/** Ultima fase della pipeline: chi la completa esce. */
+export const ULTIMA_FASE_PIPELINE: ProductStage = 'produzione'
+
+/** Prima fase fuori dalla pipeline: il capo è prodotto e disponibile allo stock. */
+export const FASE_USCITA_PIPELINE: ProductStage = 'completato'
+
+export function inPipeline(fase: ProductStage): boolean {
+  return FASI_PIPELINE.includes(fase)
+}
 
 // FR-07: blocco se mancano dati critici. La scheda tecnica preliminare nasce prima della
 // produzione (FR-14), quindi deve esistere gia all'ingresso in prototipo/campionario.
@@ -183,9 +216,17 @@ export async function approveSample(productId: string, userId: string, note?: st
   })
 }
 
-// Kanban produzione: prodotti raggruppati per fase con lo stato del gate.
+/**
+ * Kanban produzione: **solo i capi che stanno attraversando una lavorazione**.
+ *
+ * Prima questa funzione restituiva `findMany()` senza filtro, cioè l'intero catalogo: con
+ * il censimento importato erano 93 capi finiti da tempo che comparivano nella pipeline e
+ * la pagina li contava come «prodotti in produzione». Il filtro non nasconde niente —
+ * quei capi si consultano dall'anagrafica e dall'inventario, che è il loro posto.
+ */
 export async function listProduction() {
   const products = await prisma.product.findMany({
+    where: { stato: { in: FASI_PIPELINE } },
     orderBy: { updatedAt: 'desc' },
     include: {
       productionSteps: { orderBy: { createdAt: 'desc' }, take: 1 },
@@ -200,6 +241,8 @@ export async function listProduction() {
     fase: p.stato,
     faseLabel: stageLabel(p.stato),
     prossimaFase: nextStage(p.stato),
+    /** Vero quando il passo successivo porta il capo fuori dalla pipeline. */
+    completaProduzione: p.stato === ULTIMA_FASE_PIPELINE,
     schedaTecnicaPresente: p.technicalSheets.length > 0,
     ultimoStep: p.productionSteps[0] ?? null,
   }))
@@ -223,10 +266,16 @@ export async function getProductionDetail(productId: string) {
 }
 
 // Avanzamento: consentito solo se il gate e verde. Prodotto e step aggiornati in transazione.
+/**
+ * Avanzamento di fase. Dal 2026-09-07 non accetta più un «responsabile»: chi ha fatto
+ * cosa sta nell'activity log, che nessuno può riscrivere, mentre quel campo era una
+ * stringa libera copiata a mano su ogni passaggio. La colonna resta in tabella con i
+ * valori già registrati, ma non viene più valorizzata.
+ */
 export async function advanceProduction(
   productId: string,
   userId: string,
-  opts: { responsabile?: string; note?: string } = {},
+  opts: { note?: string } = {},
 ) {
   const gate = await checkAdvance(productId)
   // Convenzione API_Mapping: i blocchi di gating rispondono 409 con la ragione leggibile.
@@ -244,18 +293,23 @@ export async function advanceProduction(
       data: {
         productId,
         fase: target,
-        responsabile: opts.responsabile,
         note: opts.note,
         dataInizio: new Date(),
         bloccata: false,
       },
     })
     const updated = await tx.product.update({ where: { id: productId }, data: { stato: target } })
+    const uscitaDallaPipeline = inPipeline(product.stato) && !inPipeline(target)
     await logActivity(tx, {
-      userId, azione: 'advance', entita: 'production', entitaId: productId,
-      valorePrecedente: stageLabel(product.stato), valoreNuovo: stageLabel(target),
+      userId,
+      azione: uscitaDallaPipeline ? 'completa_produzione' : 'advance',
+      entita: 'production', entitaId: productId,
+      valorePrecedente: stageLabel(product.stato),
+      valoreNuovo: uscitaDallaPipeline
+        ? `${stageLabel(target)} — uscito dalla pipeline, disponibile nello stock`
+        : stageLabel(target),
     })
-    return { product: updated, step, fasePrecedente: product.stato, faseCorrente: target }
+    return { product: updated, step, fasePrecedente: product.stato, faseCorrente: target, uscitaDallaPipeline }
   })
 }
 

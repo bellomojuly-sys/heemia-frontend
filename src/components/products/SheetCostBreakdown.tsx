@@ -7,7 +7,7 @@ import { fieldClass } from '../ui/Modal'
 import { formatCurrency, formatDateIt, formatDateTimeIt } from '../../lib/format'
 import { computeSheetCost, type CostRow } from '../../lib/sheetCost'
 import { useDataStore } from '../../context/DataStore'
-import { canEdit } from '../../lib/permissions'
+import { canWrite } from '../../lib/permissions'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
@@ -71,7 +71,7 @@ export function SheetCostBreakdown({ sheet }: { sheet: TechnicalSheet }) {
           title="Costo del capo e prezzo di break-even"
           subtitle="Somma di materiali, lavorazioni e quota di sviluppo ammortizzata sui capi previsti."
           action={
-            canEdit(role) ? (
+            canWrite(role, 'prodotti') ? (
               <Button variant="secondary" onClick={() => setApriRegistra((v) => !v)}>Ricalcola e registra</Button>
             ) : undefined
           }
@@ -119,7 +119,7 @@ export function SheetCostBreakdown({ sheet }: { sheet: TechnicalSheet }) {
           </div>
         </div>
 
-        {apriRegistra && canEdit(role) && (
+        {apriRegistra && canWrite(role, 'prodotti') && (
           <div className="flex flex-wrap items-center gap-2 border-t border-heemia-border bg-heemia-surface px-5 py-3">
             <input
               className={`${fieldClass} max-w-sm`}

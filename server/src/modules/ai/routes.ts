@@ -6,6 +6,8 @@ import { authenticate, requireModule, requireEdit } from '../../core/guards.js'
 import { badRequest } from '../../core/errors.js'
 import { getContestoRientroAi } from '../lavorazioni/service.js'
 import { scanDdtRientro, scanTechnicalSheetPdf, suggestMeasurements } from './service.js'
+import { chiediAllAssistente, storicoSessione } from './assistente.js'
+import { costruisciContesto } from './contesto.js'
 
 const scanSchema = z.object({
   /** Contenuto del PDF in base64 (con o senza prefisso data URL). */
@@ -22,6 +24,12 @@ const measurementsSchema = z.object({
   lunghezza: z.string().max(200).optional(),
   volume: z.string().max(200).optional(),
   dettagliCostruttivi: z.string().max(2000).optional(),
+})
+
+const domandaSchema = z.object({
+  domanda: z.string().trim().min(3, 'Scrivi una domanda').max(1000, 'Domanda troppo lunga'),
+  /** Continua una conversazione già aperta; se manca se ne apre una nuova. */
+  sessionId: z.string().uuid().optional(),
 })
 
 const ddtRientroSchema = z.object({
@@ -53,6 +61,31 @@ export async function aiRoutes(app: FastifyInstance) {
     config: limiteAi,
     preHandler: [authenticate, requireModule('lavorazioni'), requireEdit],
   }
+
+  // --- AI Assistant (FR-28) --------------------------------------------------------
+  //
+  // Sta sotto il modulo «ai-assistant» in **lettura**: l'assistente non modifica niente,
+  // e chiedere non è scrivere. I dati che riceve sono però filtrati un'altra volta, per
+  // modulo, dentro `costruisciContesto`: chi non vede Costi e margini non può aggirare il
+  // divieto girando la domanda all'assistente.
+  const assistente = {
+    config: limiteAi,
+    preHandler: [authenticate, requireModule('ai-assistant')],
+  }
+
+  // I dati veri che l'assistente legge, esattamente come li legge lui. È anche ciò che la
+  // pagina mostra quando OpenAI non è collegato: numeri del gestionale, non frasi finte.
+  app.get('/ai/contesto', assistente, async (req) => costruisciContesto(req.user!.role))
+
+  app.post('/ai/domanda', assistente, async (req) => {
+    const { domanda, sessionId } = parse(domandaSchema, req.body)
+    return chiediAllAssistente({ id: req.user!.id, role: req.user!.role }, { domanda, sessionId })
+  })
+
+  app.get('/ai/sessioni/:sessionId', assistente, async (req) => {
+    const { sessionId } = req.params as { sessionId: string }
+    return storicoSessione(sessionId, req.user!.id)
+  })
 
   app.post('/ai/scan-technical-sheet', prodottiWrite, async (req) => {
     const { pdfBase64, nomeFile } = parse(scanSchema, req.body)

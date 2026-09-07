@@ -200,3 +200,115 @@ export async function changeOwnPassword(
   })
   return { ok: true, altreSessioniTerminate: count }
 }
+
+// --- Eliminazione di un utente (2026-09-07) ----------------------------------------
+//
+// Fino a ieri qui c'era una regola sola: «un utente non si cancella, si disattiva».
+// Aveva un motivo vero, che resta vero — le firme nell'activity log e nei movimenti di
+// magazzino diventano anonime — ma non era una regola, era l'assenza di una scelta: chi
+// aveva creato un account per sbaglio, o inserito due volte la stessa persona, non aveva
+// modo di rimediare dall'app.
+//
+// Ora l'eliminazione c'è, e il codice fa rispettare tre cose:
+//   1. **Non si elimina il proprio account.** È l'unico errore da cui non ci si riprende.
+//   2. **Non si elimina l'ultimo amministratore attivo.** Nemmeno se è qualcun altro:
+//      l'azienda resterebbe senza nessuno che possa dare accessi.
+//   3. **Se ha una storia, serve dirlo di sì due volte.** Un account senza attività si
+//      cancella e basta; uno che ha firmato movimenti e bolle chiede conferma esplicita,
+//      con davanti il conto di quante firme diventano anonime.
+
+/** Quante tracce lascerebbe indietro un utente eliminato, e cosa lo impedisce del tutto. */
+export async function checkUserDeletion(id: string, autoreId: string) {
+  const utente = await prisma.user.findUnique({
+    where: { id },
+    include: {
+      _count: {
+        select: {
+          activityLogs: true, inventoryMovements: true, sessions: true, aiSessions: true,
+          bolleCreate: true, bolleEmesse: true, bolleChiuse: true, rientriRegistrati: true,
+          movimentiLavorazione: true, patternDocuments: true, patternDocumentNotes: true,
+          importBatches: true, approvedRequests: true, campioniApprovati: true,
+          stockCommitments: true, measurementTemplates: true, allegatiBolla: true,
+        },
+      },
+    },
+  })
+  if (!utente || utente.role === 'showroom') throw notFound('Utente non trovato')
+
+  const blocchi: string[] = []
+  if (id === autoreId) {
+    blocchi.push('Non puoi eliminare il tuo stesso account: è l\'unico errore da cui non ci si riprende dall\'app.')
+  }
+  if (utente.role === 'admin' && utente.attivo) {
+    const altriAdmin = await prisma.user.count({ where: { role: 'admin', attivo: true, id: { not: id } } })
+    if (altriAdmin === 0) {
+      blocchi.push(
+        'Questo è l\'ultimo amministratore attivo: nominane un altro prima di eliminarlo, ' +
+          'altrimenti nessuno potrà più dare o togliere accessi.',
+      )
+    }
+  }
+
+  const c = utente._count
+  const firme = c.activityLogs + c.inventoryMovements + c.movimentiLavorazione + c.rientriRegistrati
+  const documenti = c.bolleCreate + c.bolleEmesse + c.bolleChiuse + c.patternDocuments +
+    c.patternDocumentNotes + c.allegatiBolla + c.importBatches + c.approvedRequests +
+    c.campioniApprovati + c.stockCommitments + c.measurementTemplates
+
+  const avvertenze: string[] = []
+  if (firme > 0) {
+    avvertenze.push(
+      `${firme} ${firme === 1 ? 'operazione firmata' : 'operazioni firmate'} (activity log e movimenti di ` +
+        'magazzino) restano registrate ma diventano anonime: si saprà cosa è successo, non più da chi.',
+    )
+  }
+  if (documenti > 0) {
+    avvertenze.push(
+      `${documenti} fra bolle, documenti, allegati e approvazioni perdono il riferimento all'autore. ` +
+        'I documenti non vengono cancellati.',
+    )
+  }
+  if (c.sessions > 0) {
+    avvertenze.push(`${c.sessions} ${c.sessions === 1 ? 'sessione aperta viene chiusa' : 'sessioni aperte vengono chiuse'} subito.`)
+  }
+  if (avvertenze.length === 0) {
+    avvertenze.push('Questo account non ha mai firmato nulla: eliminarlo non lascia buchi da nessuna parte.')
+  }
+
+  return {
+    nome: utente.nome,
+    email: utente.email,
+    eliminabile: blocchi.length === 0,
+    blocchi,
+    /** Vero quando l'eliminazione perde delle firme: serve una conferma in più. */
+    haStorico: firme + documenti > 0,
+    avvertenze,
+    conseguenze: { firmeAnonime: firme, documentiSenzaAutore: documenti, sessioniChiuse: c.sessions },
+    /** L'alternativa che nella maggior parte dei casi è quella giusta. */
+    alternativa: 'Disattivare l\'account lo fa uscire subito e conserva tutte le firme.',
+  }
+}
+
+export async function deleteUser(id: string, autoreId: string, opts: { confermaStorico?: boolean } = {}) {
+  const verifica = await checkUserDeletion(id, autoreId)
+  if (!verifica.eliminabile) throw conflict(verifica.blocchi.join(' '))
+  if (verifica.haStorico && !opts.confermaStorico) {
+    throw conflict(
+      `${verifica.nome} ha una storia nel gestionale. ${verifica.avvertenze.join(' ')} ` +
+        `${verifica.alternativa} Conferma esplicitamente per eliminare comunque.`,
+    )
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Il log si scrive prima: dopo la cancellazione l'utente non esiste più, e questa
+    // riga è l'unica cosa che dirà che è esistito.
+    await logActivity(tx, {
+      userId: autoreId, azione: 'elimina_utente', entita: 'user', entitaId: id,
+      valorePrecedente: `${verifica.nome} <${verifica.email}>`,
+      valoreNuovo: verifica.avvertenze.join(' '),
+    })
+    await tx.user.delete({ where: { id } })
+  })
+
+  return { deleted: true, ...verifica.conseguenze }
+}

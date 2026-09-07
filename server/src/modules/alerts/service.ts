@@ -309,7 +309,11 @@ export async function computeAlerts(role: Role): Promise<AlertItem[]> {
   }
 
   const rank = { critico: 0, attenzione: 1, info: 2 }
+  // Il filtro per ruolo legge la matrice dei permessi, che dal 2026-09-07 sta a database
+  // ed è modificabile: la visibilità di un alert economico segue quella del suo modulo,
+  // quindi la domanda va posta una riga alla volta e la risposta arriva da una promise.
+  const visibili = await Promise.all(alerts.map((a) => canSeeAlertModulo(role, a.modulo)))
   return alerts
-    .filter((a) => canSeeAlertModulo(role, a.modulo))
+    .filter((_, i) => visibili[i])
     .sort((a, b) => rank[a.livello] - rank[b.livello])
 }

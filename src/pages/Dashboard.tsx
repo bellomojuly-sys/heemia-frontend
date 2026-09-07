@@ -1,14 +1,15 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { TrendingUp, Factory, Store, Layers, PenTool, Warehouse, Scissors } from 'lucide-react'
 import { PageHeader } from '../components/ui/PageHeader'
-import { Card, CardHeader } from '../components/ui/Card'
 import { KpiTile } from '../components/dashboard/KpiTile'
 import { TopProductsBarList } from '../components/dashboard/TopProductsBarList'
 import { AzioniRichieste } from '../components/alerts/AzioniRichieste'
 import { AnalyticsWidget } from '../components/dashboard/AnalyticsWidget'
 import { LoadingState } from '../components/ui/States'
+import { SezioneCard } from '../components/dashboard/SezioneCard'
 import { StatusBadge } from '../lib/statusBadge'
+import { stageLabel } from '../lib/production'
 import { formatCurrency, formatDateIt } from '../lib/format'
 import { useDataStore } from '../context/DataStore'
 import { useRole } from '../context/RoleContext'
@@ -63,101 +64,128 @@ export function Dashboard() {
     <div>
       <PageHeader title="Dashboard" subtitle="Cosa richiede attenzione oggi, e dove sono i capi." />
 
-      {/* I sette KPI del backlog "Note" §7. Ognuno apre la lista corrispondente già filtrata. */}
-      <div className="mb-8 flex flex-wrap gap-3">
+      {/* I sette KPI del backlog "Note" §7, raggruppati per area e colorati di conseguenza
+          (src/lib/aree.ts). Il colore non decora: dice a quale parte dell'app porta la
+          card, con la stessa divisione della barra laterale. Le due fasce hanno anche un
+          titolo, perché il colore da solo non basta a chi non lo distingue. */}
+      <FasciaKpi titolo="Capi" nota="Dove sono i capi lungo il percorso, dall'idea al negozio.">
         <KpiTile
-          label="Prodotti attivi"
+          area="prodotto"
+          label="Capi attivi"
           value={kpis.prodottiAttivi}
-          tooltip="Capi in uso: in sviluppo, in produzione o già online. Esclusi idee e archivio."
-          tone="positive"
+          dettaglio="in uso, escluse idee e archivio"
+          tooltip="Capi in uso: in lavorazione, prodotti o già online. Esclusi idee e archivio."
           icon={<TrendingUp />}
           to="/prodotti?vista=attivi"
         />
         <KpiTile
+          area="prodotto"
           label="In sviluppo"
           value={kpis.prodottiInSviluppo}
+          dettaglio="modello, prototipo, campione"
           tooltip="Fase tecnica: modellistica, piazzamento, taglio e campione non ancora approvato."
-          tone="informational"
           icon={<PenTool />}
           to="/prodotti?vista=sviluppo"
         />
         <KpiTile
+          area="prodotto"
           label="In produzione"
           value={kpis.prodottiInProduzione}
-          tooltip="Capi con campione approvato e produzione avviata."
-          tone="informational"
+          dettaglio="campione approvato, produzione avviata"
+          tooltip="Solo i capi nella fase «Produzione» della pipeline. Chi ha finito è nello stock, non qui."
           icon={<Factory />}
-          to="/prodotti?vista=produzione"
+          to="/produzione"
         />
         <KpiTile
+          area="prodotto"
           label="Online su Shopify"
           value={kpis.prodottiPubblicati}
+          dettaglio="pubblicati e attivi sullo store"
           tooltip="Capi pubblicati e attivi sullo store."
-          tone="positive"
           icon={<Store />}
           to="/prodotti?vista=shopify"
         />
+      </FasciaKpi>
+
+      <FasciaKpi titolo="Magazzino" nota="Quanti pezzi ci sono, e dove stanno fisicamente.">
         <KpiTile
-          label="Riservati al laboratorio"
-          value={kpis.capiInLaboratorio}
-          tooltip="Pezzi assegnati o trasferiti al laboratorio, in tutte le varianti."
-          icon={<Scissors />}
-          to="/inventario/prodotti-finiti?vista=laboratorio"
-        />
-        <KpiTile
+          area="inventario"
           label="In magazzino"
           value={kpis.capiInMagazzino}
+          dettaglio="pezzi, tutte le varianti"
           tooltip="Pezzi fisicamente presenti in magazzino, in tutte le varianti."
           icon={<Warehouse />}
           to="/inventario/prodotti-finiti?vista=magazzino"
         />
         <KpiTile
+          area="inventario"
+          label="In laboratorio"
+          value={kpis.capiInLaboratorio}
+          dettaglio="pezzi assegnati al laboratorio"
+          tooltip="Pezzi assegnati o trasferiti al laboratorio, in tutte le varianti."
+          icon={<Scissors />}
+          to="/inventario/prodotti-finiti?vista=laboratorio"
+        />
+        <KpiTile
+          area="inventario"
           label="Fabric Library"
           value={kpis.fabricLibraryCount}
+          dettaglio="tessuti a catalogo"
           tooltip="Tessuti a catalogo nella libreria materiali."
           icon={<Layers />}
           to="/inventario/tessuti"
         />
-      </div>
+      </FasciaKpi>
 
       {/* Sezione unica "Azioni richieste" (backlog "Note" §9): categorie, non conteggi. */}
-      <Card className="mb-4">
-        <CardHeader
-          title="Azioni richieste"
-          subtitle="Raggruppate per tipo, critiche per prime. Ogni riga dice cosa fare e dove."
-          action={
-            <Link to="/alert" className="text-xs font-medium text-heemia-grey hover:text-heemia-black hover:underline">
-              Vedi tutte →
-            </Link>
-          }
-        />
+      <SezioneCard
+        area="relazioni"
+        titolo="Azioni richieste"
+        sottotitolo="Raggruppate per tipo, critiche per prime. Ogni riga dice cosa fare e dove."
+        className="mb-4"
+        azione={
+          <Link to="/alert" className="text-xs font-medium text-heemia-grey hover:text-heemia-black hover:underline">
+            Vedi tutte →
+          </Link>
+        }
+      >
         <div className="p-4">
           <AzioniRichieste azioni={azioni} />
         </div>
-      </Card>
+      </SezioneCard>
 
       {/* Riquadro Analytics (nota §11): compare solo se GA è collegato e il ruolo lo vede
           — altrimenti non lascia neanche lo spazio vuoto (il margine è dentro il riquadro). */}
       <AnalyticsWidget attivo={vedeAnalytics} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader title="Produzione in corso" subtitle="Capi attualmente in lavorazione." />
+        <SezioneCard
+          area="prodotto"
+          titolo="Capi in lavorazione"
+          sottotitolo="Solo chi sta attraversando la pipeline: i capi finiti stanno nello stock."
+          className="lg:col-span-2"
+          azione={
+            <Link to="/produzione" className="text-xs font-medium text-heemia-grey hover:text-heemia-black hover:underline">
+              Apri la pipeline →
+            </Link>
+          }
+        >
           <ul className="divide-y divide-heemia-border">
-            {activeProduction.length === 0 && <li className="p-4 text-sm text-heemia-grey">Nessuna produzione attiva.</li>}
+            {activeProduction.length === 0 && <li className="p-4 text-sm text-heemia-grey">Nessun capo è in lavorazione.</li>}
             {activeProduction.map((s) => (
               <li key={s.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
                 <Link to={`/prodotti/${s.productId}`} className="font-display text-heemia-black hover:underline">
                   {products.find((p) => p.id === s.productId)?.nome ?? s.productId}
                 </Link>
-                <span className="text-xs text-heemia-grey">{s.responsabile}</span>
+                <span className="font-mono-heemia text-[11px] uppercase tracking-[0.06em] text-heemia-grey">
+                  {stageLabel(s.fase)}
+                </span>
               </li>
             ))}
           </ul>
-        </Card>
+        </SezioneCard>
 
-        <Card>
-          <CardHeader title="Capi più venduti" />
+        <SezioneCard area="inventario" titolo="Capi più venduti">
           <div className="p-5">
             {topProducts.length > 0 ? (
               <TopProductsBarList data={topProducts} />
@@ -165,10 +193,9 @@ export function Dashboard() {
               <p className="text-sm text-heemia-grey">Nessuna vendita registrata.</p>
             )}
           </div>
-        </Card>
+        </SezioneCard>
 
-        <Card className="lg:col-span-2">
-          <CardHeader title="Vendite recenti" />
+        <SezioneCard area="economico" titolo="Vendite recenti" className="lg:col-span-2">
           <ul className="divide-y divide-heemia-border">
             {recentOrders.length === 0 && <li className="p-4 text-sm text-heemia-grey">Nessuna vendita registrata.</li>}
             {recentOrders.map((o) => (
@@ -184,10 +211,9 @@ export function Dashboard() {
               </li>
             ))}
           </ul>
-        </Card>
+        </SezioneCard>
 
-        <Card>
-          <CardHeader title="Bozze email in attesa" subtitle="Richieste fornitore non ancora inviate" />
+        <SezioneCard area="inventario" titolo="Bozze email in attesa" sottotitolo="Richieste fornitore non ancora inviate">
           <ul className="divide-y divide-heemia-border">
             {pendingDrafts.length === 0 && <li className="p-4 text-sm text-heemia-grey">Nessuna bozza in attesa.</li>}
             {pendingDrafts.map((r) => (
@@ -197,8 +223,25 @@ export function Dashboard() {
               </li>
             ))}
           </ul>
-        </Card>
+        </SezioneCard>
       </div>
     </div>
+  )
+}
+
+/**
+ * Una fascia di KPI con il proprio titolo. Il raggruppamento è la metà testuale della
+ * codifica a colori: il colore rende le card riconoscibili di sfuggita, il titolo dice
+ * che cosa hanno in comune — e resta l'unica fonte per chi i colori non li distingue.
+ */
+function FasciaKpi({ titolo, nota, children }: { titolo: string; nota: string; children: ReactNode }) {
+  return (
+    <section className="mb-5">
+      <div className="mb-2 flex items-baseline gap-2">
+        <h2 className="font-sans text-[11px] font-medium uppercase tracking-[0.09em] text-heemia-black">{titolo}</h2>
+        <p className="text-xs text-heemia-grey">{nota}</p>
+      </div>
+      <div className="flex flex-wrap gap-3">{children}</div>
+    </section>
   )
 }

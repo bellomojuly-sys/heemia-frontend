@@ -52,11 +52,11 @@ export function DeadlinesPage() {
       <p className="mb-4 text-sm text-heemia-grey">Fatture, adempimenti fiscali e reminder amministrativi.</p>
 
       <div className="mb-6 flex flex-wrap gap-3">
-        <KpiTile label="Entro 7 giorni" value={stats.in7} critical={stats.in7 > 0} />
-        <KpiTile label="Entro 30 giorni" value={stats.in30} />
-        <KpiTile label="In ritardo" value={stats.ritardo} critical={stats.ritardo > 0} />
-        <KpiTile label="Totale da pagare" value={formatCurrency(stats.daPagare)} />
-        <KpiTile label="Totale da incassare" value={formatCurrency(stats.daIncassare)} tone="positive" />
+        <KpiTile area="economico" label="Entro 7 giorni" value={stats.in7} critical={stats.in7 > 0} />
+        <KpiTile area="economico" label="Entro 30 giorni" value={stats.in30} />
+        <KpiTile area="economico" label="In ritardo" value={stats.ritardo} critical={stats.ritardo > 0} />
+        <KpiTile area="economico" label="Totale da pagare" value={formatCurrency(stats.daPagare)} />
+        <KpiTile area="economico" label="Totale da incassare" value={formatCurrency(stats.daIncassare)} />
       </div>
 
       <DataTable

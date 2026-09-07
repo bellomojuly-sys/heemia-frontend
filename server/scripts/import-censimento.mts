@@ -69,7 +69,7 @@ const decisioni = JSON.parse(decisioniTxt) as { productStageMapping?: string; ex
 // La fase iniziale la decide il censimento, non il codice: sta scritta per esteso in
 // migration_decisions.json e qui si estrae il valore dell'enum. Se un giorno la decisione
 // cambia, cambia quel file — non questo script.
-const FASI: ProductStage[] = ['idea', 'prototipo', 'campionario', 'produzione', 'in_vendita', 'archivio']
+const FASI: ProductStage[] = ['idea', 'prototipo', 'campionario', 'produzione', 'completato', 'archivio']
 const faseIniziale = FASI.find((f) => (decisioni.productStageMapping ?? '').includes(f))
 if (!faseIniziale) {
   throw new Error(

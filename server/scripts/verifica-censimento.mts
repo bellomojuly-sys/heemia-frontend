@@ -81,7 +81,7 @@ const [capiDb, variantiDb, giacenzeDb, fornitoriDb, pezziLab, pezziMag, daConfer
     prisma.inventoryRecord.aggregate({ _sum: { qtaLaboratorio: true }, where: { variant: { sku: { in: sku } } } }),
     prisma.inventoryRecord.aggregate({ _sum: { qtaMagazzino: true }, where: { variant: { sku: { in: sku } } } }),
     prisma.inventoryRecord.count({ where: { variant: { sku: { in: sku } }, migrazioneCompletata: false } }),
-    prisma.product.count({ where: { codiceProdotto: { in: codici }, stato: { not: 'in_vendita' } } }),
+    prisma.product.count({ where: { codiceProdotto: { in: codici }, stato: { not: 'completato' } } }),
     prisma.product.count({ where: { codiceProdotto: { in: codici }, descrizioneBreve: { not: null } } }),
     prisma.product.count({ where: { codiceProdotto: { in: codici }, composizione: { not: null } } }),
     prisma.product.count({ where: { codiceProdotto: { in: codici }, consigliCuraStato: 'approvata' } }),

@@ -6,7 +6,7 @@
 //   margineNetto = prezzoNettoIva - costoTotale ; sottoSoglia = margine% < soglia
 import { Prisma, type TechnicalSheet } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
-import { notFound } from '../../core/errors.js'
+import { badRequest, conflict, notFound } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -134,27 +134,89 @@ export function listFixedCosts() {
   return prisma.fixedCostItem.findMany({ orderBy: { nome: 'asc' } })
 }
 
-export async function createFixedCost(nome: string, importoAnnuo: number, userId: string) {
+/**
+ * Riepilogo dei costi fissi pronto per le letture economiche: totale annuo, mensile,
+ * quota per capo e voci ordinate per peso.
+ *
+ * Esiste perché le domande vere non sono «quanto costa il commercialista» ma «quanto pesa
+ * il fisso al mese» e «quali tre voci fanno metà del totale»: dati che altrimenti ogni
+ * pagina — dashboard economica, break-even, report, AI Assistant — ricalcolerebbe per
+ * conto suo, con quattro occasioni di sbagliare invece di una.
+ */
+export async function riepilogoCostiFissi() {
+  const [voci, quota] = await Promise.all([listFixedCosts(), computeQuotaPerCapo()])
+  const totaleAnnuo = r2(voci.reduce((s, v) => s + Number(v.importoAnnuo), 0))
+  const perPeso = [...voci]
+    .map((v) => ({
+      id: v.id,
+      nome: v.nome,
+      importoAnnuo: Number(v.importoAnnuo),
+      importoMensile: r2(Number(v.importoAnnuo) / 12),
+      nota: v.nota,
+      percentuale: totaleAnnuo > 0 ? Math.round((Number(v.importoAnnuo) / totaleAnnuo) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.importoAnnuo - a.importoAnnuo)
+
+  return {
+    voci: perPeso,
+    totaleAnnuo,
+    totaleMensile: r2(totaleAnnuo / 12),
+    numeroVoci: voci.length,
+    capiProdottiAnnui: quota.capiProdottiAnnui,
+    quotaPerCapo: quota.quotaPerCapo,
+    // Detto esplicitamente invece di lasciare uno zero ambiguo: senza il numero di capi
+    // annui la quota è 0, e uno zero fa sembrare che i costi fissi non pesino.
+    quotaCalcolabile: quota.capiProdottiAnnui > 0,
+  }
+}
+
+export async function createFixedCost(
+  input: { nome: string; importoAnnuo: number; nota?: string },
+  userId: string,
+) {
+  const nome = input.nome.trim()
+  const esistente = await prisma.fixedCostItem.findUnique({ where: { nome } })
+  if (esistente) throw conflict(`Esiste già una voce di costo fisso «${nome}».`)
   return prisma.$transaction(async (tx) => {
     const created = await tx.fixedCostItem.create({
-      data: { nome, importoAnnuo: new Prisma.Decimal(importoAnnuo) },
+      data: { nome, importoAnnuo: new Prisma.Decimal(input.importoAnnuo), nota: input.nota?.trim() || null },
     })
-    await logActivity(tx, { userId, azione: 'create', entita: 'fixed_cost', entitaId: created.id, valoreNuovo: `${nome}: €${importoAnnuo}` })
+    await logActivity(tx, {
+      userId, azione: 'create', entita: 'fixed_cost', entitaId: created.id,
+      valoreNuovo: `${nome}: €${input.importoAnnuo}`,
+    })
     return created
   })
 }
 
-export async function updateFixedCost(id: string, importoAnnuo: number, userId: string) {
+export async function updateFixedCost(
+  id: string,
+  patch: { nome?: string; importoAnnuo?: number; nota?: string },
+  userId: string,
+) {
   const before = await prisma.fixedCostItem.findUnique({ where: { id } })
   if (!before) throw notFound('Voce di costo non trovata')
+
+  const data: Prisma.FixedCostItemUpdateInput = {}
+  if (patch.nome !== undefined) {
+    const nome = patch.nome.trim()
+    if (!nome) throw badRequest('Il nome della voce non può restare vuoto.')
+    if (nome !== before.nome) {
+      const omonima = await prisma.fixedCostItem.findUnique({ where: { nome } })
+      if (omonima) throw conflict(`Esiste già una voce di costo fisso «${nome}».`)
+    }
+    data.nome = nome
+  }
+  if (patch.importoAnnuo !== undefined) data.importoAnnuo = new Prisma.Decimal(patch.importoAnnuo)
+  if (patch.nota !== undefined) data.nota = patch.nota.trim() || null
+  if (Object.keys(data).length === 0) throw badRequest('Nessuna modifica indicata.')
+
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.fixedCostItem.update({
-      where: { id },
-      data: { importoAnnuo: new Prisma.Decimal(importoAnnuo) },
-    })
+    const updated = await tx.fixedCostItem.update({ where: { id }, data })
     await logActivity(tx, {
       userId, azione: 'update', entita: 'fixed_cost', entitaId: id,
-      valorePrecedente: `€${Number(before.importoAnnuo)}`, valoreNuovo: `€${importoAnnuo}`,
+      valorePrecedente: `${before.nome}: €${Number(before.importoAnnuo)}`,
+      valoreNuovo: `${updated.nome}: €${Number(updated.importoAnnuo)}`,
     })
     return updated
   })

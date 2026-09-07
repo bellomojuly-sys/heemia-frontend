@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
-import { authenticate, requireModule, requireEdit, requireRole } from '../../core/guards.js'
+import { authenticate, requireModule, requireEdit, requirePermesso } from '../../core/guards.js'
 import { badRequest } from '../../core/errors.js'
 import { TESSUTI, tessutoConosciuto } from '../../core/tessuti.js'
 import {
@@ -40,7 +40,7 @@ const createSchema = z.object({
 const PRODUCT_STAGES = [
   'idea', 'concept', 'sviluppo_modello', 'scelta_tessuto', 'scelta_accessori', 'prototipo',
   'campionario', 'produzione', 'foto_contenuti', 'scheda_ecommerce', 'pubblicato_shopify',
-  'in_vendita', 'archivio',
+  'completato', 'archivio',
 ] as const
 
 // Campi modificabili dal dettaglio prodotto (EditProductForm nel prototipo). Più ampi di
@@ -269,9 +269,13 @@ export async function productRoutes(app: FastifyInstance) {
     return getProduct(id)
   })
 
-  // Cancellazione di un capo: riservata ad Admin e CEO, non a tutto ciò che può scrivere.
-  // Le altre scritture si correggono, questa no — porta via varianti, schede e giacenze.
-  const elimina = { preHandler: [authenticate, requireModule('prodotti'), requireRole('admin', 'ceo')] }
+  // Cancellazione di un capo: permesso «eliminare» sul modulo prodotti, non un semplice
+  // «può scrivere». Le altre scritture si correggono, questa no — porta via varianti,
+  // schede e giacenze. Il ruolo che ce l'ha lo decide la matrice in Impostazioni; il
+  // valore predefinito resta admin e CEO (core/permissions.ts).
+  const elimina = {
+    preHandler: [authenticate, requireModule('prodotti'), requirePermesso('eliminare')],
+  }
 
   // Cosa succederebbe eliminando: serve alla conferma a schermo, che deve dire in anticipo
   // che cosa sparisce e se la cancellazione è possibile — senza doverla provare.

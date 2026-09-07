@@ -10,7 +10,7 @@ import { LoadingState } from '../../components/ui/States'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt, formatDateTimeIt } from '../../lib/format'
 import { useRole } from '../../context/RoleContext'
-import { canEdit } from '../../lib/permissions'
+import { canWrite } from '../../lib/permissions'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { RientroModal } from '../../components/lavorazioni/RientroModal'
 import { BollaPdfDocument } from '../../components/lavorazioni/BollaPdfDocument'
@@ -43,7 +43,7 @@ export function BollaDetail() {
   const { id } = useParams<{ id: string }>()
   const { role } = useRole()
   const { avvisa } = useGoatAlert()
-  const modificabile = canEdit(role)
+  const modificabile = canWrite(role, 'lavorazioni')
   const puoForzare = role === 'admin' || role === 'ceo'
 
   const { bolla, caricamento, errore, emetti, registraRientro, chiudi, annulla, salvaNote, allega } = useServerBolla(id)

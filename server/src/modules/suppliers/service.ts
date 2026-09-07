@@ -1,6 +1,6 @@
 // Fornitori (FR-25) e richieste fornitore / bozze email (FR-06). Porting fedele di
 // addSupplier, addSupplierRequest, setSupplierRequestStatus, updateSupplierRequestDraft dal DataStore.
-import { Prisma, type SupplierReqStato } from '@prisma/client'
+import { Prisma, type Supplier, type SupplierCategoria, type SupplierReqStato } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
 import { badRequest, conflict, notFound } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
@@ -14,11 +14,124 @@ export function listSuppliers(filters: { categoria?: string; q?: string }) {
   return prisma.supplier.findMany({ where, orderBy: { nome: 'asc' } })
 }
 
+export function getSupplier(id: string) {
+  return prisma.supplier.findUnique({ where: { id } })
+}
+
 export async function createSupplier(input: Prisma.SupplierCreateInput, userId: string) {
   return prisma.$transaction(async (tx) => {
     const created = await tx.supplier.create({ data: input })
     await logActivity(tx, { userId, azione: 'create', entita: 'supplier', entitaId: created.id, valoreNuovo: created.nome })
     return created
+  })
+}
+
+/**
+ * Modifica di un fornitore già in anagrafica (2026-09-07).
+ *
+ * Fino a ieri un fornitore si poteva solo creare: un numero di telefono sbagliato, una
+ * partita IVA arrivata dopo o una categoria scelta male si correggevano dal database. È
+ * il caso più comune di tutti, perché l'anagrafica del censimento è entrata incompleta
+ * per decisione (DEC-061: «i fornitori senza partita IVA entrano lo stesso, il dato si
+ * completa dopo») — e «dopo» non esisteva.
+ *
+ * Ogni campo è facoltativo, e una **stringa vuota significa svuotare il campo**, non
+ * «lascia com'è»: senza questa distinzione un dato messo per sbaglio non si potrebbe più
+ * togliere. Il nome e la categoria fanno eccezione, perché sono le due cose che rendono
+ * riconoscibile un fornitore: si cambiano, non si cancellano.
+ */
+const CAMPI_TESTO = [
+  'partitaIva', 'citta', 'paese', 'email', 'referente', 'telefono', 'condizioniPagamento', 'note',
+] as const
+
+export type SupplierPatch = Partial<
+  Record<(typeof CAMPI_TESTO)[number], string> & {
+    nome: string
+    categoria: SupplierCategoria
+    tempiMediConsegnaGg: number | null
+  }
+>
+
+export async function updateSupplier(id: string, patch: SupplierPatch, userId: string) {
+  const prima = await prisma.supplier.findUnique({ where: { id } })
+  if (!prima) throw notFound('Fornitore non trovato')
+
+  const data: Prisma.SupplierUpdateInput = {}
+  if (patch.nome !== undefined) {
+    const nome = patch.nome.trim()
+    if (!nome) throw badRequest('Il nome del fornitore non può restare vuoto.')
+    data.nome = nome
+  }
+  if (patch.categoria !== undefined) data.categoria = patch.categoria
+  for (const campo of CAMPI_TESTO) {
+    const valore = patch[campo]
+    if (valore === undefined) continue
+    const pulito = valore.trim()
+    // `paese` ha un default a schema: svuotarlo lo riporta lì invece di lasciarlo null.
+    if (campo === 'paese') {
+      data.paese = pulito || 'IT'
+      continue
+    }
+    ;(data as Record<string, unknown>)[campo] = pulito || null
+  }
+  if (patch.tempiMediConsegnaGg !== undefined) data.tempiMediConsegnaGg = patch.tempiMediConsegnaGg
+
+  if (Object.keys(data).length === 0) throw badRequest('Nessuna modifica indicata.')
+
+  return prisma.$transaction(async (tx) => {
+    const dopo = await tx.supplier.update({ where: { id }, data })
+    // Nel log finisce **cosa** è cambiato, non l'intera anagrafica: un diff si legge, una
+    // fotografia completa a ogni salvataggio no.
+    const campi: string[] = []
+    for (const [campo, valore] of Object.entries(data)) {
+      const vecchio = (prima as Record<string, unknown>)[campo]
+      if (String(vecchio ?? '') === String(valore ?? '')) continue
+      campi.push(`${campo}: «${vecchio ?? '–'}» → «${valore ?? '–'}»`)
+    }
+    if (campi.length > 0) {
+      await logActivity(tx, {
+        userId, azione: 'update', entita: 'supplier', entitaId: id,
+        valorePrecedente: prima.nome, valoreNuovo: campi.join(' · '),
+      })
+    }
+    return dopo
+  })
+}
+
+/**
+ * Quali informazioni mancano a un fornitore. Serve alla pagina Fornitori (che segnala le
+ * schede incomplete) e all'AI Assistant, che deve poter rispondere a «quali fornitori
+ * hanno informazioni mancanti?» con un elenco vero e non con una frase pronta.
+ *
+ * Il perché di ogni voce è quello che rende utile il dato: senza email non parte una
+ * richiesta, senza partita IVA la fattura elettronica non si aggancia al fornitore.
+ */
+export const CAMPI_ATTESI: { campo: keyof Supplier; etichetta: string; perche: string }[] = [
+  { campo: 'email', etichetta: 'Email', perche: 'senza indirizzo la richiesta di riordino non si può inviare' },
+  { campo: 'partitaIva', etichetta: 'Partita IVA', perche: "è la chiave con cui l'import fatture riconosce il fornitore" },
+  { campo: 'telefono', etichetta: 'Telefono', perche: 'unico contatto rapido quando la consegna è in ritardo' },
+  { campo: 'referente', etichetta: 'Referente', perche: 'a chi ci si rivolge in azienda' },
+  { campo: 'citta', etichetta: 'Città', perche: 'serve a stimare tempi e spedizioni' },
+  { campo: 'condizioniPagamento', etichetta: 'Condizioni di pagamento', perche: 'senza, la scadenza della fattura si scopre dalla fattura' },
+  { campo: 'tempiMediConsegnaGg', etichetta: 'Tempi medi di consegna', perche: 'senza non si sa quando riordinare' },
+]
+
+export function campiMancanti(supplier: Record<string, unknown>): { campo: string; etichetta: string; perche: string }[] {
+  return CAMPI_ATTESI.filter((c) => {
+    const v = supplier[c.campo]
+    return v === null || v === undefined || (typeof v === 'string' && v.trim() === '')
+  }).map(({ campo, etichetta, perche }) => ({ campo, etichetta, perche }))
+}
+
+export async function listSuppliersConCompletezza(filters: { categoria?: string; q?: string }) {
+  const righe = await listSuppliers(filters)
+  return righe.map((s) => {
+    const mancanti = campiMancanti(s as unknown as Record<string, unknown>)
+    return {
+      ...s,
+      campiMancanti: mancanti,
+      completo: mancanti.length === 0,
+    }
   })
 }
 

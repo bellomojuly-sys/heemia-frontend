@@ -9,10 +9,11 @@
 // perché chiunque abbia un accesso deve poter cambiare la propria password — viewer compreso.
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { authenticate, requireModule } from '../../core/guards.js'
+import { authenticate, requireEdit, requireModule, requirePermesso } from '../../core/guards.js'
 import { badRequest } from '../../core/errors.js'
 import {
-  RUOLI_INTERNI, changeOwnPassword, createUser, listUsers, resetPassword, updateUser,
+  RUOLI_INTERNI, changeOwnPassword, checkUserDeletion, createUser, deleteUser, listUsers,
+  resetPassword, updateUser,
 } from './service.js'
 
 const ruoloSchema = z.enum(RUOLI_INTERNI)
@@ -46,24 +47,47 @@ const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
 }
 
 export async function userRoutes(app: FastifyInstance) {
+  // Lettura dell'elenco; le scritture aggiungono `requireEdit`, che dal 2026-09-07
+  // controlla il permesso puntuale (creare / modificare / eliminare) sul modulo dichiarato
+  // da `requireModule`, non più un generico «il ruolo può scrivere».
   const admin = { preHandler: [authenticate, requireModule('utenti')] }
+  const scrivi = { preHandler: [authenticate, requireModule('utenti'), requireEdit] }
 
   app.get('/users', admin, async () => listUsers())
 
-  app.post('/users', admin, async (req, reply) => {
+  app.post('/users', scrivi, async (req, reply) => {
     const creato = await createUser(parse(createSchema, req.body), req.user!.id)
     reply.code(201)
     return creato
   })
 
-  app.patch('/users/:id', admin, async (req) => {
+  app.patch('/users/:id', scrivi, async (req) => {
     const { id } = req.params as { id: string }
     return updateUser(id, parse(updateSchema, req.body), req.user!.id)
   })
 
+  // Cosa si perde eliminando: la conferma a schermo deve poterlo dire prima. Sta sotto il
+  // permesso «eliminare» e non sotto la sola lettura, perché è la domanda che si fa solo
+  // chi sta per cancellare.
+  const elimina = { preHandler: [authenticate, requireModule('utenti'), requirePermesso('eliminare')] }
+
+  app.get('/users/:id/deletion-check', elimina, async (req) => {
+    const { id } = req.params as { id: string }
+    return checkUserDeletion(id, req.user!.id)
+  })
+
+  // `?conferma=storico` è il secondo sì, richiesto quando l'account ha firmato qualcosa.
+  // Le protezioni che NON si possono aggirare con un parametro — il proprio account e
+  // l'ultimo amministratore attivo — stanno nel servizio e rispondono 409.
+  app.delete('/users/:id', elimina, async (req) => {
+    const { id } = req.params as { id: string }
+    const { conferma } = req.query as { conferma?: string }
+    return deleteUser(id, req.user!.id, { confermaStorico: conferma === 'storico' })
+  })
+
   // Reimpostazione da amministratore: non chiede la password attuale (chi la reimposta è
   // proprio chi non la conosce) e chiude tutte le sessioni dell'utente.
-  app.post('/users/:id/password', admin, async (req) => {
+  app.post('/users/:id/password', scrivi, async (req) => {
     const { id } = req.params as { id: string }
     return resetPassword(id, parse(resetSchema, req.body).password, req.user!.id)
   })

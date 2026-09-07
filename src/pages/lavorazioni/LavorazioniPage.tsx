@@ -9,7 +9,7 @@ import { EmptyState } from '../../components/ui/States'
 import { StatusBadge } from '../../lib/statusBadge'
 import { formatDateIt } from '../../lib/format'
 import { useRole } from '../../context/RoleContext'
-import { canEdit } from '../../lib/permissions'
+import { canWrite } from '../../lib/permissions'
 import { useDataStore } from '../../context/DataStore'
 import { NuovaBollaForm } from '../../components/lavorazioni/NuovaBollaForm'
 import { useServerLavorazioni, type FiltriBolle } from '../../hooks/useServerLavorazioni'
@@ -33,7 +33,7 @@ export function LavorazioniPage() {
   const navigate = useNavigate()
   const { role } = useRole()
   const { suppliers } = useDataStore()
-  const modificabile = canEdit(role)
+  const modificabile = canWrite(role, 'lavorazioni')
 
   const [stato, setStato] = useState('')
   const [supplierId, setSupplierId] = useState('')

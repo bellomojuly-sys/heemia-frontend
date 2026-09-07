@@ -32,7 +32,7 @@ import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
 import { QuantitaInput } from '../../components/ui/QuantitaInput'
-import { canAccessModule, canDeleteProducts, canEdit } from '../../lib/permissions'
+import { canAccessModule, canDeleteProducts, canWrite } from '../../lib/permissions'
 import { DeleteProductModal } from '../../components/products/DeleteProductModal'
 
 // Ordine storico delle vecchie versioni: serve solo a scegliere quale scheda mostrare
@@ -144,7 +144,7 @@ export function ProductDetail() {
   const variants = productVariants.filter((v) => v.productId === product.id)
   const stockModello = variants.reduce((sum, v) => sum + v.stockDisponibile, 0)
   const canSeeEconomics = canAccessModule(role, 'costi-margini')
-  const userCanEdit = canEdit(role)
+  const userCanEdit = canWrite(role, 'prodotti')
 
   // Tab Tessuto: le schede nuove collegano tessuti e accessori nelle righe strutturate.
   // I tre array legacy restano come fallback per le vecchie schede già presenti.
@@ -309,7 +309,7 @@ export function ProductDetail() {
           <div className="flex items-center gap-2">
             <Badge variant="neutral">{product.linea === 'tessile' ? 'Tessile' : 'Maglieria'}</Badge>
             <StatusBadge status={product.statoPubblicazioneShopify} />
-            {canEdit(role) && <Button variant="secondary" onClick={() => setEditOpen(true)}>Modifica dati</Button>}
+            {canWrite(role, 'prodotti') && <Button variant="secondary" onClick={() => setEditOpen(true)}>Modifica dati</Button>}
             {/* Eliminazione (solo Admin/CEO): dopo la cancellazione il capo non esiste
                 più, quindi si torna all'anagrafica invece di restare su una pagina vuota. */}
             {canDeleteProducts(role) && (
@@ -587,7 +587,7 @@ export function ProductDetail() {
                         <p className="text-sm text-heemia-grey">Nessun PDF collegato per questa versione.</p>
                       )}
                     </div>
-                    {canEdit(role) && uploadingSheetId !== activeSheet.id && (
+                    {canWrite(role, 'prodotti') && uploadingSheetId !== activeSheet.id && (
                       <Button
                         variant="secondary"
                         onClick={() => {
@@ -740,7 +740,10 @@ export function ProductDetail() {
 
       {activeTab === 'produzione' && (
         <Card>
-          <CardHeader title="Pipeline produzione" subtitle="Avanzamento del capo tra le 13 fasi, con eventuale blocco per scheda tecnica assente." />
+          <CardHeader
+            title="Pipeline produzione"
+            subtitle="Avanzamento del capo lungo il percorso, con eventuale blocco per scheda tecnica assente. Completata la produzione il capo esce dalla pipeline ed entra nello stock."
+          />
           <div className="p-5">
             {step ? (
               <div>
@@ -749,8 +752,7 @@ export function ProductDetail() {
                   blocked={step.bloccata}
                   blockReason={step.motivoBlocco ?? checkAdvance(step, { materials, accessories, technicalSheets, products }).reason}
                 />
-                <div className="mt-5 grid grid-cols-2 gap-4 border-t border-heemia-border pt-4 sm:grid-cols-4">
-                  <DetailField label="Responsabile">{step.responsabile}</DetailField>
+                <div className="mt-5 grid grid-cols-2 gap-4 border-t border-heemia-border pt-4 sm:grid-cols-3">
                   <DetailField label="Iniziato il"><span className="font-mono-heemia">{step.dataInizio ? formatDateIt(step.dataInizio) : '–'}</span></DetailField>
                   <DetailField label="Stato">
                     {step.bloccata ? <span className="text-heemia-carmine">Bloccata</span> : 'In corso'}
@@ -819,7 +821,7 @@ export function ProductDetail() {
           <Card>
             <CardHeader title="Note operative" subtitle="Annotazioni libere di sessione: senza backend non vengono salvate al reload." />
             <div className="p-5">
-              {canEdit(role) ? (
+              {canWrite(role, 'prodotti') ? (
                 <div className="mb-4 flex flex-col gap-2">
                   <textarea
                     value={sessionNote}

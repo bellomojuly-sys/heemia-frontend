@@ -75,7 +75,7 @@ export interface Censimento {
   fornitori: RigaFornitore[]
   /** Capi esclusi dall'inventario iniziale per decisione (Denver e Moss, DEC-061 §12). */
   esclusiDallInventario: string[]
-  /** Fase in cui entrano i capi importati (DEC-061 §10: `in_vendita`). */
+  /** Fase in cui entrano i capi importati (DEC-061 §10, dal 2026-09-07: `completato`). */
   faseIniziale: ProductStage
 }
 

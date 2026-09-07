@@ -32,6 +32,15 @@
   --color-heemia-blue: #3f5a72;
   --color-heemia-blue-light: #e9eef2;
 
+  /* 2026-09-07 — quarta famiglia, per completare la codifica per area della dashboard.
+     Le aree dell'app sono quattro (Prodotto, Inventario, Economico, Relazioni) e i toni
+     erano tre: senza il quarto, due aree avrebbero condiviso lo stesso colore e la
+     codifica avrebbe smesso di dire qualcosa. Stessa desaturazione degli altri —
+     luminosità e croma allineate, così nessuno dei quattro salta all'occhio più degli
+     altri e il registro resta quello del sistema. */
+  --color-heemia-plum: #6b4a63;
+  --color-heemia-plum-light: #f1ebef;
+
   /* Sistema tipografico a tre ruoli: display per nomi propri e titoli (il "lookbook"),
      sans per l'interfaccia, mono per numeri/codici (il "registro"). Vedi UI_Design_System.md
      — back-office fashion, non gestionale generico.

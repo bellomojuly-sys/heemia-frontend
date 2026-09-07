@@ -12,7 +12,7 @@ export const products: Product[] = [
     vestibilita: 'Oversize', taglieDisponibili: ['XS', 'S', 'M', 'L', 'XL'], coloriDisponibili: ['Grigio melange', 'Nero'],
     immaginiUrl: [], prezzoVendita: 129.0, prezzoNettoIva: 105.74, prezzoShowroom: 99.0, prezzoConsigliato: 129.0,
     statoPubblicazioneShopify: 'pubblicato', disponibilitaOnline: true, disponibilitaShowroom: true, visibileShowroom: true,
-    linea: 'tessile', stato: 'in_vendita',
+    linea: 'tessile', stato: 'completato',
   },
   {
     id: 'prod-02', nome: 'Helsinki', codiceProdotto: 'HE-TES-HEL-01', categoria: 'Pantalone', collezione: 'Urban FW26',
@@ -38,7 +38,7 @@ export const products: Product[] = [
     vestibilita: 'Regular', taglieDisponibili: ['S', 'M', 'L', 'XL'], coloriDisponibili: ['Blu navy'],
     immaginiUrl: [], prezzoVendita: 0, prezzoNettoIva: 0, prezzoShowroom: 240.0, prezzoConsigliato: 260.0,
     statoPubblicazioneShopify: 'pubblicato', disponibilitaOnline: true, disponibilitaShowroom: true, visibileShowroom: true,
-    linea: 'tessile', stato: 'in_vendita',
+    linea: 'tessile', stato: 'completato',
   },
   {
     id: 'prod-05', nome: 'Maiorca Top', codiceProdotto: 'HE-MAG-MAI-01', categoria: 'Top', collezione: 'Knit FW26',
@@ -47,7 +47,7 @@ export const products: Product[] = [
     vestibilita: 'Slim', taglieDisponibili: ['XS', 'S', 'M'], coloriDisponibili: ['Grigio'],
     immaginiUrl: [], prezzoVendita: 89.0, prezzoNettoIva: 72.95, prezzoShowroom: 75.0, prezzoConsigliato: 95.0,
     statoPubblicazioneShopify: 'pubblicato', disponibilitaOnline: true, disponibilitaShowroom: true, visibileShowroom: true,
-    linea: 'maglieria', stato: 'in_vendita',
+    linea: 'maglieria', stato: 'completato',
   },
   {
     id: 'prod-06', nome: 'Amalfi Top', codiceProdotto: 'HE-MAG-AMA-01', categoria: 'Top', collezione: 'Knit FW26',
@@ -56,7 +56,7 @@ export const products: Product[] = [
     vestibilita: 'Regular', taglieDisponibili: ['S', 'M', 'L'], coloriDisponibili: ['Cammello'],
     immaginiUrl: [], prezzoVendita: 99.0, prezzoNettoIva: 81.15, prezzoShowroom: 85.0, prezzoConsigliato: 105.0,
     statoPubblicazioneShopify: 'pubblicato', disponibilitaOnline: true, disponibilitaShowroom: true, visibileShowroom: true,
-    linea: 'maglieria', stato: 'in_vendita',
+    linea: 'maglieria', stato: 'completato',
   },
   {
     id: 'prod-07', nome: 'Oslo', codiceProdotto: 'HE-MAG-OSL-01', categoria: 'Maglione', collezione: 'Knit FW26',
@@ -65,7 +65,7 @@ export const products: Product[] = [
     vestibilita: 'Oversize', taglieDisponibili: ['S', 'M', 'L', 'XL'], coloriDisponibili: ['Cammello', 'Blu navy'],
     immaginiUrl: [], prezzoVendita: 260.0, prezzoNettoIva: 213.11, prezzoShowroom: 220.0, prezzoConsigliato: 260.0,
     statoPubblicazioneShopify: 'pubblicato', disponibilitaOnline: true, disponibilitaShowroom: true, visibileShowroom: true,
-    linea: 'maglieria', stato: 'in_vendita',
+    linea: 'maglieria', stato: 'completato',
   },
   {
     id: 'prod-08', personalizzabileSuMisura: true, nome: 'Praga', codiceProdotto: 'HE-TES-PRA-01', categoria: 'Abito', collezione: 'Core FW26',

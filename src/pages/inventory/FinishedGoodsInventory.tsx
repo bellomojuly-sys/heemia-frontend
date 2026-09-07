@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowLeftRight, ArrowRight, History, X } from 'lucide-react'
+import { ArrowLeftRight, ArrowRight, History, LayoutList, Rows3, Search, X } from 'lucide-react'
 import { KpiTile } from '../../components/dashboard/KpiTile'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { StatusBadge } from '../../lib/statusBadge'
@@ -20,7 +20,9 @@ import { useDataStore } from '../../context/DataStore'
 import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
-import { canEdit } from '../../lib/permissions'
+import { canWrite } from '../../lib/permissions'
+import { InventoryTree } from '../../components/inventory/InventoryTree'
+import { FILTRI_ALBERO, costruisciAlbero, filtraAlbero, type FiltroAlbero } from '../../lib/inventarioAlbero'
 
 export function FinishedGoodsInventory() {
   const { role } = useRole()
@@ -29,7 +31,7 @@ export function FinishedGoodsInventory() {
     transferStock, loadStockMovements, sistemaDistribuzione, confermaDistribuzione, caricamento,
   } = useDataStore()
   const { avvisa } = useGoatAlert()
-  const userCanEdit = canEdit(role)
+  const userCanEdit = canWrite(role, 'inventario')
   const stock = getStockOverview(inventoryRecords)
 
   // Backlog "Note" §7: i KPI "Riservati al laboratorio" e "In magazzino" della dashboard
@@ -42,6 +44,29 @@ export function FinishedGoodsInventory() {
     return inventoryRecords
   }, [inventoryRecords, vista])
   const vistaLabel = vista === 'laboratorio' ? 'Solo capi in laboratorio' : vista === 'magazzino' ? 'Solo capi in magazzino' : null
+
+  // Come si consulta lo stock. La vista gerarchica (Prodotto → colore → taglia) è quella
+  // predefinita: risponde alla domanda che ci si fa più spesso — «quanto abbiamo di questo
+  // capo, e di che colore» — che nella tabella piatta richiedeva di scorrere 828 righe e
+  // sommare a mente. La tabella resta, invariata, per il lavoro su una variante precisa.
+  const gerarchica = searchParams.get('modo') !== 'tabella'
+  const filtroAlbero = (searchParams.get('filtro') ?? 'tutti') as FiltroAlbero
+  const [ricerca, setRicerca] = useState('')
+  const cambiaParam = (chiave: string, valore: string, predefinito: string) => {
+    const p = new URLSearchParams(searchParams)
+    if (valore === predefinito) p.delete(chiave)
+    else p.set(chiave, valore)
+    setSearchParams(p, { replace: true })
+  }
+
+  const { albero, orfani } = useMemo(
+    () => costruisciAlbero(righe, productVariants, products),
+    [righe, productVariants, products],
+  )
+  const alberoVisibile = useMemo(
+    () => filtraAlbero(albero, filtroAlbero, ricerca),
+    [albero, filtroAlbero, ricerca],
+  )
 
   const [trasferimento, setTrasferimento] = useState<{ record: InventoryRecord; direzione: TransferDirezione } | null>(null)
   const [storico, setStorico] = useState<InventoryRecord | null>(null)
@@ -308,15 +333,18 @@ export function FinishedGoodsInventory() {
 
   return (
     <div>
-      <p className="mb-4 text-sm text-heemia-grey">Stock per variante, separato dai materiali. Le quantità sono modificabili e collegate alle varianti in Anagrafica prodotti.</p>
+      <p className="mb-4 text-sm text-heemia-grey">
+        Stock dei capi finiti, separato dai materiali: <span className="text-heemia-black">prodotto → colore → taglia → quantità per
+        ubicazione</span>. Le quantità sono modificabili e collegate alle varianti in Anagrafica prodotti.
+      </p>
 
       <div className="mb-6 flex flex-wrap gap-3">
-        <KpiTile label="Disponibile" value={stock.disponibile} tooltip="Magazzino + laboratorio: tutti i capi finiti in casa." />
-        <KpiTile label="In magazzino" value={stock.inMagazzino} />
-        <KpiTile label="In laboratorio" value={stock.inLaboratorio} />
-        <KpiTile label="In produzione" value={stock.inProduzione} tooltip="Capi mandati in lavorazione: escono dal laboratorio e ci rientrano quando sono terminati." />
-        <KpiTile label="Da reintegrare" value={stock.daReintegrare} critical={stock.daReintegrare > 0} tooltip="Varianti con la scorta di laboratorio sotto soglia." />
-        <KpiTile label="Esaurito" value={stock.esaurito} critical={stock.esaurito > 0} />
+        <KpiTile area="inventario" label="Disponibile" value={stock.disponibile} tooltip="Magazzino + laboratorio: tutti i capi finiti in casa." />
+        <KpiTile area="inventario" label="In magazzino" value={stock.inMagazzino} />
+        <KpiTile area="inventario" label="In laboratorio" value={stock.inLaboratorio} />
+        <KpiTile area="inventario" label="In produzione" value={stock.inProduzione} tooltip="Capi mandati in lavorazione: escono dal laboratorio e ci rientrano quando sono terminati." />
+        <KpiTile area="inventario" label="Da reintegrare" value={stock.daReintegrare} critical={stock.daReintegrare > 0} tooltip="Varianti con la scorta di laboratorio sotto soglia." />
+        <KpiTile area="inventario" label="Esaurito" value={stock.esaurito} critical={stock.esaurito > 0} />
       </div>
 
       {daMigrare.length > 0 && (
@@ -361,10 +389,79 @@ export function FinishedGoodsInventory() {
         </div>
       )}
 
-      <DataTable
-        loading={caricamento} columns={columns} rows={righe} keyExtractor={(r) => r.id}
-        emptyTitle="Nessuna variante"
-        emptyDescription={vistaLabel ? 'Nessuna variante ha pezzi in questa ubicazione.' : 'Non ci sono varianti a magazzino.'} />
+      {/* Selettore della vista + ricerca + filtro. Sopra la vista gerarchica perché sono
+          il modo in cui la si consulta, non filtri che cambiano i dati. */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 rounded-heemia-sm border border-heemia-border bg-white px-2.5 py-1.5">
+            <Search aria-hidden className="h-3.5 w-3.5 text-heemia-grey" />
+            <input
+              value={ricerca}
+              onChange={(e) => setRicerca(e.target.value)}
+              placeholder="Cerca capo, SKU, colore o taglia…"
+              aria-label="Cerca nell'inventario"
+              className="w-56 bg-transparent text-xs text-heemia-black placeholder:text-heemia-grey-light focus:outline-none"
+            />
+          </label>
+          <label
+            title={FILTRI_ALBERO.find((f) => f.id === filtroAlbero)?.descrizione}
+            className="flex items-center gap-1.5 rounded-heemia-sm border border-heemia-border bg-white py-1 pl-2.5 pr-1"
+          >
+            <span className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Mostra</span>
+            <select
+              value={filtroAlbero}
+              onChange={(e) => cambiaParam('filtro', e.target.value, 'tutti')}
+              className="bg-transparent py-0.5 pr-1 text-xs font-medium text-heemia-black focus:outline-none"
+            >
+              {FILTRI_ALBERO.map((f) => (
+                <option key={f.id} value={f.id}>{f.label}</option>
+              ))}
+            </select>
+          </label>
+          <p className="text-xs text-heemia-grey">
+            {alberoVisibile.length} {alberoVisibile.length === 1 ? 'capo' : 'capi'} ·{' '}
+            {alberoVisibile.reduce((n, x) => n + x.varianti, 0)} varianti
+          </p>
+        </div>
+
+        <div className="flex rounded-heemia-sm border border-heemia-border bg-white p-0.5">
+          <SelettoreVista attiva={gerarchica} onClick={() => cambiaParam('modo', 'gerarchica', 'gerarchica')} titolo="Prodotto → colore → taglia">
+            <Rows3 className="h-3.5 w-3.5" /> Gerarchica
+          </SelettoreVista>
+          <SelettoreVista attiva={!gerarchica} onClick={() => cambiaParam('modo', 'tabella', 'gerarchica')} titolo="Una riga per variante, tutte le colonne">
+            <LayoutList className="h-3.5 w-3.5" /> Tabella
+          </SelettoreVista>
+        </div>
+      </div>
+
+      {/* Una giacenza senza variante o senza capo è un'anomalia: si mostra, non si nasconde. */}
+      {gerarchica && orfani.length > 0 && (
+        <p className="mb-3 rounded-heemia-sm border border-heemia-carmine/30 bg-heemia-carmine-light px-3 py-2 text-xs text-heemia-carmine">
+          {orfani.length} {orfani.length === 1 ? 'giacenza non è collegata' : 'giacenze non sono collegate'} a una variante
+          esistente: si vedono nella vista Tabella.
+        </p>
+      )}
+
+      {gerarchica ? (
+        <InventoryTree
+          albero={alberoVisibile}
+          caricamento={caricamento}
+          modificabile={userCanEdit}
+          onQuantita={(r, patch) =>
+            salva(updateVariantQuantities(r.variantId, patch), 'Non è stato possibile aggiornare la quantità.')
+          }
+          onDistribuzione={(record, ubicazione, quantita) => setDistribuzione({ record, ubicazione, quantita })}
+          onTrasferimento={(record, direzione) => setTrasferimento({ record, direzione })}
+          onStorico={setStorico}
+          onDettaglioLab={setLabDetail}
+          onConfermaDistribuzione={(r) => void conferma(r)}
+        />
+      ) : (
+        <DataTable
+          loading={caricamento} columns={columns} rows={righe} keyExtractor={(r) => r.id}
+          emptyTitle="Nessuna variante"
+          emptyDescription={vistaLabel ? 'Nessuna variante ha pezzi in questa ubicazione.' : 'Non ci sono varianti a magazzino.'} />
+      )}
 
       {trasferimento && (
         <StockTransferModal
@@ -412,6 +509,33 @@ export function FinishedGoodsInventory() {
         />
       )}
     </div>
+  )
+}
+
+/** Pulsante del selettore gerarchica/tabella: l'attivo si legge a colpo d'occhio. */
+function SelettoreVista({
+  attiva,
+  onClick,
+  titolo,
+  children,
+}: {
+  attiva: boolean
+  onClick: () => void
+  titolo: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={titolo}
+      aria-pressed={attiva}
+      className={`inline-flex items-center gap-1.5 rounded-heemia-xs px-2.5 py-1 text-xs font-medium transition-all duration-200 ease-heemia ${
+        attiva ? 'bg-heemia-black text-white' : 'text-heemia-grey hover:text-heemia-black'
+      }`}
+    >
+      {children}
+    </button>
   )
 }
 

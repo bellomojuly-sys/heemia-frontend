@@ -11,7 +11,9 @@ import { StatusBadge } from '../../lib/statusBadge'
 import { formatCurrency, formatDateIt } from '../../lib/format'
 import type { Customer, TipologiaCliente } from '../../types'
 import { useRole } from '../../context/RoleContext'
-import { canEdit } from '../../lib/permissions'
+import { Trash2 } from 'lucide-react'
+import { canDeleteModule, canWrite } from '../../lib/permissions'
+import { DeleteCustomerModal } from '../../components/customers/DeleteCustomerModal'
 import { useDataStore, type NewCustomerInput, type NewOrderInput } from '../../context/DataStore'
 
 const TIPOLOGIA_LABEL: Record<string, string> = {
@@ -125,6 +127,8 @@ export function CustomerList() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [addCustomerOpen, setAddCustomerOpen] = useState(false)
   const [addOrderOpen, setAddOrderOpen] = useState(false)
+  const [daEliminare, setDaEliminare] = useState<Customer | null>(null)
+  const puoEliminare = canDeleteModule(role, 'clienti')
 
   const rows = useMemo(
     () =>
@@ -144,6 +148,26 @@ export function CustomerList() {
     { header: 'Valore acquistato', accessor: (c) => formatCurrency(c.valoreTotaleAcquistato), align: 'right' },
     { header: 'Ordini', accessor: (c) => c.numeroOrdini, align: 'right' },
     { header: 'Sconto', accessor: (c) => (c.sconto ? `${c.sconto}%` : '–'), align: 'right' },
+    // Elimina cliente. `stopPropagation` perché il clic sulla riga apre il dettaglio:
+    // senza, aprire la conferma aprirebbe anche la scheda sotto.
+    ...(puoEliminare
+      ? [
+          {
+            header: '',
+            accessor: (c: Customer) => (
+              <button
+                type="button"
+                title={`Elimina ${c.nome}`}
+                aria-label={`Elimina ${c.nome}`}
+                onClick={(e) => { e.stopPropagation(); setDaEliminare(c) }}
+                className="rounded-heemia-sm border border-transparent p-1.5 text-heemia-grey transition-all duration-200 ease-heemia hover:border-heemia-carmine/40 hover:bg-heemia-carmine-light/60 hover:text-heemia-carmine"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            ),
+          },
+        ]
+      : []),
   ]
 
   const expandedCustomer = customers.find((c) => c.id === expandedId)
@@ -159,7 +183,7 @@ export function CustomerList() {
       <PageHeader
         title="Clienti"
         subtitle="E-commerce, showroom, B2B e retailer."
-        action={canEdit(role) ? <Button onClick={() => setAddCustomerOpen(true)}>Aggiungi cliente</Button> : undefined}
+        action={canWrite(role, 'clienti') ? <Button onClick={() => setAddCustomerOpen(true)}>Aggiungi cliente</Button> : undefined}
       />
       <Toolbar
         search={search}
@@ -181,7 +205,7 @@ export function CustomerList() {
         <div className="mt-4 animate-rise rounded-heemia-lg border border-heemia-border bg-white p-5 shadow-heemia-sm">
           <div className="mb-3 flex items-center justify-between gap-4">
             <p className="font-display text-heemia-black">Ordini di {expandedCustomer.nome}</p>
-            {canEdit(role) && <Button variant="secondary" onClick={() => setAddOrderOpen(true)}>Aggiungi ordine</Button>}
+            {canWrite(role, 'clienti') && <Button variant="secondary" onClick={() => setAddOrderOpen(true)}>Aggiungi ordine</Button>}
           </div>
           {expandedOrders.length === 0 ? (
             <p className="text-sm text-heemia-grey">Nessun ordine registrato.</p>
@@ -229,6 +253,16 @@ export function CustomerList() {
       )}
 
       {addCustomerOpen && <AddCustomerForm onClose={() => setAddCustomerOpen(false)} onSubmit={addCustomer} />}
+
+      {daEliminare && (
+        <DeleteCustomerModal
+          cliente={daEliminare}
+          onClose={() => setDaEliminare(null)}
+          // Il dettaglio aperto sotto era quello del cliente appena eliminato: lasciarlo
+          // mostrerebbe gli ordini di qualcuno che non c'è più.
+          onDeleted={() => { if (expandedId === daEliminare.id) setExpandedId(null) }}
+        />
+      )}
       {addOrderOpen && expandedCustomer && (
         <AddOrderForm
           customerName={expandedCustomer.nome}

@@ -8,8 +8,10 @@ import {
   getProductionDetail, listProduction, setStepBlock,
 } from './service.js'
 
+// Il «responsabile» di fase è stato tolto il 2026-09-07: chi ha fatto avanzare un capo
+// sta nell'activity log, che non si riscrive. Resta la nota, che è un'informazione sul
+// capo e non sulla persona.
 const advanceSchema = z.object({
-  responsabile: z.string().optional(),
   note: z.string().optional(),
 })
 

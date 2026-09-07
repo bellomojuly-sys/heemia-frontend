@@ -100,11 +100,11 @@ export function AnalyticsPage() {
           </p>
 
           <div className="mb-4 flex flex-wrap gap-3">
-            <KpiTile label="Utenti" value={numero(dati.totali.utenti)} tooltip={confronto('utenti', dati.totali.utenti, dati.totaliPrecedenti.utenti)} />
-            <KpiTile label="Sessioni" value={numero(dati.totali.sessioni)} tooltip={confronto('sessioni', dati.totali.sessioni, dati.totaliPrecedenti.sessioni)} />
-            <KpiTile label="Nuovi utenti" value={numero(dati.totali.nuoviUtenti)} tooltip={confronto('nuovi utenti', dati.totali.nuoviUtenti, dati.totaliPrecedenti.nuoviUtenti)} />
-            <KpiTile label="Ricavi" value={formatCurrency(dati.totali.ricavi)} tooltip={confronto('ricavi', dati.totali.ricavi, dati.totaliPrecedenti.ricavi)} />
-            <KpiTile label="Tasso di conversione" value={percento(dati.totali.tassoConversione)} tooltip="Acquisti diviso sessioni, nel periodo scelto." />
+            <KpiTile area="relazioni" label="Utenti" value={numero(dati.totali.utenti)} tooltip={confronto('utenti', dati.totali.utenti, dati.totaliPrecedenti.utenti)} />
+            <KpiTile area="relazioni" label="Sessioni" value={numero(dati.totali.sessioni)} tooltip={confronto('sessioni', dati.totali.sessioni, dati.totaliPrecedenti.sessioni)} />
+            <KpiTile area="relazioni" label="Nuovi utenti" value={numero(dati.totali.nuoviUtenti)} tooltip={confronto('nuovi utenti', dati.totali.nuoviUtenti, dati.totaliPrecedenti.nuoviUtenti)} />
+            <KpiTile area="relazioni" label="Ricavi" value={formatCurrency(dati.totali.ricavi)} tooltip={confronto('ricavi', dati.totali.ricavi, dati.totaliPrecedenti.ricavi)} />
+            <KpiTile area="relazioni" label="Tasso di conversione" value={percento(dati.totali.tassoConversione)} tooltip="Acquisti diviso sessioni, nel periodo scelto." />
           </div>
 
           <Card className="mb-4">
