@@ -15,7 +15,10 @@ const statoEnum = z.enum(['disponibile', 'sotto_soglia', 'esaurito', 'da_verific
 const materialCreate = z.object({
   nome: z.string().min(1),
   codice: z.string().min(1),
-  supplierId: z.string().uuid().optional(),
+  // `null` significa **scollega**, `undefined` significa «lascia com'era». Senza la
+  // distinzione un fornitore associato per sbaglio non si poteva più togliere: si
+  // poteva solo sostituire con un altro.
+  supplierId: z.string().uuid().nullable().optional(),
   composizione: z.string().optional(),
   colore: z.string().optional(),
   altezzaCm: z.number().nonnegative().optional(),
@@ -36,7 +39,10 @@ const accessoryCreate = z.object({
   nome: z.string().min(1),
   codice: z.string().min(1),
   categoria: z.string().optional(),
-  supplierId: z.string().uuid().optional(),
+  // `null` significa **scollega**, `undefined` significa «lascia com'era». Senza la
+  // distinzione un fornitore associato per sbaglio non si poteva più togliere: si
+  // poteva solo sostituire con un altro.
+  supplierId: z.string().uuid().nullable().optional(),
   quantitaAcquistata: z.number().nonnegative().optional(),
   quantitaUtilizzata: z.number().nonnegative().optional(),
   costoUnitario: z.number().nonnegative().optional(),
@@ -108,7 +114,10 @@ export async function materialRoutes(app: FastifyInstance) {
       metriUtilizzati: dec(d.metriUtilizzati),
       sogliaMinima: dec(d.sogliaMinima),
       dataAcquisto: dataAcquisto ? new Date(dataAcquisto) : undefined,
-      supplier: supplierId ? { connect: { id: supplierId } } : undefined,
+      supplier:
+        supplierId === undefined ? undefined
+        : supplierId ? { connect: { id: supplierId } }
+        : { disconnect: true },
       fattura: fatturaId ? { connect: { id: fatturaId } } : undefined,
     }
     return updateMaterial(id, data, req.user!.id)
@@ -157,7 +166,10 @@ export async function materialRoutes(app: FastifyInstance) {
       quantitaUtilizzata: dec(d.quantitaUtilizzata),
       costoUnitario: dec(d.costoUnitario),
       sogliaMinima: dec(d.sogliaMinima),
-      supplier: supplierId ? { connect: { id: supplierId } } : undefined,
+      supplier:
+        supplierId === undefined ? undefined
+        : supplierId ? { connect: { id: supplierId } }
+        : { disconnect: true },
       fattura: fatturaId ? { connect: { id: fatturaId } } : undefined,
     }
     return updateAccessory(id, data, req.user!.id)

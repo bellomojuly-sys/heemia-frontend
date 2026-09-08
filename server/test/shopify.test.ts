@@ -16,13 +16,18 @@ import test, { afterEach, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 
-const { shopifyGraphQL } = await import('../src/modules/shopify/client.js')
+const { shopifyGraphQL, azzeraTokenShopifyPerTest } = await import('../src/modules/shopify/client.js')
 const { firmaValida } = await import('../src/modules/shopify/webhooks.js')
+const { config } = await import('../src/core/config.js')
 
 const fetchOriginale = globalThis.fetch
 
 afterEach(() => {
   globalThis.fetch = fetchOriginale
+  config.shopifyAdminApiToken = 'shpat_finto_per_i_test'
+  config.shopifyClientId = ''
+  config.shopifyClientSecret = ''
+  azzeraTokenShopifyPerTest()
 })
 
 /** Sostituisce `fetch` con una sequenza di risposte, e conta quante volte è stato chiamato. */
@@ -70,6 +75,55 @@ describe('Firma dei webhook Shopify', () => {
 })
 
 describe('Chiamate alla GraphQL Admin API', () => {
+  test('con Client Credentials ottiene il token e lo riusa finché è valido', async () => {
+    config.shopifyAdminApiToken = ''
+    config.shopifyClientId = 'client-id-finto'
+    config.shopifyClientSecret = 'client-secret-finto'
+    azzeraTokenShopifyPerTest()
+
+    const urlChiamati: string[] = []
+    globalThis.fetch = (async (input, init) => {
+      const url = String(input)
+      urlChiamati.push(url)
+      if (url.endsWith('/admin/oauth/access_token')) {
+        assert.deepEqual(JSON.parse(String(init?.body)), {
+          client_id: 'client-id-finto',
+          client_secret: 'client-secret-finto',
+          grant_type: 'client_credentials',
+        })
+        return new Response(JSON.stringify({ access_token: 'token-dinamico', expires_in: 86_399 }), { status: 200 })
+      }
+      assert.equal(new Headers(init?.headers).get('X-Shopify-Access-Token'), 'token-dinamico')
+      return new Response(JSON.stringify({ data: { shop: { name: 'Heemia' } } }), { status: 200 })
+    }) as typeof fetch
+
+    await shopifyGraphQL('query { shop { name } }')
+    await shopifyGraphQL('query { shop { name } }')
+
+    assert.equal(urlChiamati.filter((url) => url.endsWith('/admin/oauth/access_token')).length, 1)
+    assert.equal(urlChiamati.length, 3)
+  })
+
+  test('credenziali Client Credentials rifiutate producono un errore leggibile', async () => {
+    config.shopifyAdminApiToken = ''
+    config.shopifyClientId = 'client-id-finto'
+    config.shopifyClientSecret = 'client-secret-errato'
+    azzeraTokenShopifyPerTest()
+    const chiamate = fingiFetch([
+      { stato: 400, corpo: { error: 'invalid_client', error_description: 'Client authentication failed' } },
+    ])
+
+    await assert.rejects(
+      () => shopifyGraphQL('query { shop { name } }'),
+      (err: Error & { code?: string }) => {
+        assert.equal(err.code, 'SHOPIFY_BAD_CREDENTIALS')
+        assert.match(err.message, /Client ID|Client Secret/i)
+        return true
+      },
+    )
+    assert.equal(chiamate.n, 1)
+  })
+
   test('una risposta buona torna come dati, con una sola chiamata', async () => {
     const chiamate = fingiFetch([{ stato: 200, corpo: { data: { shop: { name: 'Heemia' } } } }])
     const dati = await shopifyGraphQL<{ shop: { name: string } }>('query { shop { name } }')

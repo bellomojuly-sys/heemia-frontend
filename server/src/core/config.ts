@@ -81,6 +81,10 @@ export const config = {
   // (FR-16). È lo stesso tipo di credenziale di Analytics e una sola può servire a
   // entrambe le cose: per questo `GA_CREDENTIALS_JSON` vale anche qui come ripiego.
   googleServiceAccountJson: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? '',
+  // Percorso dedicato alle credenziali OAuth locali di Drive. Tenerlo separato da
+  // GOOGLE_APPLICATION_CREDENTIALS evita di far risultare configurato anche Analytics
+  // quando il refresh token autorizza esclusivamente lo scope drive.readonly.
+  driveCredentialsFile: process.env.GOOGLE_DRIVE_CREDENTIALS_FILE ?? '',
   // Google Analytics 4 (backlog "note" §10-11). Come la chiave OpenAI: NON obbligatorie.
   // Senza credenziali il server parte lo stesso e solo /analytics/* risponde che manca la
   // configurazione. `gaCredentialsJson` è il JSON del service account su una riga; in
@@ -106,8 +110,13 @@ export const config = {
   // La versione API è fissata (Shopify ne pubblica una nuova ogni trimestre e quelle
   // vecchie scadono): resta una variabile per poterla alzare senza toccare il codice.
   shopifyStoreDomain: (process.env.SHOPIFY_STORE_DOMAIN ?? '').trim().replace(/^https?:\/\//, '').replace(/\/$/, ''),
+  // Le nuove app create dal Dev Dashboard non espongono più un token Admin statico:
+  // il backend scambia Client ID e Client Secret per un token valido 24 ore e lo rinnova
+  // automaticamente. Il vecchio token resta supportato per le app legacy già esistenti.
+  shopifyClientId: process.env.SHOPIFY_CLIENT_ID ?? '',
+  shopifyClientSecret: process.env.SHOPIFY_CLIENT_SECRET ?? '',
   shopifyAdminApiToken: process.env.SHOPIFY_ADMIN_API_TOKEN ?? '',
-  shopifyApiVersion: process.env.SHOPIFY_API_VERSION ?? '2026-04',
+  shopifyApiVersion: process.env.SHOPIFY_API_VERSION?.trim() || '2026-04',
   // Firma dei webhook: senza, un webhook in arrivo non è distinguibile da una richiesta
   // qualunque. Si controlla quando i webhook verranno accesi, non all'avvio.
   shopifyWebhookSecret: process.env.SHOPIFY_WEBHOOK_SECRET ?? '',

@@ -12,8 +12,23 @@ import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
 import { canWrite } from '../../lib/permissions'
+import { Pencil } from 'lucide-react'
+import { Badge } from '../../components/ui/Badge'
 import { useDataStore, type NewMaterialInput } from '../../context/DataStore'
 
+/**
+ * Scheda tessuto: **lo stesso form crea e modifica**.
+ *
+ * Prima si poteva solo aggiungere, e il fornitore era obbligatorio. Due difetti che si
+ * sommavano: il listino materiali del censimento porta il costo ma non dice da chi si
+ * compra (Data_Census §10), quindi quelle righe sono entrate senza fornitore — in uno stato
+ * che questo form non avrebbe permesso di creare e non offriva modo di correggere. La
+ * conseguenza pratica arriva quando la scorta scende sotto soglia: «Genera richiesta»
+ * risponde «non ha un fornitore associato» e non parte niente.
+ *
+ * Ora il fornitore è facoltativo e si collega quando si sa. Svuotare il menu lo **scollega**
+ * davvero: nel corpo della richiesta parte `null`, non un campo mancante.
+ */
 const emptyForm = {
   nome: '',
   codice: '',
@@ -26,17 +41,40 @@ const emptyForm = {
   sogliaMinima: '',
 }
 
-function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewMaterialInput) => void | Promise<unknown> }) {
+function datiDaMateriale(m: Material): typeof emptyForm {
+  return {
+    nome: m.nome,
+    codice: m.codice,
+    supplierId: m.supplierId || '',
+    composizione: m.composizione || '',
+    colore: m.colore || '',
+    altezzaCm: m.altezzaCm != null ? String(m.altezzaCm) : '',
+    prezzoAlMetro: String(m.prezzoAlMetro ?? ''),
+    metriAcquistati: String(m.metriAcquistati ?? ''),
+    sogliaMinima: String(m.sogliaMinima ?? ''),
+  }
+}
+
+function MaterialForm({
+  materiale,
+  onClose,
+  onSubmit,
+}: {
+  /** Assente = nuovo tessuto. Presente = modifica di quello esistente. */
+  materiale?: Material
+  onClose: () => void
+  onSubmit: (input: NewMaterialInput) => void | Promise<unknown>
+}) {
   const { suppliers } = useDataStore()
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(() => (materiale ? datiDaMateriale(materiale) : emptyForm))
+  const modifica = Boolean(materiale)
 
   const { errori, inCorso, submit, pulisci } = useFormSubmit<
-    'nome' | 'codice' | 'supplierId' | 'prezzoAlMetro' | 'metriAcquistati' | 'sogliaMinima' | 'altezzaCm'
+    'nome' | 'codice' | 'prezzoAlMetro' | 'metriAcquistati' | 'sogliaMinima' | 'altezzaCm'
   >(
     () => ({
       nome: regole.obbligatorio(form.nome, 'Il nome del tessuto'),
       codice: regole.obbligatorio(form.codice, 'Il codice'),
-      supplierId: form.supplierId ? undefined : 'Scegli il fornitore.',
       prezzoAlMetro: regole.numeroPositivo(form.prezzoAlMetro, 'Il prezzo al metro'),
       metriAcquistati: regole.numeroPositivo(form.metriAcquistati, 'I metri acquistati'),
       sogliaMinima: regole.numeroPositivo(form.sogliaMinima, 'La soglia minima'),
@@ -59,17 +97,29 @@ function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
   )
 
   return (
-    <Modal title="Aggiungi tessuto" onClose={onClose}>
+    <Modal
+      title={modifica ? `Modifica ${materiale!.nome}` : 'Aggiungi tessuto'}
+      subtitle="Il fornitore si può collegare adesso o più avanti: senza, la richiesta di riordino non parte."
+      onClose={onClose}
+    >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nome tessuto" required error={errori.nome}>
           <input className={campoClass(errori.nome)} value={form.nome} onChange={(e) => { setForm({ ...form, nome: e.target.value }); pulisci('nome') }} />
         </Field>
-        <Field label="Codice" required error={errori.codice}>
-          <input className={campoClass(errori.codice)} value={form.codice} onChange={(e) => { setForm({ ...form, codice: e.target.value }); pulisci('codice') }} placeholder="TES-XXX-01" />
+        {/* Il codice è la chiave con cui l'import del listino riconosce una riga: in
+            modifica non si tocca, altrimenti al rilancio nascerebbe un doppione. */}
+        <Field label="Codice" required={!modifica} error={errori.codice} hint={modifica ? 'Non si cambia: è la chiave con cui la riga viene riconosciuta.' : undefined}>
+          <input
+            className={campoClass(errori.codice)}
+            value={form.codice}
+            disabled={modifica}
+            onChange={(e) => { setForm({ ...form, codice: e.target.value }); pulisci('codice') }}
+            placeholder="TES-XXX-01"
+          />
         </Field>
-        <Field label="Fornitore" required error={errori.supplierId}>
-          <select className={campoClass(errori.supplierId)} value={form.supplierId} onChange={(e) => { setForm({ ...form, supplierId: e.target.value }); pulisci('supplierId') }}>
-            <option value="">Seleziona…</option>
+        <Field label="Fornitore" hint="Lascia vuoto se non lo sai ancora; svuotarlo lo scollega.">
+          <select className={fieldClass} value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
+            <option value="">Nessuno</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
         </Field>
@@ -94,7 +144,9 @@ function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
       </div>
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
-        <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva tessuto'}</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>
+          {inCorso ? 'Salvataggio…' : modifica ? 'Salva modifiche' : 'Salva tessuto'}
+        </Button>
       </FormActions>
     </Modal>
   )
@@ -103,11 +155,13 @@ function AddMaterialForm({ onClose, onSubmit }: { onClose: () => void; onSubmit:
 export function FabricsInventory() {
   const { role } = useRole()
   const navigate = useNavigate()
-  const { materials, suppliers, products, invoices, addMaterial, addSupplierRequest, caricamento } = useDataStore()
+  const { materials, suppliers, products, invoices, addMaterial, updateMaterial, addSupplierRequest, caricamento } = useDataStore()
   const { avvisa } = useGoatAlert()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [addOpen, setAddOpen] = useState(false)
+  const [daModificare, setDaModificare] = useState<Material | null>(null)
+  const modificabile = canWrite(role, 'inventario')
 
   const rows = useMemo(
     () =>
@@ -129,7 +183,15 @@ export function FabricsInventory() {
         </div>
       ),
     },
-    { header: 'Fornitore', accessor: (m) => suppliers.find((s) => s.id === m.supplierId)?.nome ?? '–' },
+    {
+      // Un trattino non distingue «non lo so» da «non serve». Il badge sì, ed è la riga
+      // su cui il riordino automatico si ferma.
+      header: 'Fornitore',
+      accessor: (m) => {
+        const f = suppliers.find((s) => s.id === m.supplierId)
+        return f ? f.nome : <Badge variant="warning-outline">Da collegare</Badge>
+      },
+    },
     { header: 'Colore', accessor: (m) => m.colore },
     { header: 'Prezzo/m', accessor: (m) => formatCurrency(m.prezzoAlMetro), align: 'right' },
     {
@@ -168,6 +230,21 @@ export function FabricsInventory() {
     },
   ]
 
+  const colonne: typeof columns = modificabile
+    ? [
+        ...columns,
+        {
+          header: '',
+          accessor: (m: Material) => (
+            <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setDaModificare(m) }}>
+              <Pencil aria-hidden className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
+              Modifica
+            </Button>
+          ),
+        },
+      ]
+    : columns
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-4">
@@ -194,7 +271,7 @@ export function FabricsInventory() {
       />
       <DataTable
         loading={caricamento}
-        columns={columns}
+        columns={colonne}
         rows={rows}
         keyExtractor={(m) => m.id}
         emptyTitle="Nessun tessuto trovato"
@@ -224,7 +301,27 @@ export function FabricsInventory() {
         }}
       />
 
-      {addOpen && <AddMaterialForm onClose={() => setAddOpen(false)} onSubmit={addMaterial} />}
+      {addOpen && <MaterialForm onClose={() => setAddOpen(false)} onSubmit={addMaterial} />}
+
+      {daModificare && (
+        <MaterialForm
+          materiale={daModificare}
+          onClose={() => setDaModificare(null)}
+          onSubmit={async (input) => {
+            const { codice: _codice, ...patch } = input
+            try {
+              await updateMaterial(daModificare.id, patch)
+            } catch (e) {
+              // Il form non si chiude su un salvataggio rifiutato: chi ha appena scritto
+              // non deve riscrivere per leggere l'errore.
+              avvisa('salvataggio', {
+                testo: e instanceof ApiError ? e.message : 'Non è stato possibile salvare il tessuto.',
+              })
+              throw e
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

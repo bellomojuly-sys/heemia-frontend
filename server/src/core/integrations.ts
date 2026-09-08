@@ -28,6 +28,8 @@ type Definizione = {
   riferimento: string
   /** Valori letti davvero (stessa lunghezza di `variabili`): vuoto = mancante. */
   valori: () => string[]
+  /** Eccezioni come Shopify, che accetta credenziali nuove oppure legacy. */
+  calcolaMancanti?: () => string[]
 }
 
 const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
@@ -55,11 +57,21 @@ const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
   shopify: {
     nome: 'Shopify',
     scopo: 'sincronizzazione di prodotti e giacenze con il negozio online (FR-17)',
-    // Il secret dei webhook non serve alle chiamate in uscita: si controlla a parte,
-    // quando i webhook verranno accesi (verificaWebhookShopify).
-    variabili: ['SHOPIFY_STORE_DOMAIN', 'SHOPIFY_ADMIN_API_TOKEN'],
+    // Le app nuove usano Client ID + Client Secret; il token Admin statico resta una
+    // compatibilità per le vecchie custom app. Il secret dei webhook si controlla a parte.
+    variabili: ['SHOPIFY_STORE_DOMAIN', 'SHOPIFY_CLIENT_ID', 'SHOPIFY_CLIENT_SECRET'],
     riferimento: 'Integrazioni_Setup.md §3',
-    valori: () => [config.shopifyStoreDomain, config.shopifyAdminApiToken],
+    valori: () => [config.shopifyStoreDomain, config.shopifyClientId, config.shopifyClientSecret],
+    calcolaMancanti: () => {
+      const mancanti: string[] = []
+      if (!config.shopifyStoreDomain.trim()) mancanti.push('SHOPIFY_STORE_DOMAIN')
+      const credenzialeNuova = config.shopifyClientId.trim() && config.shopifyClientSecret.trim()
+      if (!credenzialeNuova && !config.shopifyAdminApiToken.trim()) {
+        if (!config.shopifyClientId.trim()) mancanti.push('SHOPIFY_CLIENT_ID')
+        if (!config.shopifyClientSecret.trim()) mancanti.push('SHOPIFY_CLIENT_SECRET')
+      }
+      return mancanti
+    },
   },
   drive: {
     nome: 'Google Drive (foto dei capi)',
@@ -68,7 +80,12 @@ const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
     // anche per Drive, basta condividergli la cartella.
     variabili: ['GOOGLE_SERVICE_ACCOUNT_JSON'],
     riferimento: 'Integrazioni_Setup.md §6',
-    valori: () => [config.googleServiceAccountJson || config.gaCredentialsJson || config.gaCredentialsFile],
+    valori: () => [
+      config.googleServiceAccountJson ||
+        config.gaCredentialsJson ||
+        config.driveCredentialsFile ||
+        config.gaCredentialsFile,
+    ],
   },
   analytics: {
     nome: 'Google Analytics 4',
@@ -84,6 +101,7 @@ const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
 /** Variabili d'ambiente ancora da compilare per questa integrazione. */
 export function mancanti(chiave: IntegrazioneKey): string[] {
   const def = DEFINIZIONI[chiave]
+  if (def.calcolaMancanti) return def.calcolaMancanti()
   return def.variabili.filter((_, i) => !def.valori()[i]?.trim())
 }
 

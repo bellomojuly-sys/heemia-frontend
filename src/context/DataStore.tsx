@@ -148,6 +148,21 @@ function payloadFornitore(input: Partial<NewSupplierInput>): Record<string, unkn
   return payload
 }
 
+/**
+ * Dal form all'API per tessuti e accessori.
+ *
+ * Traduce una cosa sola, ma è quella che il JSON non sa esprimere da sé: nel form il
+ * fornitore «nessuno» è una stringa vuota, mentre il server distingue `null` (scollega) da
+ * campo assente (lascia com'era). Senza questa riga, svuotare il menu a tendina non
+ * toglierebbe niente — il campo sparirebbe dal corpo JSON e il server lo leggerebbe come
+ * «non toccare».
+ */
+function payloadScorta(patch: Record<string, unknown>): Record<string, unknown> {
+  const payload = { ...patch }
+  if ('supplierId' in payload) payload.supplierId = payload.supplierId || null
+  return payload
+}
+
 let idCounter = 0
 function genId(prefix: string): string {
   idCounter += 1
@@ -170,7 +185,12 @@ export interface NewProductInput {
 export interface NewMaterialInput {
   nome: string
   codice: string
-  supplierId: string
+  /**
+   * Facoltativo: un tessuto entra anche senza sapere da chi si compra, e il fornitore si
+   * collega dopo. È il caso del listino materiali del censimento, che il costo lo dice e
+   * il fornitore no (Data_Census §10): 30 righe su 31 sono entrate così.
+   */
+  supplierId?: string
   composizione: string
   colore: string
   altezzaCm?: number
@@ -183,11 +203,22 @@ export interface NewAccessoryInput {
   nome: string
   codice: string
   categoria: string
-  supplierId: string
+  /** Facoltativo, come per i tessuti: si collega quando si sa da chi si compra. */
+  supplierId?: string
   costoUnitario: number
   quantitaAcquistata: number
   sogliaMinima: number
 }
+
+/**
+ * Modifica di un tessuto o di un accessorio già in magazzino.
+ *
+ * Ogni campo è facoltativo: si corregge quello che serve, quando il dato arriva. Per il
+ * fornitore la distinzione conta: **stringa vuota = scollega**, campo assente = lascia
+ * com'era. Senza, un fornitore associato per sbaglio non si potrebbe più togliere.
+ */
+export type MaterialPatch = Partial<Omit<NewMaterialInput, 'codice'>>
+export type AccessoryPatch = Partial<Omit<NewAccessoryInput, 'codice'>>
 
 export interface NewInvoiceInput {
   numero: string
@@ -490,6 +521,10 @@ interface DataStoreValue {
   approvaCampione: (productId: string, note?: string) => Promise<void>
   addMaterial: (input: NewMaterialInput) => Promise<Material>
   addAccessory: (input: NewAccessoryInput) => Promise<Accessory>
+  /** Correzione di un tessuto già in magazzino, fornitore compreso. */
+  updateMaterial: (id: string, patch: MaterialPatch) => Promise<void>
+  /** Correzione di un accessorio già in magazzino, fornitore compreso. */
+  updateAccessory: (id: string, patch: AccessoryPatch) => Promise<void>
   addInvoice: (input: NewInvoiceInput) => Promise<Invoice>
   addSupplier: (input: NewSupplierInput) => Promise<Supplier>
   /** Correzione o completamento di un fornitore già registrato. */
@@ -915,6 +950,14 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       // Il server rifiuta con 409 se manca un documento, elencando cosa manca.
       approvaCampione: async (productId, note) => {
         await persisti(api.post(`/production/${productId}/approve-sample`, { note }))
+      },
+
+      updateMaterial: async (id, patch) => {
+        await persisti(api.patch<Row>(`/materials/${id}`, payloadScorta(patch)))
+      },
+
+      updateAccessory: async (id, patch) => {
+        await persisti(api.patch<Row>(`/accessories/${id}`, payloadScorta(patch)))
       },
 
       addMaterial: async (input) => {

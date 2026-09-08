@@ -22,7 +22,8 @@ const SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 
 const NON_CONFIGURATO =
   'Lettura di Google Drive non attiva: manca il service account (GOOGLE_SERVICE_ACCOUNT_JSON, ' +
-  'oppure GA_CREDENTIALS_JSON già usato per Analytics). Procedura: Integrazioni_Setup.md §6. ' +
+  'GA_CREDENTIALS_JSON già usato per Analytics, oppure GOOGLE_DRIVE_CREDENTIALS_FILE in locale). ' +
+  'Procedura: Integrazioni_Setup.md §6. ' +
   'Nel frattempo le foto si collegano una per una con il link del singolo file.'
 
 /** Il JSON del service account, da qualunque variabile arrivi. */
@@ -31,7 +32,7 @@ function credenziali(): string {
 }
 
 export function driveConfigurato(): boolean {
-  return Boolean(credenziali() || config.gaCredentialsFile)
+  return Boolean(credenziali() || config.driveCredentialsFile || config.gaCredentialsFile)
 }
 
 let auth: GoogleAuth | null = null
@@ -67,8 +68,10 @@ function getAuth(): GoogleAuth {
         },
       })
     } else {
-      // GOOGLE_APPLICATION_CREDENTIALS: il percorso lo legge la libreria da sé.
-      auth = new GoogleAuth({ scopes: [SCOPE] })
+      // Il percorso dedicato mantiene separato l'OAuth locale di Drive da Analytics.
+      // GOOGLE_APPLICATION_CREDENTIALS resta supportato per i service account condivisi.
+      const keyFile = config.driveCredentialsFile || config.gaCredentialsFile
+      auth = new GoogleAuth({ scopes: [SCOPE], keyFile })
     }
   }
   return auth

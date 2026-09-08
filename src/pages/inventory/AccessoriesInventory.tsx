@@ -12,8 +12,19 @@ import { useRole } from '../../context/RoleContext'
 import { useGoatAlert } from '../../context/GoatAlertContext'
 import { ApiError } from '../../lib/api'
 import { canWrite } from '../../lib/permissions'
+import { Pencil } from 'lucide-react'
+import { Badge } from '../../components/ui/Badge'
 import { useDataStore, type NewAccessoryInput } from '../../context/DataStore'
 
+/**
+ * Scheda accessorio: **lo stesso form crea e modifica**, come per i tessuti.
+ *
+ * Il fornitore era obbligatorio in creazione, ma 19 dei 20 accessori a magazzino sono
+ * entrati dal listino del censimento senza: il documento dice il costo, non da chi si
+ * compra (Data_Census §10). Erano quindi in uno stato che questo form non avrebbe
+ * permesso di creare e non offriva modo di correggere — e senza fornitore il pulsante
+ * «Genera richiesta» si rifiuta di partire.
+ */
 const emptyForm = {
   nome: '',
   codice: '',
@@ -24,17 +35,38 @@ const emptyForm = {
   sogliaMinima: '',
 }
 
-function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (input: NewAccessoryInput) => void | Promise<unknown> }) {
+function datiDaAccessorio(a: Accessory): typeof emptyForm {
+  return {
+    nome: a.nome,
+    codice: a.codice,
+    categoria: a.categoria || '',
+    supplierId: a.supplierId || '',
+    costoUnitario: String(a.costoUnitario ?? ''),
+    quantitaAcquistata: String(a.quantitaAcquistata ?? ''),
+    sogliaMinima: String(a.sogliaMinima ?? ''),
+  }
+}
+
+function AccessoryForm({
+  accessorio,
+  onClose,
+  onSubmit,
+}: {
+  /** Assente = nuovo accessorio. Presente = modifica di quello esistente. */
+  accessorio?: Accessory
+  onClose: () => void
+  onSubmit: (input: NewAccessoryInput) => void | Promise<unknown>
+}) {
   const { suppliers } = useDataStore()
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(() => (accessorio ? datiDaAccessorio(accessorio) : emptyForm))
+  const modifica = Boolean(accessorio)
 
   const { errori, inCorso, submit, pulisci } = useFormSubmit<
-    'nome' | 'codice' | 'supplierId' | 'costoUnitario' | 'quantitaAcquistata' | 'sogliaMinima'
+    'nome' | 'codice' | 'costoUnitario' | 'quantitaAcquistata' | 'sogliaMinima'
   >(
     () => ({
       nome: regole.obbligatorio(form.nome, "Il nome dell'accessorio"),
       codice: regole.obbligatorio(form.codice, 'Il codice'),
-      supplierId: form.supplierId ? undefined : 'Scegli il fornitore.',
       costoUnitario: regole.numeroPositivo(form.costoUnitario, 'Il costo unitario'),
       quantitaAcquistata: regole.numeroPositivo(form.quantitaAcquistata, 'La quantità acquistata'),
       sogliaMinima: regole.numeroPositivo(form.sogliaMinima, 'La soglia minima'),
@@ -54,20 +86,32 @@ function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit
   )
 
   return (
-    <Modal title="Aggiungi accessorio" onClose={onClose}>
+    <Modal
+      title={modifica ? `Modifica ${accessorio!.nome}` : 'Aggiungi accessorio'}
+      subtitle="Il fornitore si può collegare adesso o più avanti: senza, la richiesta di riordino non parte."
+      onClose={onClose}
+    >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nome" required error={errori.nome}>
           <input className={campoClass(errori.nome)} value={form.nome} onChange={(e) => { setForm({ ...form, nome: e.target.value }); pulisci('nome') }} />
         </Field>
-        <Field label="Codice" required error={errori.codice}>
-          <input className={campoClass(errori.codice)} value={form.codice} onChange={(e) => { setForm({ ...form, codice: e.target.value }); pulisci('codice') }} placeholder="ACC-XXX-01" />
+        {/* Il codice è la chiave con cui l'import del listino riconosce una riga: in
+            modifica non si tocca, altrimenti al rilancio nascerebbe un doppione. */}
+        <Field label="Codice" required={!modifica} error={errori.codice} hint={modifica ? 'Non si cambia: è la chiave con cui la riga viene riconosciuta.' : undefined}>
+          <input
+            className={campoClass(errori.codice)}
+            value={form.codice}
+            disabled={modifica}
+            onChange={(e) => { setForm({ ...form, codice: e.target.value }); pulisci('codice') }}
+            placeholder="ACC-XXX-01"
+          />
         </Field>
         <Field label="Categoria">
           <input className={fieldClass} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} placeholder="Bottoni, zip, etichette…" />
         </Field>
-        <Field label="Fornitore" required error={errori.supplierId}>
-          <select className={campoClass(errori.supplierId)} value={form.supplierId} onChange={(e) => { setForm({ ...form, supplierId: e.target.value }); pulisci('supplierId') }}>
-            <option value="">Seleziona…</option>
+        <Field label="Fornitore" hint="Lascia vuoto se non lo sai ancora; svuotarlo lo scollega.">
+          <select className={fieldClass} value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
+            <option value="">Nessuno</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
         </Field>
@@ -83,7 +127,9 @@ function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit
       </div>
       <FormActions>
         <Button variant="ghost" onClick={onClose} disabled={inCorso}>Annulla</Button>
-        <Button onClick={() => void submit()} disabled={inCorso}>{inCorso ? 'Salvataggio…' : 'Salva accessorio'}</Button>
+        <Button onClick={() => void submit()} disabled={inCorso}>
+          {inCorso ? 'Salvataggio…' : modifica ? 'Salva modifiche' : 'Salva accessorio'}
+        </Button>
       </FormActions>
     </Modal>
   )
@@ -92,11 +138,13 @@ function AddAccessoryForm({ onClose, onSubmit }: { onClose: () => void; onSubmit
 export function AccessoriesInventory() {
   const { role } = useRole()
   const navigate = useNavigate()
-  const { accessories, suppliers, products, invoices, addAccessory, addSupplierRequest, caricamento } = useDataStore()
+  const { accessories, suppliers, products, invoices, addAccessory, updateAccessory, addSupplierRequest, caricamento } = useDataStore()
   const { avvisa } = useGoatAlert()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
   const [addOpen, setAddOpen] = useState(false)
+  const [daModificare, setDaModificare] = useState<Accessory | null>(null)
+  const modificabile = canWrite(role, 'inventario')
 
   const rows = useMemo(
     () =>
@@ -119,7 +167,15 @@ export function AccessoriesInventory() {
       ),
     },
     { header: 'Categoria', accessor: (a) => a.categoria },
-    { header: 'Fornitore', accessor: (a) => suppliers.find((s) => s.id === a.supplierId)?.nome ?? '–' },
+    {
+      // Un trattino non distingue «non lo so» da «non serve». Il badge sì, ed è la riga
+      // su cui il riordino automatico si ferma.
+      header: 'Fornitore',
+      accessor: (a) => {
+        const f = suppliers.find((s) => s.id === a.supplierId)
+        return f ? f.nome : <Badge variant="warning-outline">Da collegare</Badge>
+      },
+    },
     { header: 'Costo unitario', accessor: (a) => formatCurrency(a.costoUnitario), align: 'right' },
     {
       header: 'Integri',
@@ -157,6 +213,21 @@ export function AccessoriesInventory() {
     },
   ]
 
+  const colonne: typeof columns = modificabile
+    ? [
+        ...columns,
+        {
+          header: '',
+          accessor: (a: Accessory) => (
+            <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setDaModificare(a) }}>
+              <Pencil aria-hidden className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
+              Modifica
+            </Button>
+          ),
+        },
+      ]
+    : columns
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-4">
@@ -183,7 +254,7 @@ export function AccessoriesInventory() {
       />
       <DataTable
         loading={caricamento}
-        columns={columns}
+        columns={colonne}
         rows={rows}
         keyExtractor={(a) => a.id}
         emptyTitle="Nessun accessorio trovato"
@@ -209,7 +280,27 @@ export function AccessoriesInventory() {
         }}
       />
 
-      {addOpen && <AddAccessoryForm onClose={() => setAddOpen(false)} onSubmit={addAccessory} />}
+      {addOpen && <AccessoryForm onClose={() => setAddOpen(false)} onSubmit={addAccessory} />}
+
+      {daModificare && (
+        <AccessoryForm
+          accessorio={daModificare}
+          onClose={() => setDaModificare(null)}
+          onSubmit={async (input) => {
+            const { codice: _codice, ...patch } = input
+            try {
+              await updateAccessory(daModificare.id, patch)
+            } catch (e) {
+              // Il form non si chiude su un salvataggio rifiutato: chi ha appena scritto
+              // non deve riscrivere per leggere l'errore.
+              avvisa('salvataggio', {
+                testo: e instanceof ApiError ? e.message : "Non è stato possibile salvare l'accessorio.",
+              })
+              throw e
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

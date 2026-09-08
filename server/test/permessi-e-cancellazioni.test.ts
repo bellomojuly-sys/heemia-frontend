@@ -26,6 +26,8 @@ const emailCreate: string[] = []
 const prodottiCreati: string[] = []
 const clientiCreati: string[] = []
 const fornitoriCreati: string[] = []
+const materialiCreati: string[] = []
+const accessoriCreati: string[] = []
 
 let adminId = ''
 let secondoAdminId = ''
@@ -79,6 +81,9 @@ after(async () => {
   await prisma.product.deleteMany({ where: { id: { in: prodottiCreati } } })
   await prisma.order.deleteMany({ where: { customerId: { in: clientiCreati } } })
   await prisma.customer.deleteMany({ where: { id: { in: clientiCreati } } })
+  await prisma.accessory.deleteMany({ where: { id: { in: accessoriCreati } } })
+  await prisma.material.deleteMany({ where: { id: { in: materialiCreati } } })
+  await prisma.supplierRequest.deleteMany({ where: { supplierId: { in: fornitoriCreati } } })
   await prisma.supplier.deleteMany({ where: { id: { in: fornitoriCreati } } })
 
   const ids = await prisma.user.findMany({ where: { email: { in: emailCreate } }, select: { id: true } })
@@ -346,6 +351,60 @@ describe('Fornitori: modifica e completezza', () => {
     fornitoriCreati.push(id)
     const esito = await patch(`/api/v1/suppliers/${id}`, cookieAdmin, { nome: '   ' })
     assert.equal(esito.statusCode, 400)
+  })
+})
+
+describe('Tessuti e accessori: il fornitore si collega dopo', () => {
+  test('un accessorio nasce senza fornitore, lo si collega e lo si scollega', async () => {
+    const fornitore = await prisma.supplier.create({ data: { nome: `${RUN} lavorante`, categoria: 'Accessori' } })
+    fornitoriCreati.push(fornitore.id)
+
+    // Il listino del censimento porta il costo ma non dice da chi si compra
+    // (Data_Census §10): un accessorio deve poter entrare senza fornitore.
+    const creato = await post('/api/v1/accessories', cookieAdmin, {
+      nome: `${RUN} bottone`, codice: `${RUN}-ACC`, costoUnitario: 0.4, quantitaAcquistata: 100, sogliaMinima: 10,
+    })
+    assert.equal(creato.statusCode, 201)
+    const id = creato.json().id as string
+    accessoriCreati.push(id)
+    assert.equal(creato.json().supplierId, null)
+
+    // Senza fornitore la richiesta di riordino non parte: è la ragione per cui il
+    // collegamento tardivo serve davvero.
+    const senza = await post('/api/v1/supplier-requests', cookieAdmin, { accessoryId: id })
+    assert.equal(senza.statusCode, 400)
+    assert.match(senza.json().error.message, /non ha un fornitore associato/i)
+
+    // Si collega dopo.
+    assert.equal((await patch(`/api/v1/accessories/${id}`, cookieAdmin, { supplierId: fornitore.id })).statusCode, 200)
+    assert.equal((await get(`/api/v1/accessories/${id}`, cookieAdmin)).json().supplierId, fornitore.id)
+
+    // E `null` lo scollega: un fornitore messo per sbaglio si deve poter togliere, non
+    // solo sostituire con un altro.
+    assert.equal((await patch(`/api/v1/accessories/${id}`, cookieAdmin, { supplierId: null })).statusCode, 200)
+    assert.equal((await get(`/api/v1/accessories/${id}`, cookieAdmin)).json().supplierId, null)
+  })
+
+  test('lo stesso vale per un tessuto', async () => {
+    const fornitore = await prisma.supplier.create({ data: { nome: `${RUN} tessitura`, categoria: 'Tessuti' } })
+    fornitoriCreati.push(fornitore.id)
+
+    const creato = await post('/api/v1/materials', cookieAdmin, {
+      nome: `${RUN} tessuto`, codice: `${RUN}-MAT`, prezzoAlMetro: 12, metriAcquistati: 50, sogliaMinima: 5,
+    })
+    assert.equal(creato.statusCode, 201)
+    const id = creato.json().id as string
+    materialiCreati.push(id)
+    assert.equal(creato.json().supplierId, null)
+
+    assert.equal((await patch(`/api/v1/materials/${id}`, cookieAdmin, { supplierId: fornitore.id })).statusCode, 200)
+    assert.equal((await get(`/api/v1/materials/${id}`, cookieAdmin)).json().supplierId, fornitore.id)
+
+    // Una modifica che NON nomina il fornitore lo lascia dov'è: `undefined` non è `null`.
+    assert.equal((await patch(`/api/v1/materials/${id}`, cookieAdmin, { colore: 'Grigio' })).statusCode, 200)
+    const dopo = (await get(`/api/v1/materials/${id}`, cookieAdmin)).json()
+    assert.equal(dopo.supplierId, fornitore.id)
+    assert.equal(dopo.colore, 'Grigio')
   })
 })
 

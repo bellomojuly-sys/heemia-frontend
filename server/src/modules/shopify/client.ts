@@ -25,8 +25,87 @@ type Risposta<T> = {
   extensions?: { cost?: { throttleStatus?: { currentlyAvailable: number; maximumAvailable: number } } }
 }
 
+type RispostaToken = {
+  access_token?: string
+  expires_in?: number
+  scope?: string
+  error?: string
+  error_description?: string
+}
+
+const MARGINE_SCADENZA_TOKEN_MS = 5 * 60 * 1000
+let tokenInCache: { valore: string; scadeAlle: number } | null = null
+let richiestaTokenInCorso: Promise<string> | null = null
+
 function endpoint(): string {
   return `https://${config.shopifyStoreDomain}/admin/api/${config.shopifyApiVersion}/graphql.json`
+}
+
+function endpointToken(): string {
+  return `https://${config.shopifyStoreDomain}/admin/oauth/access_token`
+}
+
+function erroreToken(stato: number, payload: RispostaToken | null): AppError {
+  const dettaglio = payload?.error_description || payload?.error || `HTTP ${stato}`
+  if (stato === 400 || stato === 401 || stato === 403) {
+    return new AppError(
+      502,
+      'Shopify non ha accettato Client ID e Client Secret. Controlla le credenziali del Dev Dashboard, ' +
+        `che l'app sia installata sul negozio e che il negozio appartenga alla stessa organizzazione (${dettaglio}).`,
+      'SHOPIFY_BAD_CREDENTIALS',
+    )
+  }
+  return new AppError(502, `Shopify non ha rilasciato il token di accesso (${dettaglio}).`, 'SHOPIFY_TOKEN_ERROR')
+}
+
+async function richiediNuovoToken(): Promise<string> {
+  let risposta: Response
+  try {
+    risposta = await fetch(endpointToken(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: config.shopifyClientId,
+        client_secret: config.shopifyClientSecret,
+        grant_type: 'client_credentials',
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  } catch (err) {
+    throw erroreDiRete(err)
+  }
+
+  const payload = (await risposta.json().catch(() => null)) as RispostaToken | null
+  if (!risposta.ok) throw erroreToken(risposta.status, payload)
+  if (!payload?.access_token) {
+    throw new AppError(502, 'Shopify ha risposto senza un token di accesso.', 'SHOPIFY_TOKEN_ERROR')
+  }
+
+  const durataSecondi = Number.isFinite(payload.expires_in) ? Number(payload.expires_in) : 86_399
+  tokenInCache = {
+    valore: payload.access_token,
+    scadeAlle: Date.now() + Math.max(0, durataSecondi * 1000 - MARGINE_SCADENZA_TOKEN_MS),
+  }
+  return payload.access_token
+}
+
+async function tokenAccesso(): Promise<string> {
+  // Compatibilità con le vecchie custom app che espongono ancora un token statico.
+  if (config.shopifyAdminApiToken.trim()) return config.shopifyAdminApiToken
+  if (tokenInCache && tokenInCache.scadeAlle > Date.now()) return tokenInCache.valore
+
+  if (!richiestaTokenInCorso) {
+    richiestaTokenInCorso = richiediNuovoToken().finally(() => {
+      richiestaTokenInCorso = null
+    })
+  }
+  return richiestaTokenInCorso
+}
+
+/** Esportata solo per rendere isolate e deterministiche le prove del rinnovo token. */
+export function azzeraTokenShopifyPerTest(): void {
+  tokenInCache = null
+  richiestaTokenInCorso = null
 }
 
 function attesa(ms: number): Promise<void> {
@@ -56,9 +135,9 @@ function traduciStato(stato: number, corpo: string): AppError {
   if (stato === 401 || stato === 403) {
     return new AppError(
       502,
-      'Shopify ha rifiutato il token (' + stato + '). Le due cause tipiche: il token della custom app non è più ' +
-        'valido, oppure non ha gli scope necessari (read_products, write_products, read_orders, read_inventory, ' +
-        'write_inventory). Procedura: Integrazioni_Setup.md §3.',
+      'Shopify ha rifiutato l\'accesso (' + stato + '). Le cause tipiche sono credenziali non valide, app non ' +
+        'installata oppure scope mancanti (read_products, write_products, read_orders, read_inventory, ' +
+        'write_inventory, read_locations). Procedura: Integrazioni_Setup.md §3.',
       'SHOPIFY_BAD_TOKEN',
     )
   }
@@ -86,15 +165,19 @@ export async function shopifyGraphQL<T>(query: string, variables: Record<string,
   richiediConfigurata('shopify')
 
   let ultimo: AppError | null = null
+  let tokenRinnovatoDopo401 = false
 
   for (let tentativo = 1; tentativo <= TENTATIVI; tentativo += 1) {
+    // L'errore di autenticazione del token è già tradotto e non è un errore di rete:
+    // deve uscire subito, senza essere trasformato e ritentato quattro volte.
+    const accessToken = await tokenAccesso()
     let risposta: Response
     try {
       risposta = await fetch(endpoint(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': config.shopifyAdminApiToken,
+          'X-Shopify-Access-Token': accessToken,
         },
         body: JSON.stringify({ query, variables }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -103,6 +186,14 @@ export async function shopifyGraphQL<T>(query: string, variables: Record<string,
       ultimo = erroreDiRete(err)
       if (tentativo === TENTATIVI) throw ultimo
       await attesa(ritardo(tentativo, null))
+      continue
+    }
+
+    // Un token ottenuto con Client Credentials dura 24 ore. Se Shopify lo revoca prima
+    // del previsto, lo si rinnova una sola volta; un secondo 401 è un errore reale.
+    if (risposta.status === 401 && !config.shopifyAdminApiToken.trim() && !tokenRinnovatoDopo401) {
+      azzeraTokenShopifyPerTest()
+      tokenRinnovatoDopo401 = true
       continue
     }
 
