@@ -14,6 +14,7 @@
 import OpenAI from 'openai'
 import { AppError, badRequest } from '../../core/errors.js'
 import { config } from '../../core/config.js'
+import { leggiCredenziale } from '../../core/credenziali.js'
 import {
   DDT_RIENTRO_PROMPT,
   ddtRientroSchema,
@@ -151,7 +152,7 @@ export async function scanDdtRientro(
     ? { type: 'input_file' as const, filename: nomeFile, file_data: fileData }
     : { type: 'input_image' as const, image_url: fileData, detail: 'high' as const }
   const contestoTesto = JSON.stringify(contesto, null, 2)
-  const openai = getClient()
+  const openai = await getClient()
 
   try {
     const response = await openai.responses.create({
@@ -269,7 +270,7 @@ export async function suggestMeasurements(input: MeasurementsInput): Promise<Mea
     .filter(Boolean)
     .join('\n')
 
-  const openai = getClient()
+  const openai = await getClient()
   try {
     const response = await openai.responses.create({
       model: config.openaiModel,
@@ -292,17 +293,60 @@ export async function suggestMeasurements(input: MeasurementsInput): Promise<Mea
   }
 }
 
+/**
+ * Client OpenAI dell'azienda.
+ *
+ * La chiave si legge **a ogni chiamata** (`leggiCredenziale`, che va a database): è il
+ * motivo per cui questa funzione è diventata `async`. Serve perché dal 2026-09-09 la
+ * chiave la inserisce la CEO da Impostazioni → Integrazioni: una chiave cambiata alle 15
+ * deve valere alle 15, non al riavvio successivo del server.
+ *
+ * Il client vero resta riusato finché la chiave non cambia: `chiaveDelClient` è il
+ * confronto che fa scattare la sostituzione. Senza, una chiave revocata continuerebbe a
+ * essere usata da un oggetto costruito ore prima.
+ */
 let client: OpenAI | null = null
-function getClient(): OpenAI {
-  if (!config.openaiApiKey) {
+let chiaveDelClient = ''
+async function getClient(): Promise<OpenAI> {
+  const apiKey = await leggiCredenziale('openai_api_key')
+  if (!apiKey) {
     throw new AppError(
       503,
-      'Funzioni AI non disponibili: manca la chiave OpenAI. Imposta OPENAI_API_KEY in server/.env e riavvia il server (procedura: Integrazioni_Setup.md §1).',
+      'Funzioni AI non disponibili: l\'account OpenAI dell\'azienda non è ancora collegato. ' +
+        'Lo collega la CEO (o un amministratore) da Impostazioni → Integrazioni, incollando la chiave dell\'account aziendale.',
       'AI_NOT_CONFIGURED',
     )
   }
-  if (!client) client = new OpenAI({ apiKey: config.openaiApiKey })
+  if (!client || chiaveDelClient !== apiKey) {
+    client = new OpenAI({ apiKey })
+    chiaveDelClient = apiKey
+  }
   return client
+}
+
+/**
+ * Prova una chiave **prima** di salvarla. Chiama davvero OpenAI con la richiesta più
+ * piccola possibile: costa una frazione di centesimo e risponde alla sola domanda che
+ * conta, cioè se da questo server, con questa chiave, l'AI risponde.
+ *
+ * Perché non basta guardare che cominci per "sk-": una chiave revocata, un progetto senza
+ * credito e una chiave incollata a metà hanno tutte la forma giusta. Salvare senza provare
+ * significherebbe scoprire il problema il giorno in cui serve, dentro un'altra funzione,
+ * con un messaggio che parla d'altro.
+ */
+export async function verificaChiaveOpenAi(apiKey: string): Promise<{ modello: string }> {
+  const prova = new OpenAI({ apiKey: apiKey.trim() })
+  try {
+    await prova.responses.create({
+      model: config.openaiModel,
+      max_output_tokens: 16,
+      instructions: 'Rispondi con una sola parola: ok.',
+      input: 'ok',
+    })
+    return { modello: config.openaiModel }
+  } catch (err) {
+    throw tradurreErroreAI(err)
+  }
 }
 
 /**
@@ -346,7 +390,7 @@ export async function scanTechnicalSheetPdf(pdfBase64: string, nomeFile?: string
     throw badRequest(`Il PDF pesa circa ${Math.round(bytes / 1024 / 1024)} MB: il limite è ${MAX_DOCUMENT_BYTES / 1024 / 1024} MB.`)
   }
 
-  const openai = getClient()
+  const openai = await getClient()
 
   try {
     const response = await openai.responses.create({
@@ -391,7 +435,12 @@ export async function scanTechnicalSheetPdf(pdfBase64: string, nomeFile?: string
 function tradurreErroreAI(err: unknown): unknown {
   if (err instanceof AppError) return err
   if (err instanceof OpenAI.AuthenticationError) {
-    return new AppError(503, 'Chiave OpenAI non valida. Controlla OPENAI_API_KEY in server/.env.', 'AI_BAD_KEY')
+    return new AppError(
+      503,
+      'Chiave OpenAI rifiutata da OpenAI: non è valida, oppure è stata revocata. ' +
+        'Si sostituisce da Impostazioni → Integrazioni, riquadro «Account OpenAI dell\'azienda».',
+      'AI_BAD_KEY',
+    )
   }
   if (err instanceof OpenAI.RateLimitError) {
     // Su OpenAI questo errore copre due casi diversi che l'utente deve poter distinguere:

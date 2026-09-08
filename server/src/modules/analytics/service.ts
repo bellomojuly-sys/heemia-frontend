@@ -6,11 +6,12 @@
 // credenziali il resto dell'app deve funzionare come prima — stessa scelta fatta per la
 // chiave Claude (config.ts).
 import { BetaAnalyticsDataClient } from '@google-analytics/data'
+import { GoogleAuth } from 'google-auth-library'
 import { AppError, badRequest } from '../../core/errors.js'
 import { config } from '../../core/config.js'
 
 const NON_CONFIGURATO =
-  'Google Analytics non è ancora collegato: mancano GA_PROPERTY_ID e le credenziali del service account ' +
+  'Google Analytics non è ancora collegato: mancano GA_PROPERTY_ID e le credenziali Google ' +
   '(GA_CREDENTIALS_JSON oppure GOOGLE_APPLICATION_CREDENTIALS). Vedi Environment_Setup.'
 
 export function analyticsConfigured(): boolean {
@@ -23,22 +24,40 @@ function getClient(): BetaAnalyticsDataClient {
   if (!analyticsConfigured()) throw new AppError(503, NON_CONFIGURATO, 'GA_NOT_CONFIGURED')
   if (!client) {
     if (config.gaCredentialsJson) {
-      let parsed: { client_email?: string; private_key?: string }
+      let parsed: {
+        type?: string
+        client_email?: string
+        private_key?: string
+        client_id?: string
+        client_secret?: string
+        refresh_token?: string
+      }
       try {
         parsed = JSON.parse(config.gaCredentialsJson)
       } catch {
-        throw new AppError(503, 'GA_CREDENTIALS_JSON non è un JSON valido: incolla il file del service account su una riga sola.', 'GA_BAD_CREDENTIALS')
+        throw new AppError(503, 'GA_CREDENTIALS_JSON non è un JSON valido: incolla il file su una riga sola.', 'GA_BAD_CREDENTIALS')
       }
-      if (!parsed.client_email || !parsed.private_key) {
-        throw new AppError(503, 'GA_CREDENTIALS_JSON non contiene client_email e private_key: non è il file del service account.', 'GA_BAD_CREDENTIALS')
+
+      if (parsed.type === 'authorized_user') {
+        if (!parsed.client_id || !parsed.client_secret || !parsed.refresh_token) {
+          throw new AppError(503, 'Il JSON OAuth Analytics non contiene client_id, client_secret e refresh_token.', 'GA_BAD_CREDENTIALS')
+        }
+        const authClient = new GoogleAuth().fromJSON(parsed)
+        client = new BetaAnalyticsDataClient({ authClient })
+      } else if (parsed.type === 'service_account' || !parsed.type) {
+        if (!parsed.client_email || !parsed.private_key) {
+          throw new AppError(503, 'Il JSON del service account non contiene client_email e private_key.', 'GA_BAD_CREDENTIALS')
+        }
+        client = new BetaAnalyticsDataClient({
+          credentials: {
+            client_email: parsed.client_email,
+            // Nelle variabili d'ambiente gli a capo della chiave arrivano come "\n" letterali.
+            private_key: parsed.private_key.replace(/\\n/g, '\n'),
+          },
+        })
+      } else {
+        throw new AppError(503, `Tipo di credenziale Analytics non supportato: ${parsed.type}.`, 'GA_BAD_CREDENTIALS')
       }
-      client = new BetaAnalyticsDataClient({
-        credentials: {
-          client_email: parsed.client_email,
-          // Nelle variabili d'ambiente gli a capo della chiave arrivano come "\n" letterali.
-          private_key: parsed.private_key.replace(/\\n/g, '\n'),
-        },
-      })
     } else {
       // GOOGLE_APPLICATION_CREDENTIALS: il percorso lo legge la libreria da sé.
       client = new BetaAnalyticsDataClient()
@@ -294,8 +313,8 @@ function traduciErrore(e: unknown): AppError {
   if (err?.code === 7 || /PERMISSION_DENIED|permission/i.test(testo)) {
     return new AppError(
       502,
-      'Google Analytics ha rifiutato la richiesta: il service account non ha accesso alla proprietà. ' +
-        'Aggiungilo come utente con ruolo Visualizzatore nella proprietà GA4 e riprova.',
+      "Google Analytics ha rifiutato la richiesta: l'account configurato non ha accesso alla proprietà. " +
+        'Aggiungilo con ruolo Visualizzatore nella proprietà GA4 e riprova.',
       'GA_FORBIDDEN',
     )
   }
@@ -303,7 +322,7 @@ function traduciErrore(e: unknown): AppError {
     return new AppError(502, `Proprietà GA4 non trovata (GA_PROPERTY_ID = ${config.gaPropertyId}): controlla l'identificativo numerico.`, 'GA_NOT_FOUND')
   }
   if (err?.code === 16 || /UNAUTHENTICATED|invalid_grant/i.test(testo)) {
-    return new AppError(502, 'Credenziali Google non valide o scadute: rigenera la chiave del service account.', 'GA_BAD_CREDENTIALS')
+    return new AppError(502, 'Credenziali Google non valide o scadute: autorizza nuovamente l’account oppure rigenera la chiave del service account.', 'GA_BAD_CREDENTIALS')
   }
   if (err?.code === 8 || /RESOURCE_EXHAUSTED|quota/i.test(testo)) {
     return new AppError(502, 'Quota giornaliera di Google Analytics esaurita: riprova più tardi.', 'GA_RATE_LIMIT')

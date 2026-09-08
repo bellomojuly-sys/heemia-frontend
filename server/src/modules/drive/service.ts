@@ -21,14 +21,14 @@ import { config } from '../../core/config.js'
 const SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 
 const NON_CONFIGURATO =
-  'Lettura di Google Drive non attiva: manca il service account (GOOGLE_SERVICE_ACCOUNT_JSON, ' +
+  'Lettura di Google Drive non attiva: mancano le credenziali (GOOGLE_DRIVE_CREDENTIALS_JSON, GOOGLE_SERVICE_ACCOUNT_JSON, ' +
   'GA_CREDENTIALS_JSON già usato per Analytics, oppure GOOGLE_DRIVE_CREDENTIALS_FILE in locale). ' +
   'Procedura: Integrazioni_Setup.md §6. ' +
   'Nel frattempo le foto si collegano una per una con il link del singolo file.'
 
-/** Il JSON del service account, da qualunque variabile arrivi. */
+/** Il JSON OAuth o del service account, da qualunque variabile arrivi. */
 function credenziali(): string {
-  return config.googleServiceAccountJson || config.gaCredentialsJson
+  return config.googleDriveCredentialsJson || config.googleServiceAccountJson || config.gaCredentialsJson
 }
 
 export function driveConfigurato(): boolean {
@@ -42,31 +42,59 @@ function getAuth(): GoogleAuth {
   if (!auth) {
     const json = credenziali()
     if (json) {
-      let parsed: { client_email?: string; private_key?: string }
+      let parsed: {
+        type?: string
+        client_email?: string
+        private_key?: string
+        client_id?: string
+        client_secret?: string
+        refresh_token?: string
+      }
       try {
         parsed = JSON.parse(json)
       } catch {
         throw new AppError(
           503,
-          'Il JSON del service account non è valido: va incollato su una riga sola.',
+          'Il JSON delle credenziali Drive non è valido: va incollato su una riga sola.',
           'DRIVE_BAD_CREDENTIALS',
         )
       }
-      if (!parsed.client_email || !parsed.private_key) {
+
+      if (parsed.type === 'authorized_user') {
+        if (!parsed.client_id || !parsed.client_secret || !parsed.refresh_token) {
+          throw new AppError(
+            503,
+            'Il JSON OAuth Drive non contiene client_id, client_secret e refresh_token.',
+            'DRIVE_BAD_CREDENTIALS',
+          )
+        }
+        // Il tipo è verificato prima di affidarlo alla libreria: da una variabile privata
+        // del servizio accettiamo soltanto il formato OAuth creato dalla nostra procedura.
+        const caricatore = new GoogleAuth({ scopes: [SCOPE] })
+        auth = new GoogleAuth({ authClient: caricatore.fromJSON(parsed) })
+      } else if (parsed.type === 'service_account' || !parsed.type) {
+        if (!parsed.client_email || !parsed.private_key) {
+          throw new AppError(
+            503,
+            'Il JSON del service account non contiene client_email e private_key.',
+            'DRIVE_BAD_CREDENTIALS',
+          )
+        }
+        auth = new GoogleAuth({
+          scopes: [SCOPE],
+          credentials: {
+            client_email: parsed.client_email,
+            // Nelle variabili d'ambiente gli a capo della chiave arrivano come "\n" letterali.
+            private_key: parsed.private_key.replace(/\\n/g, '\n'),
+          },
+        })
+      } else {
         throw new AppError(
           503,
-          'Il JSON del service account non contiene client_email e private_key: non è il file giusto.',
+          `Tipo di credenziale Drive non supportato: ${parsed.type}.`,
           'DRIVE_BAD_CREDENTIALS',
         )
       }
-      auth = new GoogleAuth({
-        scopes: [SCOPE],
-        credentials: {
-          client_email: parsed.client_email,
-          // Nelle variabili d'ambiente gli a capo della chiave arrivano come "\n" letterali.
-          private_key: parsed.private_key.replace(/\\n/g, '\n'),
-        },
-      })
     } else {
       // Il percorso dedicato mantiene separato l'OAuth locale di Drive da Analytics.
       // GOOGLE_APPLICATION_CREDENTIALS resta supportato per i service account condivisi.
@@ -151,14 +179,14 @@ function traduciErrore(err: unknown): AppError {
   if (status === 404) {
     return new AppError(
       404,
-      "Cartella non trovata, oppure non è condivisa con il service account. Su Drive: Condividi → incolla l'indirizzo del service account → Visualizzatore.",
+      "Cartella non trovata, oppure l'account Google configurato non può vederla. Controlla la condivisione della cartella su Drive.",
       'DRIVE_NOT_FOUND',
     )
   }
   if (status === 403) {
     return new AppError(
       403,
-      'Google ha rifiutato la lettura della cartella: controlla che sia condivisa con il service account e che le API di Drive siano abilitate nel progetto Google Cloud.',
+      "Google ha rifiutato la lettura della cartella: controlla che l'account configurato possa vederla e che le API di Drive siano abilitate nel progetto Google Cloud.",
       'DRIVE_FORBIDDEN',
     )
   }

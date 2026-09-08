@@ -19,6 +19,7 @@ import OpenAI from 'openai'
 import type { Role } from '@prisma/client'
 import { AppError } from '../../core/errors.js'
 import { config } from '../../core/config.js'
+import { leggiCredenziale } from '../../core/credenziali.js'
 import { prisma } from '../../core/prisma.js'
 import { logActivity } from '../../core/activityLog.js'
 import { costruisciContesto, type ContestoApp } from './contesto.js'
@@ -55,18 +56,27 @@ REGOLE, in ordine di importanza:
    Se l'elenco nel contesto è troncato, dillo.
 7. Chiudi con il punto dell'app dove si interviene, quando la domanda lo richiede.`
 
+// Stessa regola di `service.ts`: la chiave si rilegge a ogni domanda, perché dal
+// 2026-09-09 la cambia la CEO da Impostazioni e deve valere subito. Il client si ricostruisce
+// solo quando la chiave è diversa da quella con cui era stato costruito.
 let client: OpenAI | null = null
+let chiaveDelClient = ''
 
-function getClient(): OpenAI {
-  if (!config.openaiApiKey) {
+async function getClient(): Promise<OpenAI> {
+  const apiKey = await leggiCredenziale('openai_api_key')
+  if (!apiKey) {
     throw new AppError(
       503,
-      "L'AI Assistant non è collegato: manca la chiave OpenAI. Imposta OPENAI_API_KEY in server/.env e riavvia " +
-        'il server (procedura: Integrazioni_Setup.md §1). I dati del gestionale restano consultabili qui sotto.',
+      "L'AI Assistant non è collegato: l'account OpenAI dell'azienda non è ancora stato inserito. " +
+        'Lo collega la CEO (o un amministratore) da Impostazioni → Integrazioni. ' +
+        'I dati del gestionale restano consultabili qui sotto.',
       'AI_NOT_CONFIGURED',
     )
   }
-  if (!client) client = new OpenAI({ apiKey: config.openaiApiKey })
+  if (!client || chiaveDelClient !== apiKey) {
+    client = new OpenAI({ apiKey })
+    chiaveDelClient = apiKey
+  }
   return client
 }
 
@@ -88,7 +98,7 @@ export async function chiediAllAssistente(
   // Il contesto si costruisce PRIMA di guardare la chiave: se OpenAI non è collegato la
   // pagina deve poter mostrare comunque i dati veri, non una schermata vuota.
   const contesto = await costruisciContesto(utente.role)
-  const openai = getClient()
+  const openai = await getClient()
 
   const sessione = input.sessionId
     ? await prisma.aiSession.findUnique({

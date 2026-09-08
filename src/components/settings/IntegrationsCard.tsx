@@ -19,6 +19,8 @@ interface StatoIntegrazione {
   configurato: boolean
   variabiliMancanti: string[]
   riferimento: string
+  /** Presente per le integrazioni che NON si accendono con una variabile d'ambiente. */
+  istruzione: string | null
 }
 
 export function IntegrationsCard() {
@@ -82,8 +84,15 @@ export function IntegrationsCard() {
                 </div>
                 <p className="mt-1 text-xs text-heemia-grey">{i.scopo}</p>
                 {!i.configurato && (
-                  <p className="font-mono-heemia mt-2 text-[11px] text-heemia-grey">
-                    Manca: {i.variabiliMancanti.join(', ')} · {i.riferimento}
+                  // OpenAI si collega dall'app e non da una variabile d'ambiente: dirle
+                  // «manca OPENAI_API_KEY» manderebbe la persona a cercare un pannello
+                  // che non deve più aprire. Le altre continuano a nominare le variabili.
+                  <p className="mt-2 text-[11px] text-heemia-grey">
+                    {i.istruzione ?? (
+                      <span className="font-mono-heemia">
+                        Manca: {i.variabiliMancanti.join(', ')} · {i.riferimento}
+                      </span>
+                    )}
                   </p>
                 )}
               </li>

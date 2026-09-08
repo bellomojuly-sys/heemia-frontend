@@ -7,6 +7,7 @@ import { config } from './core/config.js'
 import { AppError } from './core/errors.js'
 import { reportError } from './core/reportError.js'
 import { prisma } from './core/prisma.js'
+import { ricaricaCredenziali } from './core/credenziali.js'
 import './core/types.js'
 import { authRoutes } from './modules/auth/routes.js'
 import { userRoutes } from './modules/users/routes.js'
@@ -170,6 +171,16 @@ export async function buildApp() {
 
   // Sub-app cliente: scope separato, non eredita nulla dell'API interna (A5).
   await app.register(showroomRoutes, { prefix: SHOWROOM_PREFIX })
+
+  // Credenziali inserite dall'app (chiave OpenAI dell'azienda): si leggono all'avvio così
+  // il quadro delle integrazioni è giusto dalla prima schermata. È volutamente NON
+  // bloccante: un database non ancora raggiungibile non deve impedire al server di
+  // partire, e ogni funzione AI rilegge comunque la chiave quando serve.
+  try {
+    await ricaricaCredenziali()
+  } catch (err) {
+    app.log.warn({ err }, 'Credenziali integrazioni non lette all\'avvio: si rileggeranno alla prima richiesta.')
+  }
 
   return app
 }

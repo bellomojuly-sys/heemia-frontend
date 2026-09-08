@@ -13,6 +13,7 @@
 // che le usa, così nessuna funzione può fingere di aver fatto qualcosa (vedi l'invio
 // email ai fornitori, che marcava la richiesta come "inviata" senza spedire nulla).
 import { config } from './config.js'
+import { credenzialeNota } from './credenziali.js'
 import { conflict } from './errors.js'
 
 export type IntegrazioneKey = 'openai' | 'gmail' | 'shopify' | 'analytics' | 'drive'
@@ -30,6 +31,12 @@ type Definizione = {
   valori: () => string[]
   /** Eccezioni come Shopify, che accetta credenziali nuove oppure legacy. */
   calcolaMancanti?: () => string[]
+  /**
+   * Come si attiva, quando la risposta non è «compila una variabile d'ambiente».
+   * OpenAI ha questo campo perché la sua chiave si inserisce dall'app: dire a chi legge
+   * «manca OPENAI_API_KEY» lo manderebbe a cercare un pannello che non deve più aprire.
+   */
+  istruzione?: string
 }
 
 const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
@@ -39,8 +46,14 @@ const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
     // Il modello ha un default nel codice, quindi non è una variabile "mancante":
     // qui conta solo la chiave.
     variabili: ['OPENAI_API_KEY'],
-    riferimento: 'Integrazioni_Setup.md §1',
-    valori: () => [config.openaiApiKey],
+    riferimento: 'Impostazioni → Integrazioni, riquadro «Account OpenAI dell\'azienda»',
+    // Dal 2026-09-09 la chiave può arrivare da due posti: quella inserita in app (cifrata
+    // a database) vince sulla variabile d'ambiente, che resta valida. `credenzialeNota`
+    // è la fotografia sincrona: la lettura vera, a database, la fanno le funzioni AI.
+    valori: () => [credenzialeNota('openai_api_key')],
+    istruzione:
+      'la collega la CEO (o un amministratore) da Impostazioni → Integrazioni, incollando la chiave ' +
+      'dell\'account OpenAI aziendale: resta cifrata sul server e nessuno in azienda deve avere un account OpenAI proprio.',
   },
   gmail: {
     nome: 'Gmail',
@@ -78,10 +91,11 @@ const DEFINIZIONI: Record<IntegrazioneKey, Definizione> = {
     scopo: 'leggere le cartelle Drive per collegare tutte le foto di un capo in una volta (FR-16)',
     // Una sola variabile, con due nomi possibili: il service account di Analytics va bene
     // anche per Drive, basta condividergli la cartella.
-    variabili: ['GOOGLE_SERVICE_ACCOUNT_JSON'],
+    variabili: ['GOOGLE_DRIVE_CREDENTIALS_JSON'],
     riferimento: 'Integrazioni_Setup.md §6',
     valori: () => [
-      config.googleServiceAccountJson ||
+      config.googleDriveCredentialsJson ||
+        config.googleServiceAccountJson ||
         config.gaCredentialsJson ||
         config.driveCredentialsFile ||
         config.gaCredentialsFile,
@@ -112,6 +126,7 @@ export function configurata(chiave: IntegrazioneKey): boolean {
 /** Messaggio mostrato in app quando manca la credenziale: dice cosa manca e dove si ottiene. */
 export function messaggioNonConfigurata(chiave: IntegrazioneKey): string {
   const def = DEFINIZIONI[chiave]
+  if (def.istruzione) return `Integrazione ${def.nome} non ancora attiva (${def.scopo}): ${def.istruzione}`
   return (
     `Integrazione ${def.nome} non ancora attiva (${def.scopo}): ` +
     `manca ${mancanti(chiave).join(', ')}. Come ottenerla: ${def.riferimento}.`
@@ -143,6 +158,7 @@ export function statoIntegrazioni() {
       configurato: configurata(chiave),
       variabiliMancanti: mancanti(chiave),
       riferimento: def.riferimento,
+      istruzione: def.istruzione ?? null,
     }
   })
 }

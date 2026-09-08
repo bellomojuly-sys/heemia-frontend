@@ -447,6 +447,36 @@ model Session {
   @@map("sessions")
 }
 
+/// Credenziali dei servizi esterni inserite DALL'APP, cifrate (2026-09-09).
+///
+/// Nasce da un problema di proprieta', non di codice: la chiave OpenAI era legata a un
+/// account personale, mentre l'abbonamento e il credito devono essere dell'azienda. Con
+/// questa tabella la CEO collega l'account aziendale da Impostazioni -> Integrazioni, e il
+/// team usa le funzioni AI attraverso i propri permessi Heemia, senza account OpenAI
+/// personali e senza mai vedere la chiave.
+///
+/// `valore_cifrato` e' una busta AES-256-GCM (core/segreti.ts): chi legge la tabella, un
+/// backup o un export non trova il segreto in chiaro. La chiave di cifratura non e' qui:
+/// si deriva da CREDENTIALS_SECRET (o SESSION_SECRET), che vive solo nell'ambiente.
+///
+/// `suffisso` sono le ultime quattro lettere in chiaro: e' l'unica parte che l'app mostra,
+/// e serve a rispondere a "quella dentro e' la chiave che ho creato io?".
+///
+/// `impostata_da_id` e `impostata_da_nome` sono volutamente colonne semplici e non una
+/// relazione: dire chi ha collegato l'account deve restare leggibile anche se quella
+/// persona un giorno non lavora piu' in azienda e il suo utente viene cancellato.
+model CredenzialeIntegrazione {
+  chiave          String   @id
+  valoreCifrato   String   @map("valore_cifrato")
+  suffisso        String
+  impostataDaId   String?  @map("impostata_da_id") @db.Uuid
+  impostataDaNome String?  @map("impostata_da_nome")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("credenziali_integrazioni")
+}
+
 model AppSetting {
   chiave    String   @id
   valore    String

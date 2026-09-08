@@ -8,6 +8,16 @@ databases:
     region: frankfurt # dati in UE
     postgresMajorVersion: "16" # stessa versione dello sviluppo locale
 
+  # --- Staging (Fase 20) ---
+  # Database separato, MAI un clone della produzione: su staging si prova l'import del
+  # censimento e si sbaglia liberamente, e nessun dato di un cliente vero deve finirci.
+  - name: heemia-db-staging
+    databaseName: heemia_staging
+    user: heemia
+    plan: basic-256mb # il piano free scade dopo 30 giorni: uno staging che sparisce non serve
+    region: frankfurt
+    postgresMajorVersion: "16"
+
 services:
   # --- Backend: API Fastify + Prisma ---
   - type: web
@@ -53,11 +63,24 @@ services:
       # mancano, l'app funziona e ogni funzione dice quale variabile le serve
       # (Integrazioni_Setup.md, `GET /api/v1/integrations/status`).
       # AI: fornitore OpenAI dal 2026-08-08 (DEC-050). OPENAI_MODEL è facoltativa.
+      # OPENAI_API_KEY dal 2026-09-09 è il RIPIEGO, non la via principale: la chiave la
+      # inserisce la CEO dall'app (Impostazioni → Account OpenAI dell'azienda) e resta
+      # cifrata a database. Qui resta dichiarata perché è la via di rientro: se la chiave
+      # inserita si rivelasse sbagliata, il server torna a questa. Normalmente si lascia
+      # vuota — nessuno deve dover aprire questo pannello per accendere l'AI.
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
         sync: false
       - key: SHOPIFY_STORE_DOMAIN
+        sync: false
+      # Le app create dal Dev Dashboard non espongono piu' un token Admin fisso: il server
+      # scambia Client ID e Client Secret per un token che dura 24 ore e lo rinnova da se'
+      # (shopify/client.ts). SHOPIFY_ADMIN_API_TOKEN resta solo per le vecchie custom app:
+      # se e' valorizzato vince lui, quindi in produzione va lasciato vuoto.
+      - key: SHOPIFY_CLIENT_ID
+        sync: false
+      - key: SHOPIFY_CLIENT_SECRET
         sync: false
       - key: SHOPIFY_ADMIN_API_TOKEN
         sync: false
@@ -76,6 +99,8 @@ services:
         sync: false
       # Service account per leggere le cartelle Drive con le foto dei capi (DEC-052).
       # Può essere lo stesso di Analytics: in quel caso basta GA_CREDENTIALS_JSON.
+      - key: GOOGLE_DRIVE_CREDENTIALS_JSON
+        sync: false
       - key: GOOGLE_SERVICE_ACCOUNT_JSON
         sync: false
       # Google Analytics 4 (pagina Analytics): identificativo numerico della proprietà e
@@ -136,3 +161,64 @@ services:
       - path: /*
         name: X-Robots-Tag
         value: noindex # gestionale interno: fuori dai motori di ricerca
+
+  # --- Staging: API (Fase 20) ---
+  # Stesso codice della produzione, database diverso e nessuna credenziale esterna.
+  # Le integrazioni restano SPENTE per scelta: su staging si prova l'app, non Shopify —
+  # una scrittura di giacenze partita da qui finirebbe sul negozio vero.
+  - type: web
+    name: heemia-api-staging
+    runtime: node
+    plan: starter
+    region: frankfurt
+    rootDir: server
+    branch: staging # il ramo di collaudo: la produzione resta su main
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy && npm run db:seed
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production # stesse condizioni della produzione: e' il senso di uno staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: heemia-db-staging
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true # diverso da quello di produzione: una sessione non deve valere su entrambi
+      - key: SESSION_TTL_HOURS
+        value: "360"
+      - key: APP_BASE_URL
+        value: https://heemia-api-staging.onrender.com
+      - key: CORS_ORIGIN
+        value: https://heemia-app-staging.onrender.com
+      # Amministratore di collaudo: si compilano nel pannello, con una password diversa da
+      # quella di produzione. Senza, il seed non crea nessun utente e non si entra.
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      # Nessuna variabile di integrazione dichiarata qui: cio' che non esiste non puo'
+      # essere compilato per sbaglio con un segreto di produzione.
+
+  # --- Staging: frontend (Fase 20) ---
+  - type: web
+    name: heemia-app-staging
+    runtime: static
+    branch: staging
+    buildCommand: npm ci --include=dev && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: / # stessa origine, come in produzione (DEC-048): il cookie resta di prima parte
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://heemia-api-staging.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Robots-Tag
+        value: noindex

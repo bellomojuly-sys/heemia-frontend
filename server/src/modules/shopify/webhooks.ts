@@ -157,5 +157,8 @@ export function elaboraInBackground(topic: string, payload: unknown) {
 
 /** Il segreto configurato per i webhook, o stringa vuota se non è stato impostato. */
 export function segretoWebhook(): string {
-  return config.shopifyWebhookSecret
+  // Shopify firma le consegne con il client secret dell'app. L'override separato resta
+  // utile durante una rotazione, quando per un breve periodo può servire il secret meno
+  // recente, ma nella configurazione normale non va duplicato in una seconda variabile.
+  return config.shopifyWebhookSecret || config.shopifyClientSecret
 }

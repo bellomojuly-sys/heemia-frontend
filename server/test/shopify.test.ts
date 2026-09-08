@@ -15,9 +15,11 @@ process.env.SHOPIFY_WEBHOOK_SECRET = 'segreto-di-prova-abbastanza-lungo'
 import test, { afterEach, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import Fastify from 'fastify'
 
 const { shopifyGraphQL, azzeraTokenShopifyPerTest } = await import('../src/modules/shopify/client.js')
 const { firmaValida } = await import('../src/modules/shopify/webhooks.js')
+const { shopifyWebhookRoutes } = await import('../src/modules/shopify/routes.js')
 const { config } = await import('../src/core/config.js')
 
 const fetchOriginale = globalThis.fetch
@@ -71,6 +73,39 @@ describe('Firma dei webhook Shopify', () => {
 
   test('un segreto diverso non passa', () => {
     assert.equal(firmaValida(corpo, firma, 'un-altro-segreto-lungo-abbastanza'), false)
+  })
+
+  test('se non c’è un override, la firma usa il client secret ufficiale dell’app', async () => {
+    const webhookSecret = config.shopifyWebhookSecret
+    const clientSecret = config.shopifyClientSecret
+    try {
+      config.shopifyWebhookSecret = ''
+      config.shopifyClientSecret = 'client-secret-usato-anche-per-i-webhook'
+      const { segretoWebhook } = await import('../src/modules/shopify/webhooks.js')
+      assert.equal(segretoWebhook(), 'client-secret-usato-anche-per-i-webhook')
+    } finally {
+      config.shopifyWebhookSecret = webhookSecret
+      config.shopifyClientSecret = clientSecret
+    }
+  })
+
+  test('la rotta pubblica unica accetta il topic orders/create nell’header', async () => {
+    const app = Fastify()
+    await app.register(shopifyWebhookRoutes, { prefix: '/api/v1' })
+
+    const risposta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/shopify/webhooks',
+      headers: {
+        'content-type': 'application/json',
+        'x-shopify-topic': 'orders/create',
+        'x-shopify-hmac-sha256': 'firma-volutamente-errata',
+      },
+      payload: corpo,
+    })
+
+    assert.equal(risposta.statusCode, 401, 'la rotta deve esistere e rifiutare la firma, non rispondere 404')
+    await app.close()
   })
 })
 

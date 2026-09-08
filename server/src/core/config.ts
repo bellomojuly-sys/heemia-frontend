@@ -72,15 +72,31 @@ export const config = {
   // senza chiave il server parte lo stesso e solo l'endpoint /ai/* risponde con un
   // errore chiaro, invece di bloccare tutta l'app.
   openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+  // Segreto con cui si cifrano le credenziali inserite dall'app (core/segreti.ts).
+  // Se non c'è vale quello delle sessioni, che è già obbligatorio e già lungo: così la
+  // funzione «la CEO collega OpenAI da Impostazioni» funziona senza aggiungere variabili
+  // da compilare. Averne uno dedicato serve solo a poter cambiare il segreto delle
+  // sessioni (che scollega tutti) senza rendere illeggibili le credenziali salvate.
+  // Passa dallo stesso controllo di lunghezza: un segreto corto qui renderebbe debole la
+  // cifratura delle chiavi API, e un errore all'avvio si nota, una cifratura debole no.
+  credentialsSecret: process.env.CREDENTIALS_SECRET?.trim() ? segreto('CREDENTIALS_SECRET') : segreto('SESSION_SECRET'),
   // Il modello è una variabile e non una costante nel codice: OpenAI ne pubblica di
   // nuovi spesso, e cambiarlo (o tornare indietro se un aggiornamento peggiora le
   // estrazioni) deve essere una riga in Render, non una modifica da ricompilare.
   // Default: il modello intermedio, il rapporto qualità/prezzo giusto per leggere un PDF.
-  openaiModel: process.env.OPENAI_MODEL ?? 'gpt-5.6-terra',
+  // `|| ` e non `?? `: la riga `OPENAI_MODEL=` esiste vuota in .env.example, e una
+  // variabile impostata a stringa vuota non è né null né undefined — passerebbe
+  // indisturbata, e il modello inviato a OpenAI sarebbe la stringa vuota. Un errore
+  // incomprensibile alla prima lettura di un PDF, invece del modello predefinito.
+  openaiModel: process.env.OPENAI_MODEL?.trim() || 'gpt-5.6-terra',
   // Service account Google, usato per leggere le cartelle Drive con le foto dei capi
   // (FR-16). È lo stesso tipo di credenziale di Analytics e una sola può servire a
   // entrambe le cose: per questo `GA_CREDENTIALS_JSON` vale anche qui come ripiego.
   googleServiceAccountJson: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? '',
+  // Credenziale dedicata a Drive, accettata sia come service account sia come OAuth
+  // `authorized_user`. È la forma adatta a Render: il JSON resta un secret del servizio
+  // e non dipende da un file presente soltanto sul Mac di sviluppo.
+  googleDriveCredentialsJson: process.env.GOOGLE_DRIVE_CREDENTIALS_JSON ?? '',
   // Percorso dedicato alle credenziali OAuth locali di Drive. Tenerlo separato da
   // GOOGLE_APPLICATION_CREDENTIALS evita di far risultare configurato anche Analytics
   // quando il refresh token autorizza esclusivamente lo scope drive.readonly.

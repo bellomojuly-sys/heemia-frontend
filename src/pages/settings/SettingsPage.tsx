@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { IntegrationsCard } from '../../components/settings/IntegrationsCard'
+import { OpenAiKeyCard } from '../../components/settings/OpenAiKeyCard'
 import { ChangePasswordCard } from '../../components/settings/ChangePasswordCard'
 import { PermissionMatrix } from '../../components/settings/PermissionMatrix'
 import { canWrite, ROLE_LABELS } from '../../lib/permissions'
@@ -22,6 +23,10 @@ export function SettingsPage() {
   return (
     <div>
       <IntegrationsCard />
+
+      {/* Sotto il quadro generale e non dentro: è l'unica integrazione che si collega
+          dall'app, ed è quella che la CEO deve poter trovare senza cercarla. */}
+      <OpenAiKeyCard />
 
       {/* Sta in cima e vale per tutti i ruoli: la pagina Utenti è degli amministratori,
           la propria password è di chiunque abbia un accesso. */}

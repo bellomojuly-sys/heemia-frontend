@@ -1,6 +1,6 @@
 // Shopify — FR-17. Modulo RBAC "shopify" (Admin/CEO), tranne i webhook, che sono pubblici
 // per forza: li chiama Shopify, che non ha una sessione. Lì l'autenticazione è la firma HMAC.
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { authenticate, requireModule, requireEdit } from '../../core/guards.js'
 import { badRequest } from '../../core/errors.js'
@@ -58,7 +58,7 @@ export async function shopifyWebhookRoutes(app: FastifyInstance) {
     done(null, corpo)
   })
 
-  app.post('/shopify/webhooks/:topic', async (req, reply) => {
+  const riceviWebhook = async (req: FastifyRequest, reply: FastifyReply) => {
     const segreto = segretoWebhook()
     const corpo = req.body as Buffer
     const firma = req.headers['x-shopify-hmac-sha256'] as string | undefined
@@ -76,7 +76,7 @@ export async function shopifyWebhookRoutes(app: FastifyInstance) {
 
     // Il topic autorevole è quello dell'intestazione: il percorso serve solo a rendere
     // leggibili i log e la configurazione lato Shopify.
-    const topic = String(req.headers['x-shopify-topic'] ?? (req.params as { topic: string }).topic).replace(/^:/, '')
+    const topic = String(req.headers['x-shopify-topic'] ?? (req.params as { topic?: string }).topic ?? '').replace(/^:/, '')
 
     let payload: unknown
     try {
@@ -91,5 +91,12 @@ export async function shopifyWebhookRoutes(app: FastifyInstance) {
       elaboraInBackground(topic, payload)
     }
     return reply.code(200).send({ ok: true })
-  })
+  }
+
+  // Tutte le sottoscrizioni puntano a un URL unico: il topic autorevole arriva sempre
+  // nell'header X-Shopify-Topic. La vecchia variante con parametro resta compatibile con
+  // configurazioni precedenti, ma non va usata per topic come `orders/create`, perché la
+  // barra creerebbe un segmento URL aggiuntivo e Fastify risponderebbe 404.
+  app.post('/shopify/webhooks', riceviWebhook)
+  app.post('/shopify/webhooks/:topic', riceviWebhook)
 }
