@@ -1,0 +1,20 @@
+-- Costo diretto di riferimento sul capo (richiesta di Giulia, 2026-09-07).
+--
+-- Il censimento porta un costo diretto per capo, ma e' un numero unico: non ha la
+-- scomposizione in tessuto/accessori/manodopera/packaging che il database si aspetta nella
+-- scheda tecnica. Finora quel numero non aveva dove stare e restava nel CSV.
+--
+-- Serve perche' le schede tecniche entrano PRIMA di essere valorizzate: Giulia inserisce le
+-- schede vecchie, che i costi non li hanno, e li calcolera' dopo. Una scheda con le cinque
+-- voci a zero somma a zero, e zero e' un numero: senza questa colonna il gestionale
+-- mostrerebbe margine pari all'intero prezzo su ogni capo, che e' una risposta sbagliata con
+-- l'aria di essere giusta.
+--
+-- La colonna e' NULL-abile di proposito, e la differenza conta: NULL significa "non lo
+-- sappiamo" (i capi che nel censimento il costo non ce l'hanno), 0 significherebbe "costa
+-- zero". Il calcolo margini usa la scheda appena la somma delle sue voci supera zero, questa
+-- colonna prima di allora, e quando non c'e' ne' l'una ne' l'altra dice che il costo e'
+-- ignoto invece di inventarne uno.
+--
+-- Nessun valore predefinito: i capi gia' a database non cambiano.
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "costo_diretto_riferimento" DECIMAL(10,2);

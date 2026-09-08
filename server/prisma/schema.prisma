@@ -580,6 +580,19 @@ model Product {
   prezzoNettoIva            Decimal              @default(0) @map("prezzo_netto_iva") @db.Decimal(12, 2)
   prezzoShowroom            Decimal              @default(0) @map("prezzo_showroom") @db.Decimal(12, 2)
   prezzoConsigliato         Decimal              @default(0) @map("prezzo_consigliato") @db.Decimal(12, 2)
+  /// Costo diretto di riferimento del capo: il numero unico che arriva dal censimento
+  /// (Data_Census §10), senza la scomposizione in tessuto/accessori/manodopera.
+  ///
+  /// Serve a coprire il periodo in cui le schede tecniche esistono ma **non sono ancora
+  /// valorizzate** (Giulia 2026-09-07: «inserirò schede tecniche vecchie che non hanno costi,
+  /// che andranno calcolati secondariamente»). Il calcolo margini usa la scheda appena la
+  /// somma delle sue voci supera zero, e questo campo prima di allora — vedi
+  /// `risolviCostoDiretto()` in margins/service.ts.
+  ///
+  /// **Nullable di proposito**: `null` significa «non lo sappiamo» ed è diverso da `0`, che
+  /// significa «costa zero». I capi senza costo nel censimento restano `null`, e per loro il
+  /// margine non si calcola invece di risultare pari all'intero prezzo.
+  costoDirettoRiferimento   Decimal?             @map("costo_diretto_riferimento") @db.Decimal(10, 2)
   statoPubblicazioneShopify PubblicazioneShopify @default(non_pubblicato) @map("stato_pubblicazione_shopify")
   disponibilitaOnline       Boolean              @default(false) @map("disponibilita_online")
   disponibilitaShowroom     Boolean              @default(false) @map("disponibilita_showroom")

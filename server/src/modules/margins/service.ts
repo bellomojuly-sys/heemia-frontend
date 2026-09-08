@@ -4,6 +4,13 @@
 //                  (scheda tecnica non archiviata — v_product_costo_diretto, Database_Schema §5)
 //   costoTotale  = costoDiretto + quotaPerCapo
 //   margineNetto = prezzoNettoIva - costoTotale ; sottoSoglia = margine% < soglia
+//
+// Dal 2026-09-07 il costo diretto ha due fonti possibili e una terza risposta ammessa: «non lo
+// so». Serviva perche' le schede tecniche entrano prima di essere valorizzate (Giulia:
+// «inserirò schede tecniche vecchie che non hanno costi, che andranno calcolati
+// secondariamente»), e una scheda con le cinque voci a zero sommerebbe a zero — cioe' a un
+// margine pari all'intero prezzo, che e' una risposta sbagliata con l'aria di essere giusta.
+// La scelta della fonte sta tutta in risolviCostoDiretto(), qui sotto.
 import { Prisma, type TechnicalSheet } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
 import { badRequest, conflict, notFound } from '../../core/errors.js'
@@ -30,6 +37,9 @@ export async function computeQuotaPerCapo(): Promise<{
   return { quotaPerCapo, totaleCostiFissi, capiProdottiAnnui, sogliaMarginePercent: Number(soglia?.valore ?? 35) }
 }
 
+/** Da dove viene il costo diretto usato nel calcolo. */
+export type FonteCosto = 'scheda' | 'censimento' | 'sconosciuto'
+
 export interface ProductMargin {
   productId: string
   nome: string
@@ -43,6 +53,45 @@ export interface ProductMargin {
   breakEvenPrice: number
   prezzoMinimoConsigliato: number
   sottoSoglia: boolean
+  /** `false` quando il costo non e' noto: i numeri qui sopra non vanno mostrati come un risultato. */
+  costoNoto: boolean
+  fonteCosto: FonteCosto
+}
+
+/** Le cinque voci della scheda che compongono il costo diretto (Database_Schema §5). */
+type VociCosto = Pick<
+  TechnicalSheet,
+  'costoTessuto' | 'costoAccessori' | 'costoManodopera' | 'costoPackaging' | 'altriCostiDiretti'
+>
+
+/**
+ * Sceglie il costo diretto di un capo fra le due fonti possibili.
+ *
+ * 1. **La scheda tecnica**, se e' stata valorizzata — cioe' se la somma delle sue cinque voci
+ *    supera zero. E' il dato piu' preciso: ha la scomposizione.
+ * 2. **Il costo di riferimento del censimento**, se c'e'. E' un numero unico senza
+ *    scomposizione, ma e' un numero vero.
+ * 3. Altrimenti **non lo sappiamo**, e va detto. Una scheda con le voci a zero non significa
+ *    che il capo non costi niente: significa che nessuno ha ancora compilato quei campi.
+ *
+ * Il passaggio dal riferimento alla scheda avviene da se': appena qualcuno valorizza la
+ * scheda, la somma supera zero e vince lei. Nessun interruttore da ricordarsi.
+ */
+function risolviCostoDiretto(
+  costoDirettoRiferimento: Prisma.Decimal | null,
+  sheet: VociCosto | undefined,
+): { costoDiretto: number; fonteCosto: FonteCosto } {
+  const dallaScheda = sheet
+    ? r2(
+        Number(sheet.costoTessuto) + Number(sheet.costoAccessori) + Number(sheet.costoManodopera) +
+          Number(sheet.costoPackaging) + Number(sheet.altriCostiDiretti),
+      )
+    : 0
+  if (dallaScheda > 0) return { costoDiretto: dallaScheda, fonteCosto: 'scheda' }
+  if (costoDirettoRiferimento !== null) {
+    return { costoDiretto: r2(Number(costoDirettoRiferimento)), fonteCosto: 'censimento' }
+  }
+  return { costoDiretto: 0, fonteCosto: 'sconosciuto' }
 }
 
 export async function computeProductMargin(productId: string): Promise<ProductMargin | null> {
@@ -57,12 +106,8 @@ export async function computeProductMargin(productId: string): Promise<ProductMa
   const thresholdPercent = Number(sogliaSetting?.valore ?? 35)
 
   const sheet = product.technicalSheets.find((t: TechnicalSheet) => t.versione === 'finale') ?? product.technicalSheets[0]
-  const costoDiretto = sheet
-    ? r2(
-        Number(sheet.costoTessuto) + Number(sheet.costoAccessori) + Number(sheet.costoManodopera) +
-          Number(sheet.costoPackaging) + Number(sheet.altriCostiDiretti),
-      )
-    : 0
+  const { costoDiretto, fonteCosto } = risolviCostoDiretto(product.costoDirettoRiferimento, sheet)
+  const costoNoto = fonteCosto !== 'sconosciuto'
 
   const prezzoNettoIva = Number(product.prezzoNettoIva)
   const costoTotale = r2(costoDiretto + quotaPerCapo)
@@ -82,7 +127,12 @@ export async function computeProductMargin(productId: string): Promise<ProductMa
     marginePercentuale,
     breakEvenPrice: costoTotale,
     prezzoMinimoConsigliato: r2(costoTotale * 1.15),
-    sottoSoglia: marginePercentuale < thresholdPercent,
+    // Un capo di cui non sappiamo il costo non e' un capo con un problema di margine: e' un
+    // capo di cui non sappiamo niente. Segnalarlo sotto soglia riempirebbe gli avvisi di
+    // allarmi finti; segnalarlo sopra soglia sarebbe peggio.
+    sottoSoglia: costoNoto && marginePercentuale < thresholdPercent,
+    costoNoto,
+    fonteCosto,
   }
 }
 
@@ -101,12 +151,8 @@ export async function computeAllMargins(): Promise<ProductMargin[]> {
 
   return products.map((product) => {
     const sheet = product.technicalSheets.find((t: TechnicalSheet) => t.versione === 'finale') ?? product.technicalSheets[0]
-    const costoDiretto = sheet
-      ? r2(
-          Number(sheet.costoTessuto) + Number(sheet.costoAccessori) + Number(sheet.costoManodopera) +
-            Number(sheet.costoPackaging) + Number(sheet.altriCostiDiretti),
-        )
-      : 0
+    const { costoDiretto, fonteCosto } = risolviCostoDiretto(product.costoDirettoRiferimento, sheet)
+    const costoNoto = fonteCosto !== 'sconosciuto'
     const prezzoNettoIva = Number(product.prezzoNettoIva)
     const costoTotale = r2(costoDiretto + quotaPerCapo)
     const margineNettoStimato = r2(prezzoNettoIva - costoTotale)
@@ -123,7 +169,9 @@ export async function computeAllMargins(): Promise<ProductMargin[]> {
       marginePercentuale,
       breakEvenPrice: costoTotale,
       prezzoMinimoConsigliato: r2(costoTotale * 1.15),
-      sottoSoglia: marginePercentuale < thresholdPercent,
+      sottoSoglia: costoNoto && marginePercentuale < thresholdPercent,
+      costoNoto,
+      fonteCosto,
     }
   })
 }

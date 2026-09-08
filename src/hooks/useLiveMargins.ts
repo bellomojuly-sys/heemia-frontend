@@ -32,10 +32,13 @@ export function useLiveMargins(): Margin[] {
             marginePercentuale: num(m.marginePercentuale),
             breakEvenPrice: num(m.breakEvenPrice),
             prezzoMinimoConsigliato: num(m.prezzoMinimoConsigliato),
-            // "reale" se il costo diretto viene da una scheda tecnica compilata,
-            // "stimato" se la scheda non c'è ancora e il costo risulta a zero.
-            tipoDato: num(m.costoDiretto) > 0 ? ('reale' as const) : ('stimato' as const),
+            // "reale" solo se il costo viene da una scheda tecnica valorizzata. Il costo di
+            // riferimento del censimento è un numero vero ma senza scomposizione, quindi
+            // "stimato": chi legge deve sapere che dietro non c'è una distinta.
+            tipoDato: m.fonteCosto === 'scheda' ? ('reale' as const) : ('stimato' as const),
             sottoSoglia: Boolean(m.sottoSoglia),
+            costoNoto: Boolean(m.costoNoto),
+            fonteCosto: (m.fonteCosto as Margin['fonteCosto']) ?? 'sconosciuto',
           })) as Margin[],
         )
       })

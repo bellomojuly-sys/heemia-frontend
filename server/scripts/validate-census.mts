@@ -184,7 +184,10 @@ const report = {
   },
   manualDecisionsRequired: {
     productsOutsideCatalog: {
-      records: ['Atene', 'Madrid', 'Dallas', 'Giuli', 'Bomber'],
+      // 'Bomber' e' uscito da questa lista il 2026-09-07: non e' un capo, e' il nome con cui il
+      // foglio "Break Even per Capo" chiama Alaska (Data_Census §10). I capi fuori anagrafica
+      // Notion restano quattro.
+      records: ['Atene', 'Madrid', 'Dallas', 'Giuli'],
       decision: decisions.productsOutsideCatalogDecision,
       resolved: decisions.productsOutsideCatalogDecision.trim() !== '',
     },

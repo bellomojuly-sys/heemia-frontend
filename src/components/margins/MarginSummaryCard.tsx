@@ -43,6 +43,13 @@ export function MarginSummaryCard({ margin, productName }: { margin: Margin; pro
   const unitsToBreakEven = computeUnitsToBreakEven(totaleCostiFissi, margin)
   const priceBands = computePriceBands(margin)
 
+  // Del capo non si conosce il costo: né la scheda tecnica è valorizzata, né c'è un costo di
+  // riferimento dal censimento. Tutto ciò che deriva dal costo qui vale zero perché non c'è
+  // altro da metterci, e mostrarlo direbbe «margine 100%» quando la verità è «non lo so».
+  // Si mostra un trattino: la lista dei trattini è anche l'elenco di cosa resta da rilevare.
+  const costoIgnoto = !margin.costoNoto
+  const seNoto = (valore: string) => (costoIgnoto ? '–' : valore)
+
   return (
     <div
       className={`rounded-heemia-lg border bg-white p-5 shadow-heemia-sm ${
@@ -52,9 +59,13 @@ export function MarginSummaryCard({ margin, productName }: { margin: Margin; pro
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <p className="font-display text-lg text-heemia-black">{productName}</p>
-          <Badge variant={margin.tipoDato === 'reale' ? 'success' : 'neutral'}>
-            {margin.tipoDato === 'reale' ? 'Dato reale' : 'Dato stimato'}
-          </Badge>
+          {costoIgnoto ? (
+            <Badge variant="warning-outline">Costo mancante</Badge>
+          ) : (
+            <Badge variant={margin.tipoDato === 'reale' ? 'success' : 'neutral'}>
+              {margin.tipoDato === 'reale' ? 'Dato reale' : 'Costo da censimento'}
+            </Badge>
+          )}
         </div>
         {margin.sottoSoglia && (
           <Badge variant="critical">Margine sotto soglia ({MARGIN_THRESHOLD_PERCENT}%)</Badge>
@@ -63,20 +74,32 @@ export function MarginSummaryCard({ margin, productName }: { margin: Margin; pro
       <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5">
         <Metric label="Prezzo di vendita" value={formatCurrency(margin.prezzoVendita)} />
         <Metric label="Prezzo netto IVA" value={formatCurrency(margin.prezzoNettoIva)} />
-        <Metric label="Costo diretto" value={formatCurrency(margin.costoDiretto)} />
+        <Metric label="Costo diretto" value={seNoto(formatCurrency(margin.costoDiretto))} />
         <Metric label="Costo indiretto allocato" value={formatCurrency(margin.costoIndirettoAllocato)} />
-        <Metric label="Costo totale" value={formatCurrency(margin.costoTotale)} />
-        <Metric label="Margine lordo" value={formatCurrency(margin.margineLordo)} />
-        <Metric label="Margine netto stimato" value={formatCurrency(margin.margineNettoStimato)} />
+        <Metric label="Costo totale" value={seNoto(formatCurrency(margin.costoTotale))} />
+        <Metric label="Margine lordo" value={seNoto(formatCurrency(margin.margineLordo))} />
+        <Metric label="Margine netto stimato" value={seNoto(formatCurrency(margin.margineNettoStimato))} />
         <Metric
           label="Margine percentuale"
-          value={formatPercent(margin.marginePercentuale)}
+          value={seNoto(formatPercent(margin.marginePercentuale))}
         />
-        <Metric label="Break-even price" value={formatCurrency(margin.breakEvenPrice)} />
-        <Metric label="Prezzo minimo consigliato" value={formatCurrency(margin.prezzoMinimoConsigliato)} />
-        <Metric label="Unità per coprire i costi fissi" value={unitsToBreakEven !== null ? `${unitsToBreakEven} capi` : '–'} />
+        <Metric label="Break-even price" value={seNoto(formatCurrency(margin.breakEvenPrice))} />
+        <Metric label="Prezzo minimo consigliato" value={seNoto(formatCurrency(margin.prezzoMinimoConsigliato))} />
+        <Metric
+          label="Unità per coprire i costi fissi"
+          value={costoIgnoto || unitsToBreakEven === null ? '–' : `${unitsToBreakEven} capi`}
+        />
       </div>
+      {costoIgnoto && (
+        <p className="mt-3 text-[0.8rem] text-heemia-grey">
+          Il costo di questo capo non è noto: la scheda tecnica non ha le voci di costo valorizzate e il
+          censimento non ne porta uno. Finché manca, margine e break-even non si calcolano.
+        </p>
+      )}
 
+      {/* Senza costo il margine residuo per fascia di sconto non significa niente: ogni fascia
+          risulterebbe sopra break-even, e la card direbbe che si può scontare tutto. */}
+      {!costoIgnoto && (
       <div className="mt-5 border-t border-heemia-border pt-4">
         <div className="mb-2 flex items-center gap-1.5">
           <p className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Margine residuo per fascia di prezzo</p>
@@ -99,6 +122,7 @@ export function MarginSummaryCard({ margin, productName }: { margin: Margin; pro
           ))}
         </div>
       </div>
+      )}
     </div>
   )
 }

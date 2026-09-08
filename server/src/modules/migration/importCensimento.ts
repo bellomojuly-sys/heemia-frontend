@@ -237,7 +237,8 @@ export async function importaCensimento(
         for (const p of censimento.prodotti) {
           const codice = p.codice_prodotto.trim()
           const prezzo = num(p.prezzo_vendita) ?? 0
-          if (num(p.costo_diretto) === null) esito.senzaCostoDiretto.push(p.nome.trim())
+          const costoRiferimento = num(p.costo_diretto)
+          if (costoRiferimento === null) esito.senzaCostoDiretto.push(p.nome.trim())
 
           const dati = {
             nome: p.nome.trim(),
@@ -249,6 +250,12 @@ export async function importaCensimento(
             prezzoShowroom: dec(num(p.prezzo_showroom) ?? 0),
             vestibilita: p.vestibilita.trim() || undefined,
             tessuto: (p.tessuto ?? '').trim() || undefined,
+            // Il costo diretto del censimento e' un numero unico, senza la scomposizione che
+            // vuole la scheda tecnica: entra come costo di riferimento e il calcolo margini lo
+            // usa finche' la scheda non e' valorizzata (margins/service.ts).
+            // Una casella vuota nel CSV resta `undefined`, cioe' «non lo so»: non deve
+            // cancellare un costo gia' inserito dall'app. Stessa regola delle descrizioni.
+            costoDirettoRiferimento: costoRiferimento === null ? undefined : dec(costoRiferimento),
             // I capi del censimento sono già prodotti e pronti alla vendita (DEC-061 §10):
             // entrano in Vendita senza passare dalle fasi produttive.
             stato: censimento.faseIniziale,

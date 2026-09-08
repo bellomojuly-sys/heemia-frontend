@@ -272,7 +272,9 @@ async function sezioneEconomia(): Promise<ContestoEconomia> {
   // redditizio, è un capo di cui non si conosce il costo. Va tenuto fuori dalla classifica
   // dei margini peggiori, altrimenti la domanda «qual è il margine più basso» riceve una
   // risposta calcolata su un dato che non c'è.
-  const conCosto = margini.filter((m) => m.costoDiretto > 0)
+  // Dal 2026-09-07 la domanda «lo sappiamo?» ha una risposta esplicita: `costoNoto`. Prima si
+  // deduceva da `costoDiretto > 0`, che confondeva «non lo so» con «costa zero».
+  const conCosto = margini.filter((m) => m.costoNoto)
   const senzaCosto = margini.length - conCosto.length
 
   return {
@@ -396,7 +398,7 @@ async function sezioneAnomalie(visibilita: {
 
   if (visibilita.vedeEconomia) {
     const margini = await computeAllMargins()
-    const senzaCosto = margini.filter((m) => m.costoDiretto <= 0).length
+    const senzaCosto = margini.filter((m) => !m.costoNoto).length
     if (senzaCosto > 0) {
       anomalie.push({
         chiave: 'costo_diretto_mancante', gravita: 'critica', quanti: senzaCosto,

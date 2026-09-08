@@ -677,6 +677,15 @@ export interface Margin {
   prezzoMinimoConsigliato: number
   tipoDato: 'reale' | 'stimato'
   sottoSoglia: boolean
+  /**
+   * `false` quando del capo non si conosce il costo: né la scheda tecnica è valorizzata, né
+   * esiste un costo di riferimento dal censimento. In quel caso i campi di costo e margine
+   * qui sopra valgono zero perché non c'è altro da metterci — **non vanno mostrati come un
+   * risultato**, altrimenti l'interfaccia dichiara un margine pari all'intero prezzo.
+   */
+  costoNoto: boolean
+  /** Da dove viene il costo diretto: la scheda tecnica, il censimento, o da nessuna parte. */
+  fonteCosto: 'scheda' | 'censimento' | 'sconosciuto'
 }
 
 // Voce di costo fisso annuo (Business_Analysis §6.1): affitto, dipendenti, utenze, ecc.

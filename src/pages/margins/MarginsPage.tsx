@@ -216,14 +216,30 @@ export function MarginsPage() {
   const sottoSoglia = liveMargins.filter((m) => m.sottoSoglia)
   const productsWithoutMargin = products.filter((p) => p.stato !== 'idea' && p.stato !== 'archivio' && !liveMargins.some((m) => m.productId === p.id))
 
+  // Di un capo senza costo noto non si mostra il numero: costo totale, margine e break-even
+  // varrebbero quota costi fissi e prezzo pieno, cioè una riga che sembra calcolata e non lo è.
+  const seNoto = (m: Margin, valore: string) => (m.costoNoto ? valore : '–')
+
   const columns: DataTableColumn<Margin>[] = [
     { header: 'Prodotto', accessor: (m) => <Link to={`/prodotti/${m.productId}`} className="font-display text-heemia-black hover:underline">{products.find((p) => p.id === m.productId)?.nome ?? m.productId}</Link> },
     { header: 'Prezzo netto', accessor: (m) => formatCurrency(m.prezzoNettoIva), align: 'right' },
-    { header: 'Costo totale', accessor: (m) => formatCurrency(m.costoTotale), align: 'right' },
-    { header: 'Margine netto', accessor: (m) => formatCurrency(m.margineNettoStimato), align: 'right' },
-    { header: 'Margine %', accessor: (m) => <Badge variant={m.sottoSoglia ? 'critical' : 'success'}>{formatPercent(m.marginePercentuale)}</Badge> },
-    { header: 'Break-even', accessor: (m) => formatCurrency(m.breakEvenPrice), align: 'right' },
-    { header: 'Dato', accessor: (m) => <Badge variant={m.tipoDato === 'reale' ? 'success' : 'neutral'}>{m.tipoDato === 'reale' ? 'Reale' : 'Stimato'}</Badge> },
+    { header: 'Costo totale', accessor: (m) => seNoto(m, formatCurrency(m.costoTotale)), align: 'right' },
+    { header: 'Margine netto', accessor: (m) => seNoto(m, formatCurrency(m.margineNettoStimato)), align: 'right' },
+    {
+      header: 'Margine %',
+      accessor: (m) =>
+        m.costoNoto
+          ? <Badge variant={m.sottoSoglia ? 'critical' : 'success'}>{formatPercent(m.marginePercentuale)}</Badge>
+          : <span className="text-heemia-grey">–</span>,
+    },
+    { header: 'Break-even', accessor: (m) => seNoto(m, formatCurrency(m.breakEvenPrice)), align: 'right' },
+    {
+      header: 'Dato',
+      accessor: (m) =>
+        m.costoNoto
+          ? <Badge variant={m.tipoDato === 'reale' ? 'success' : 'neutral'}>{m.tipoDato === 'reale' ? 'Reale' : 'Da censimento'}</Badge>
+          : <Badge variant="warning-outline">Costo mancante</Badge>,
+    },
   ]
 
   return (

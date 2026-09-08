@@ -17,6 +17,7 @@
     "test:performance": "NODE_ENV=test node --env-file=.env --import tsx scripts/benchmark-health.mts",
     "census:validate": "node --import tsx scripts/validate-census.mts",
     "census:import": "node --env-file=.env --import tsx scripts/import-censimento.mts",
+    "census:materiali": "node --env-file=.env --import tsx scripts/import-materiali.mts",
     "census:verifica": "node --env-file=.env --import tsx scripts/verifica-censimento.mts",
     "costi-fissi:import": "node --env-file=.env --import tsx scripts/import-costi-fissi.mts"
   },
