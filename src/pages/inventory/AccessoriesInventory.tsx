@@ -29,6 +29,9 @@ const emptyForm = {
   nome: '',
   codice: '',
   categoria: '',
+  // Dentro il capo o intorno al capo (DEC-067): decide in quale voce di costo della scheda
+  // tecnica finisce la riga, accessori o packaging.
+  destinazione: 'capo' as 'capo' | 'packaging',
   supplierId: '',
   costoUnitario: '',
   quantitaAcquistata: '',
@@ -40,6 +43,7 @@ function datiDaAccessorio(a: Accessory): typeof emptyForm {
     nome: a.nome,
     codice: a.codice,
     categoria: a.categoria || '',
+    destinazione: a.destinazione ?? 'capo',
     supplierId: a.supplierId || '',
     costoUnitario: String(a.costoUnitario ?? ''),
     quantitaAcquistata: String(a.quantitaAcquistata ?? ''),
@@ -76,6 +80,7 @@ function AccessoryForm({
         nome: form.nome.trim(),
         codice: form.codice.trim(),
         categoria: form.categoria.trim(),
+        destinazione: form.destinazione,
         supplierId: form.supplierId,
         costoUnitario: Number(form.costoUnitario || 0),
         quantitaAcquistata: Number(form.quantitaAcquistata || 0),
@@ -108,6 +113,16 @@ function AccessoryForm({
         </Field>
         <Field label="Categoria">
           <input className={fieldClass} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} placeholder="Bottoni, zip, etichette…" />
+        </Field>
+        <Field label="Dove finisce" hint="Cucito nel capo, oppure intorno al capo: cambia la voce di costo nella scheda tecnica.">
+          <select
+            className={fieldClass}
+            value={form.destinazione}
+            onChange={(e) => setForm({ ...form, destinazione: e.target.value as 'capo' | 'packaging' })}
+          >
+            <option value="capo">Dentro il capo — zip, etichette, bottoni, ricami</option>
+            <option value="packaging">Packaging — cartellini, biglietti, velina</option>
+          </select>
         </Field>
         <Field label="Fornitore" hint="Lascia vuoto se non lo sai ancora; svuotarlo lo scollega.">
           <select className={fieldClass} value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
@@ -167,6 +182,13 @@ export function AccessoriesInventory() {
       ),
     },
     { header: 'Categoria', accessor: (a) => a.categoria },
+    {
+      header: 'Dove finisce',
+      accessor: (a) =>
+        a.destinazione === 'packaging'
+          ? <Badge variant="info">Packaging</Badge>
+          : <Badge variant="neutral">Dentro il capo</Badge>,
+    },
     {
       // Un trattino non distingue «non lo so» da «non serve». Il badge sì, ed è la riga
       // su cui il riordino automatico si ferma.

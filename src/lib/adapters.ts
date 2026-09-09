@@ -24,6 +24,9 @@ export function toProduct(r: Row): Product {
     categoria: s(r.categoria),
     collezione: s(r.collezione),
     tessuto: r.tessuto ? s(r.tessuto) : undefined,
+    materialiCollegatiIds: Array.isArray(r.materials)
+      ? (r.materials as { materialId: string }[]).map((m) => m.materialId)
+      : [],
     composizione: r.composizione ? s(r.composizione) : undefined,
     linea: r.linea as Product['linea'],
     stato: r.stato as Product['stato'],
@@ -187,6 +190,9 @@ export function toAccessory(r: Row): Accessory {
     nome: s(r.nome),
     codice: s(r.codice),
     categoria: s(r.categoria),
+    // Il server ha sempre un valore (default `capo`); il fallback copre solo una risposta
+    // vecchia rimasta in cache nel browser.
+    destinazione: (r.destinazione as 'capo' | 'packaging') ?? 'capo',
     supplierId: s(r.supplierId),
     quantitaAcquistata: num(r.quantitaAcquistata),
     quantitaUtilizzata: num(r.quantitaUtilizzata),

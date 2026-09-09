@@ -91,6 +91,8 @@ export interface Product {
   linea: Linea
   stato: ProductStage
   descrizioneBreve?: string
+  /** Tessuti del capo collegati al magazzino (DEC-067): id delle righe di `materials`. */
+  materialiCollegatiIds?: string[]
   descrizioneBreveStato: 'bozza' | 'approvata'
   descrizioneEcommerce?: string
   descrizioneTecnica?: string
@@ -393,6 +395,8 @@ export interface Accessory {
   nome: string
   codice: string
   categoria: string
+  /** Dentro il capo (zip, etichette, bottoni) o intorno al capo (cartellini, velina). DEC-067. */
+  destinazione: 'capo' | 'packaging'
   supplierId: string
   quantitaAcquistata: number
   quantitaUtilizzata: number

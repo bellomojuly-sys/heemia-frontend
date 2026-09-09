@@ -208,6 +208,8 @@ export interface NewAccessoryInput {
   costoUnitario: number
   quantitaAcquistata: number
   sogliaMinima: number
+  /** Dentro il capo o intorno al capo (DEC-067). */
+  destinazione?: 'capo' | 'packaging'
 }
 
 /**

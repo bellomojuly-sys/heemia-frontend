@@ -41,6 +41,12 @@ const REGOLE: [string, Regola][] = [
   ['alert-nosheet-', { categoria: 'documenti', titolo: 'Scheda tecnica mancante', azione: 'Apri prodotto' }],
   ['alert-incompletecost-', { categoria: 'documenti', titolo: 'Costi della scheda incompleti', azione: 'Apri prodotto' }],
   ['alert-noprice-', { categoria: 'documenti', titolo: 'Prezzo di vendita mancante', azione: 'Apri prodotto' }],
+  // Senza queste due righe i capi senza composizione e senza tessuto collegato finivano nel
+  // contenitore generico "Attività urgenti" con il titolo "Anagrafica": tecnicamente
+  // presenti, praticamente illeggibili. Un avviso che nessuno riesce a leggere non è un
+  // avviso (DEC-065 per la composizione, DEC-067 per il tessuto).
+  ['alert-nocomposizione-', { categoria: 'documenti', titolo: 'Composizione e lavaggio mancanti', azione: 'Apri prodotto' }],
+  ['alert-notessutolegato-', { categoria: 'documenti', titolo: 'Tessuto non collegato al magazzino', azione: 'Apri prodotto' }],
   ['alert-inv-assoc-', { categoria: 'documenti', titolo: 'Fattura da associare', azione: 'Apri fatture' }],
   ['alert-campione-', { categoria: 'campioni', titolo: 'Campione da approvare', azione: 'Apri prodotto' }],
   ['alert-bloccato-', { categoria: 'bloccati', titolo: 'Lavorazione bloccata', azione: 'Apri prodotto' }],

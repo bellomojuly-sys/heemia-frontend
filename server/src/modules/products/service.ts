@@ -10,13 +10,25 @@ export function listProducts(filters: { stato?: string; linea?: string; q?: stri
   if (filters.stato) where.stato = filters.stato as Prisma.ProductWhereInput['stato']
   if (filters.linea) where.linea = filters.linea as Prisma.ProductWhereInput['linea']
   if (filters.q) where.nome = { contains: filters.q, mode: 'insensitive' }
-  return prisma.product.findMany({ where, orderBy: { createdAt: 'desc' }, include: { variants: true } })
+  return prisma.product.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    // `materials` e' il collegamento al tessuto in magazzino (DEC-067). Sta anche qui e non
+    // solo nel dettaglio perche' la scheda del capo legge dallo store del client, che si
+    // riempie da questa lista.
+    include: { variants: true, materials: { select: { materialId: true } } },
+  })
 }
 
 export async function getProduct(id: string) {
   const p = await prisma.product.findUnique({
     where: { id },
-    include: { variants: true, technicalSheets: true, productionSteps: true },
+    // `materials` è il collegamento al tessuto in magazzino (DEC-067): serve alla scheda
+    // del capo per dire da quale riga viene e quanto costa, non solo come si chiama.
+    include: {
+      variants: true, technicalSheets: true, productionSteps: true,
+      materials: { include: { material: { select: { id: true, nome: true, codice: true, prezzoAlMetro: true, composizione: true } } } },
+    },
   })
   if (!p) throw notFound('Prodotto non trovato')
   return p

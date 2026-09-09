@@ -86,6 +86,11 @@ export function ProductDetail() {
   const liveMargins = useLiveMargins()
   const MARGIN_THRESHOLD_PERCENT = useMarginThreshold()
   const product = products.find((p) => p.id === id)
+  // I tessuti collegati al capo si risolvono contro il magazzino gia' in memoria: il legame
+  // arriva come elenco di id (DEC-067), i dati del tessuto stanno nello store.
+  const tessutiDelCapo = (product?.materialiCollegatiIds ?? [])
+    .map((mid) => materials.find((m) => m.id === mid))
+    .filter((m): m is Material => Boolean(m))
   // Una sola scheda tecnica per prodotto: quella compilata qui dentro. Le vecchie schede
   // Finale e Piazzamento restano leggibili, ma non se ne creano di nuove — cartamodelli e
   // piazzamenti sono documenti della modellista e stanno nella sezione dedicata.
@@ -403,8 +408,36 @@ export function ProductDetail() {
             subtitle={fabricSheet ? 'Dalla scheda tecnica del capo' : undefined}
           />
           <div className="p-5">
+            {/* Il tessuto del capo (DEC-067) esiste anche senza scheda tecnica: e' il legame
+                al magazzino, quello da cui il costo del tessuto arrivera' al costo del capo
+                quando la scheda portera' i consumi. Prima questa linguetta guardava solo la
+                scheda, e senza scheda diceva "nessun tessuto" anche a un capo che il tessuto
+                ce l'aveva eccome. */}
+            {tessutiDelCapo.length > 0 && (
+              <div className="mb-5">
+                <p className="font-mono-heemia mb-2 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
+                  Tessuto del capo
+                </p>
+                <ul className="divide-y divide-heemia-border">
+                  {tessutiDelCapo.map((m) => <FabricRow key={m.id} material={m} ruolo="Collegato al capo" />)}
+                </ul>
+                <p className="mt-2 text-xs text-heemia-grey">
+                  Il consumo — quanti metri servono per un capo — si compila nella scheda tecnica.
+                  Finche' manca, questo costo non entra nel costo del capo.
+                </p>
+              </div>
+            )}
+            {tessutiDelCapo.length === 0 && (product?.tessuto ?? '') !== '' && (
+              <div className="mb-5 rounded border border-heemia-border bg-heemia-surface-muted p-3 text-sm text-heemia-grey">
+                Il capo dichiara il tessuto <span className="text-heemia-black">«{product?.tessuto}»</span>, che
+                pero' non ha una riga di magazzino: il suo costo non potra' entrare nel costo del capo finche'
+                qualcuno non lo collega a mano.
+              </div>
+            )}
             {!fabricSheet ? (
-              <EmptyState title="Nessun tessuto collegato" description="Il tessuto viene collegato tramite la scheda tecnica, non ancora creata per questo prodotto." />
+              tessutiDelCapo.length === 0 ? (
+                <EmptyState title="Nessun tessuto collegato" description="Il tessuto viene collegato tramite la scheda tecnica, non ancora creata per questo prodotto." />
+              ) : null
             ) : (
               <div>
                 <ul className="divide-y divide-heemia-border">
