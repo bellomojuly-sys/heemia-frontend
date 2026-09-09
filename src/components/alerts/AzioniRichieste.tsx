@@ -21,10 +21,17 @@ const LIVELLO_LABEL: Record<AzioneRichiesta['livello'], string> = {
 
 export function AzioniRichieste({
   azioni,
+  variante = 'elenco',
   vuotoTitolo = 'Nessuna azione richiesta',
   vuotoDescrizione = 'Non ci sono segnalazioni aperte per i moduli visibili a questo ruolo.',
 }: {
   azioni: AzioneRichiesta[]
+  /**
+   * `elenco` mostra ogni segnalazione per esteso (pagina /alert). `riepilogo` mostra solo
+   * quante ne sono aperte per categoria: in dashboard le righe una per una occupavano mezza
+   * schermata ripetendo quello che la pagina dedicata dice già meglio.
+   */
+  variante?: 'elenco' | 'riepilogo'
   vuotoTitolo?: string
   vuotoDescrizione?: string
 }) {
@@ -32,6 +39,28 @@ export function AzioniRichieste({
 
   if (gruppi.length === 0) {
     return <EmptyState title={vuotoTitolo} description={vuotoDescrizione} />
+  }
+
+  if (variante === 'riepilogo') {
+    return (
+      <ul className="animate-fade-in divide-y divide-heemia-border overflow-hidden rounded-heemia-lg border border-heemia-border bg-white">
+        {gruppi.map((g) => {
+          // Il pallino prende il livello più alto del gruppo: raggruppaAzioni ordina già i
+          // critici in cima, quindi è la prima riga.
+          const livello = g.azioni[0].livello
+          return (
+            <li key={g.id} className="flex items-center gap-3 px-4 py-2.5">
+              <span
+                className={`h-1.5 w-1.5 shrink-0 rounded-full ${LIVELLO_DOT[livello]}`}
+                title={LIVELLO_LABEL[livello]}
+              />
+              <span className="flex-1 text-sm text-heemia-black">{g.label}</span>
+              <span className="font-mono-heemia text-sm text-heemia-black">{g.azioni.length}</span>
+            </li>
+          )
+        })}
+      </ul>
+    )
   }
 
   return (

@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { TrendingUp, Factory, Store, Layers, PenTool, Warehouse, Scissors } from 'lucide-react'
+import { TrendingUp, Factory, Store, Layers, PenTool, Warehouse, Scissors, ArrowRight } from 'lucide-react'
 import { PageHeader } from '../components/ui/PageHeader'
 import { KpiTile } from '../components/dashboard/KpiTile'
 import { TopProductsBarList } from '../components/dashboard/TopProductsBarList'
@@ -137,20 +137,26 @@ export function Dashboard() {
         />
       </FasciaKpi>
 
-      {/* Sezione unica "Azioni richieste" (backlog "Note" §9): categorie, non conteggi. */}
+      {/* Sezione unica "Azioni richieste" (backlog "Note" §9). In dashboard resta il solo
+          conteggio per tipo: le righe per esteso — titolo, motivo, prodotto, pulsante —
+          stanno su /alert, e ripeterle qui allungava la pagina senza aggiungere niente. */}
       <SezioneCard
         area="relazioni"
         titolo="Azioni richieste"
-        sottotitolo="Raggruppate per tipo, critiche per prime. Ogni riga dice cosa fare e dove."
+        sottotitolo={`Quante ne sono aperte, per tipo. ${azioni.length} in totale.`}
         className="mb-4"
         azione={
-          <Link to="/alert" className="text-xs font-medium text-heemia-grey hover:text-heemia-black hover:underline">
-            Vedi tutte →
+          <Link
+            to="/alert"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-heemia-sm border border-heemia-border-strong bg-white px-3 py-1.5 text-xs font-medium text-heemia-black transition-all duration-200 ease-heemia hover:border-heemia-black hover:shadow-heemia-sm active:scale-[0.96] active:duration-75"
+          >
+            Vedi tutte
+            <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         }
       >
         <div className="p-4">
-          <AzioniRichieste azioni={azioni} />
+          <AzioniRichieste azioni={azioni} variante="riepilogo" />
         </div>
       </SezioneCard>
 
