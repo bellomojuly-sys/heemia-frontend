@@ -400,7 +400,14 @@ export async function importaCensimento(
         })
         return esito
       },
-      { timeout: 180_000, maxWait: 30_000 },
+      // L'intero import è una transazione sola (regola 5 della Fase 21: o tutto o niente),
+      // quindi il tetto deve coprire il caso peggiore, non quello comodo. Da un Mac con il
+      // database sulla stessa macchina bastano pochi secondi; verso Francoforte, e per di
+      // più da un hotspot, ogni scrittura è un viaggio di rete e le migliaia di scritture
+      // dell'import superano i 180 secondi. Il valore resta quello di sempre e si alza solo
+      // quando serve, con IMPORT_TX_TIMEOUT_MS: spezzare l'import in blocchi avrebbe
+      // rispettato il tempo ma perso la garanzia, ed è la garanzia che conta.
+      { timeout: Number(process.env.IMPORT_TX_TIMEOUT_MS ?? 180_000), maxWait: 30_000 },
     )
   } catch (e) {
     if (e instanceof AnnullaSimulazione) return e.esito

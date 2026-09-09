@@ -15,9 +15,13 @@ import { fileURLToPath } from 'node:url'
 import { PrismaClient } from '@prisma/client'
 import { tessutoConosciuto } from '../src/core/tessuti.js'
 
-const censusDir = fileURLToPath(
-  new URL('../../../03_Technical_Specification/Censimento_Dati/', import.meta.url),
-)
+// I CSV del censimento vivono nel vault, fuori dal repository: la fonte resta quella.
+// CENSIMENTO_DIR serve al caso in cui l'import non parta da un Mac con il vault accanto —
+// per esempio da dentro Render, dove il database è sulla rete interna e non c'è una
+// connessione domestica o mobile che possa cadere a metà transazione.
+const censusDir = process.env.CENSIMENTO_DIR
+  ? process.env.CENSIMENTO_DIR.replace(/\/?$/, '/')
+  : fileURLToPath(new URL('../../../03_Technical_Specification/Censimento_Dati/', import.meta.url))
 
 type Row = Record<string, string>
 

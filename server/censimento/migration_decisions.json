@@ -1,0 +1,12 @@
+{
+  "stockSnapshotDate": "2026-06",
+  "stockSnapshotConfirmedCurrent": true,
+  "stockSnapshotDecision": "Accettata come fotografia storica di giugno 2026 e usata come base della migrazione. Il riferimento temporale non si sposta (decisione Giulia 2026-08-13).",
+  "productsOutsideCatalogDecision": "Atene, Madrid, Dallas e Giuli entrano nel catalogo come tutti gli altri (decisione Giulia 2026-08-13). Bomber e' uscito dall'elenco il 2026-09-07: non e' un capo a se', e' il nome con cui il foglio Break Even per Capo chiama Alaska.",
+  "duplicateCommercialNamesDecision": "Barcellona e' il bermuda, Pechino e' la giacca. Nel censimento esiste gia' una riga sola per ciascuno: nessun doppione da unire (decisione Giulia 2026-08-13).",
+  "productStageMapping": "completato — i capi presenti in inventario sono gia' prodotti e pronti alla vendita, quindi entrano fuori dalla pipeline senza passare dalle fasi produttive (decisione Giulia 2026-08-13; la fase si chiamava 'in_vendita' ed e' stata rinominata il 2026-09-07 quando 'In vendita' ha smesso di essere una fase: la decisione non cambia, cambia il nome del valore).",
+  "excludedFromInitialInventory": "Denver e Moss: quantita 0, nessuna variante e nessuna giacenza iniziale (decisione Giulia 2026-08-13).",
+  "stockLocationSplit": "Alla prima importazione tutti i pezzi entrano in Laboratorio; la divisione fra Laboratorio e Magazzino si fa dopo, dall'app (decisione Giulia 2026-08-13, conferma DEC-045).",
+  "sitePriceRule": "Prezzo sito = prezzo showroom + 10%, calcolato dall'app e non censito (decisione Giulia 2026-08-13).",
+  "vatMissingSuppliers": "I fornitori senza partita IVA entrano lo stesso con il campo vuoto; il dato si completa dopo (decisione Giulia 2026-08-13)."
+}
