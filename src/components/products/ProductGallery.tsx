@@ -67,6 +67,16 @@ export function ProductGallery({
                 {p.nome}
               </p>
               <p className="font-mono-heemia truncate text-[11px] text-heemia-grey">{p.codiceProdotto}</p>
+              {/* La descrizione breve è la frase che dice com'è fatto il capo — la domanda a
+                  cui serve la galleria. Due righe esatte, sempre riservate anche quando manca:
+                  troncate oltre la seconda, così le righe di card restano allineate e fase e
+                  prezzo si leggono sempre alla stessa altezza. */}
+              <p
+                className="mt-1 line-clamp-2 min-h-[2.05rem] text-xs leading-snug text-heemia-grey"
+                title={p.descrizioneBreve}
+              >
+                {p.descrizioneBreve}
+              </p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <StatusBadge status={p.stato} />
                 {p.prezzoVendita > 0 ? (
