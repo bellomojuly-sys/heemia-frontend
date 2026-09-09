@@ -32,6 +32,8 @@ const emptyForm = {
   // Dentro il capo o intorno al capo (DEC-067): decide in quale voce di costo della scheda
   // tecnica finisce la riga, accessori o packaging.
   destinazione: 'capo' as 'capo' | 'packaging',
+  // Va su ogni capo senza doverlo scegliere: oggi solo la velina (Giulia, 2026-09-09).
+  sempreIncluso: false,
   supplierId: '',
   costoUnitario: '',
   quantitaAcquistata: '',
@@ -44,6 +46,7 @@ function datiDaAccessorio(a: Accessory): typeof emptyForm {
     codice: a.codice,
     categoria: a.categoria || '',
     destinazione: a.destinazione ?? 'capo',
+    sempreIncluso: a.sempreIncluso ?? false,
     supplierId: a.supplierId || '',
     costoUnitario: String(a.costoUnitario ?? ''),
     quantitaAcquistata: String(a.quantitaAcquistata ?? ''),
@@ -81,6 +84,7 @@ function AccessoryForm({
         codice: form.codice.trim(),
         categoria: form.categoria.trim(),
         destinazione: form.destinazione,
+        sempreIncluso: form.sempreIncluso,
         supplierId: form.supplierId,
         costoUnitario: Number(form.costoUnitario || 0),
         quantitaAcquistata: Number(form.quantitaAcquistata || 0),
@@ -123,6 +127,19 @@ function AccessoryForm({
             <option value="capo">Dentro il capo — zip, etichette, bottoni, ricami</option>
             <option value="packaging">Packaging — cartellini, biglietti, velina</option>
           </select>
+        </Field>
+        {/* Non è un sinonimo di «packaging»: i cartellini sono packaging ma non vanno tutti
+            sullo stesso capo, e non costano uguale. La velina sì, e chi compila i costi non
+            deve ricordarsene. */}
+        <Field label="Su ogni capo" hint="Compare da solo fra i materiali di ogni scheda tecnica, senza doverlo scegliere. Oggi vale per la velina.">
+          <label className="flex items-center gap-2 py-1.5 text-sm text-heemia-black">
+            <input
+              type="checkbox"
+              checked={form.sempreIncluso}
+              onChange={(e) => setForm({ ...form, sempreIncluso: e.target.checked })}
+            />
+            Va su ogni capo, senza sceglierlo
+          </label>
         </Field>
         <Field label="Fornitore" hint="Lascia vuoto se non lo sai ancora; svuotarlo lo scollega.">
           <select className={fieldClass} value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
@@ -197,10 +214,16 @@ export function AccessoriesInventory() {
     { header: 'Categoria', accessor: (a) => a.categoria },
     {
       header: 'Dove finisce',
-      accessor: (a) =>
-        a.destinazione === 'packaging'
-          ? <Badge variant="info">Packaging</Badge>
-          : <Badge variant="neutral">Dentro il capo</Badge>,
+      accessor: (a) => (
+        <div className="flex flex-wrap items-center gap-1">
+          {a.destinazione === 'packaging'
+            ? <Badge variant="info">Packaging</Badge>
+            : <Badge variant="neutral">Dentro il capo</Badge>}
+          {/* Chi guarda l'elenco deve poter distinguere la velina dai cartellini senza
+              aprire la scheda: è l'unica riga che entra da sola in ogni scheda tecnica. */}
+          {a.sempreIncluso && <Badge variant="neutral">Su ogni capo</Badge>}
+        </div>
+      ),
     },
     {
       // Un trattino non distingue «non lo so» da «non serve». Il badge sì, ed è la riga

@@ -193,6 +193,7 @@ export function toAccessory(r: Row): Accessory {
     // Il server ha sempre un valore (default `capo`); il fallback copre solo una risposta
     // vecchia rimasta in cache nel browser.
     destinazione: (r.destinazione as 'capo' | 'packaging') ?? 'capo',
+    sempreIncluso: Boolean(r.sempreIncluso),
     supplierId: s(r.supplierId),
     quantitaAcquistata: num(r.quantitaAcquistata),
     quantitaUtilizzata: num(r.quantitaUtilizzata),

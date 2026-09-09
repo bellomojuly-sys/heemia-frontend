@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Plus, Trash2, Wand2, Upload, FileText, Sparkles } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Card, CardHeader } from '../ui/Card'
@@ -186,6 +186,62 @@ export function TechnicalSheetForm({
   }
 
   const removeMateriale = (id: string) => setFrom('materiali', (f) => (f.materiali ?? []).filter((m) => m.id !== id))
+
+  // --- Confezionamento -------------------------------------------------------
+  //
+  // «Ogni capo usa cartellini e velina, sempre che sia ordinato in showroom o online»
+  // (Giulia, 2026-09-09). Le due metà della frase si comportano però in modo diverso, ed è
+  // per questo che qui c'è una sezione invece di una riga in più fra i materiali:
+  //
+  //  - la **velina** è una sola e va sempre: chi compila i costi non deve ricordarsene, e
+  //    infatti se manca viene aggiunta da sé all'apertura della scheda;
+  //  - i **cartellini** sono quattro, non costano uguale (0,60 lo standard e l'Aurea, 0,80
+  //    il 10.01) e quale vada su quale capo lo sa solo chi compila. Restano una scelta.
+  //
+  // Quali siano «quelli che vanno sempre» lo dice il dato (`sempreIncluso`), non un
+  // confronto sul nome: la velina rinominata smetterebbe di essere riconosciuta e il costo
+  // sparirebbe dalle schede senza che nessun controllo se ne accorga.
+  const packaging = accessories.filter((a) => a.destinazione === 'packaging')
+  const packagingSempre = packaging.filter((a) => a.sempreIncluso)
+  const packagingAScelta = packaging.filter((a) => !a.sempreIncluso)
+  const rigaDiAccessorio = (accessoryId: string) => materiali.find((m) => m.accessoryId === accessoryId)
+
+  const nuovaRigaAccessorio = (accessoryId: string): SheetMaterialUsage =>
+    risolviRiga({
+      id: localId('mu'),
+      accessoryId,
+      descrizione: '',
+      unitaMisura: 'cad',
+      quantitaSuggerita: 1,
+      // Un cartellino non si taglia: non c'è scarto da prevedere, a differenza del tessuto.
+      percentualeScarto: 0,
+      fattureCollegateIds: [],
+      costoUnitario: 0,
+      fonteCosto: 'manuale',
+      costoUnitarioAggiornatoIl: TODAY_ISO(),
+    })
+
+  const toggleConfezionamento = (accessoryId: string, incluso: boolean) =>
+    setFrom('materiali', (f) => {
+      const righe = f.materiali ?? []
+      if (!incluso) return righe.filter((m) => m.accessoryId !== accessoryId)
+      if (righe.some((m) => m.accessoryId === accessoryId)) return righe
+      return [...righe, nuovaRigaAccessorio(accessoryId)]
+    })
+
+  // La velina entra da sola, ma **non si salva da sola**: resta una modifica del form come
+  // le altre, che l'utente vede e conferma con Salva. Una scrittura silenziosa cambierebbe
+  // il costo di un capo senza che nessuno l'abbia deciso in quel momento.
+  const veline = packagingSempre.map((a) => a.id).join(',')
+  useEffect(() => {
+    if (packagingSempre.length === 0) return
+    setFrom('materiali', (f) => {
+      const righe = f.materiali ?? []
+      const mancanti = packagingSempre.filter((a) => !righe.some((m) => m.accessoryId === a.id))
+      return mancanti.length === 0 ? righe : [...righe, ...mancanti.map((a) => nuovaRigaAccessorio(a.id))]
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [veline])
 
   // --- Costi aggiuntivi ------------------------------------------------------
 
@@ -536,6 +592,57 @@ export function TechnicalSheetForm({
             <span className="inline-flex items-center gap-1.5"><Plus aria-hidden className="h-3.5 w-3.5" /> Aggiungi materiale</span>
           </Button>
         </section>
+
+        {/* 3b. Confezionamento ---------------------------------------------- */}
+        {packaging.length > 0 && (
+          <section>
+            <SectionTitle hint="Ciò che sta intorno al capo, non addosso: entra nella voce packaging del costo, non fra gli accessori. Le righe spuntate compaiono anche qui sopra, fra i materiali.">
+              Confezionamento
+            </SectionTitle>
+
+            <div className="space-y-2">
+              {packagingSempre.map((a) => {
+                const riga = rigaDiAccessorio(a.id)
+                return (
+                  <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-heemia border border-heemia-border bg-heemia-surface px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="neutral">Su ogni capo</Badge>
+                      <span className="text-sm text-heemia-black">{a.nome}</span>
+                    </div>
+                    <p className="font-mono-heemia text-xs text-heemia-grey">
+                      {riga ? `${riga.quantitaConfermata ?? riga.quantitaSuggerita} ${riga.unitaMisura} × ${formatCurrency(riga.costoUnitario)}` : '—'}
+                    </p>
+                  </div>
+                )
+              })}
+
+              {packagingAScelta.map((a) => {
+                const riga = rigaDiAccessorio(a.id)
+                return (
+                  <label key={a.id} className="flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-heemia border border-heemia-border px-3 py-2 hover:border-heemia-border-strong">
+                    <span className="flex items-center gap-2 text-sm text-heemia-black">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(riga)}
+                        onChange={(e) => toggleConfezionamento(a.id, e.target.checked)}
+                      />
+                      {a.nome}
+                      {a.categoria && <span className="text-xs text-heemia-grey">· {a.categoria}</span>}
+                    </span>
+                    <span className="font-mono-heemia text-xs text-heemia-grey">{formatCurrency(a.costoUnitario)} / {a.unitaMisura}</span>
+                  </label>
+                )
+              })}
+            </div>
+
+            {packagingSempre.length > 0 && (
+              <p className="mt-2 text-xs text-heemia-grey">
+                La velina entra da sola in ogni scheda perché è marcata «su ogni capo» in anagrafica accessori.
+                I cartellini no: non costano uguale e li scegli qui, capo per capo. La riga aggiunta si salva con la scheda.
+              </p>
+            )}
+          </section>
+        )}
 
         {/* 4. Costi aggiuntivi ---------------------------------------------- */}
         <section>

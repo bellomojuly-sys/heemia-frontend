@@ -785,6 +785,10 @@ model Accessory {
   /// 19 nel censimento) e perche' sbagliare per eccesso di packaging gonfierebbe una voce
   /// che serve a decidere i prezzi.
   destinazione           AccessoryDestinazione @default(capo)
+  /// Va su **ogni** capo, senza che nessuno lo scelga: oggi solo la velina (Giulia,
+  /// 2026-09-09). Chi compila i costi se lo ritrova gia' in distinta, mentre i cartellini
+  /// restano una scelta — non costano uguale e non vanno tutti sullo stesso capo.
+  sempreIncluso          Boolean        @default(false) @map("sempre_incluso")
   supplierId             String?        @map("supplier_id") @db.Uuid
   supplier               Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   quantitaAcquistata     Decimal        @default(0) @map("quantita_acquistata") @db.Decimal(10, 2)

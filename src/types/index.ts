@@ -397,6 +397,8 @@ export interface Accessory {
   categoria: string
   /** Dentro il capo (zip, etichette, bottoni) o intorno al capo (cartellini, velina). DEC-067. */
   destinazione: 'capo' | 'packaging'
+  /** Va su ogni capo senza doverlo scegliere: oggi solo la velina (Giulia, 2026-09-09). */
+  sempreIncluso: boolean
   supplierId: string
   quantitaAcquistata: number
   quantitaUtilizzata: number

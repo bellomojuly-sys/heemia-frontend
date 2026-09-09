@@ -42,6 +42,9 @@ const accessoryCreate = z.object({
   // Dentro il capo o intorno al capo (Giulia, 2026-09-09): decide se il costo della riga
   // finisce fra gli accessori o nel packaging della scheda tecnica.
   destinazione: z.enum(['capo', 'packaging']).optional(),
+  // Va su ogni capo senza che nessuno lo scelga (oggi: la velina). Non e' un sinonimo di
+  // `packaging`: i cartellini sono packaging ma si scelgono capo per capo.
+  sempreIncluso: z.boolean().optional(),
   // `null` significa **scollega**, `undefined` significa «lascia com'era». Senza la
   // distinzione un fornitore associato per sbaglio non si poteva più togliere: si
   // poteva solo sostituire con un altro.

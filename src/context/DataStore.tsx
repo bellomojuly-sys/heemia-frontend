@@ -210,6 +210,8 @@ export interface NewAccessoryInput {
   sogliaMinima: number
   /** Dentro il capo o intorno al capo (DEC-067). */
   destinazione?: 'capo' | 'packaging'
+  /** Va su ogni capo senza doverlo scegliere: oggi solo la velina (Giulia, 2026-09-09). */
+  sempreIncluso?: boolean
 }
 
 /**
