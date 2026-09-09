@@ -13,7 +13,7 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { PrismaClient } from '@prisma/client'
-import { tessutoConosciuto } from '../src/core/tessuti.js'
+import { codiceMaterialePerTessuto, tessutoConosciuto } from '../src/core/tessuti.js'
 
 // I CSV del censimento vivono nel vault, fuori dal repository: la fonte resta quella.
 // CENSIMENTO_DIR serve al caso in cui l'import non parta da un Mac con il vault accanto —
@@ -91,6 +91,14 @@ const [capiDb, variantiDb, giacenzeDb, fornitoriDb, pezziLab, pezziMag, daConfer
     prisma.product.count({ where: { codiceProdotto: { in: codici }, consigliCuraStato: 'approvata' } }),
   ])
 
+// Capi collegati alla loro riga di tessuto in magazzino (Giulia, 2026-09-09). Il conto
+// atteso si ricava dal censimento stesso, non da un numero scritto a mano: quanti capi hanno
+// un tessuto che la mappa conosce. Cosi' resta giusto anche quando la mappa cresce.
+const tessutiAttesi = prodotti.filter((p) => codiceMaterialePerTessuto(p.tessuto)).length
+const tessutiLegati = await prisma.product.count({
+  where: { codiceProdotto: { in: codici }, materials: { some: {} } },
+})
+
 const doppiCodice = await prisma.$queryRaw<unknown[]>`SELECT codice_prodotto FROM products GROUP BY 1 HAVING count(*) > 1`
 const doppiSku = await prisma.$queryRaw<unknown[]>`SELECT sku FROM product_variants GROUP BY 1 HAVING count(*) > 1`
 
@@ -105,6 +113,7 @@ const controlli: Controllo[] = [
   { cosa: 'pezzi in magazzino (deve essere 0)', atteso: 0, trovato: pezziMag._sum.qtaMagazzino ?? 0 },
   { cosa: 'distribuzioni da confermare', atteso: varianti.length, trovato: daConfermare },
   { cosa: 'capi fuori dalla fase Vendita', atteso: 0, trovato: fuoriFase },
+  { cosa: 'capi con il tessuto collegato', atteso: tessutiAttesi, trovato: tessutiLegati },
   { cosa: 'descrizioni sui capi', atteso: conDescrizione, trovato: descrizioniDb },
   { cosa: 'composizioni ricavate dal tessuto', atteso: conTessutoNoto, trovato: composizioniDb },
   { cosa: 'consigli di cura approvati', atteso: conTessutoNoto, trovato: curaApprovataDb },

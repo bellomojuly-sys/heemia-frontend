@@ -125,6 +125,14 @@ if (esito.descrizioni.riscritte > 0) {
   console.log('     Attenzione: descrizioni già a database sostituite con quelle di Notion.')
 }
 console.log('')
+riga('capi col tessuto collegato', esito.tessutiLegati)
+if (esito.tessutiSenzaMagazzino.length > 0) {
+  riga('capi senza tessuto a magazzino', esito.tessutiSenzaMagazzino.length)
+  const perTessuto = new Map<string, number>()
+  for (const t of esito.tessutiSenzaMagazzino) perTessuto.set(t.tessuto, (perTessuto.get(t.tessuto) ?? 0) + 1)
+  console.log(`     ${[...perTessuto].map(([t, n]) => `${t} (${n})`).join(', ')}`)
+  console.log('     Restano scoperti di proposito: in magazzino quei tessuti non ci sono.')
+}
 riga('capi senza costo diretto', esito.senzaCostoDiretto.length)
 if (esito.senzaCostoDiretto.length > 0) {
   console.log(`     ${esito.senzaCostoDiretto.join(', ')}`)
