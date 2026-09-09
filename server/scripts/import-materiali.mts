@@ -19,9 +19,11 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { PrismaClient, type MaterialUnita, type AccessoryUnita } from '@prisma/client'
 
-const censusDir = fileURLToPath(
-  new URL('../../../03_Technical_Specification/Censimento_Dati/', import.meta.url),
-)
+// Come in import-censimento.mts: senza CENSIMENTO_DIR si legge il vault, che resta la
+// fonte. La variabile serve quando l'import non parte da un Mac con il vault accanto.
+const censusDir = process.env.CENSIMENTO_DIR
+  ? process.env.CENSIMENTO_DIR.replace(/\/?$/, '')
+  : fileURLToPath(new URL('../../../03_Technical_Specification/Censimento_Dati', import.meta.url))
 
 type Row = Record<string, string>
 
