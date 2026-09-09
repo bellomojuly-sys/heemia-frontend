@@ -157,6 +157,8 @@ export function AccessoriesInventory() {
   const { avvisa } = useGoatAlert()
   const [search, setSearch] = useState('')
   const [stato, setStato] = useState('')
+  const [categoria, setCategoria] = useState('')
+  const [destinazione, setDestinazione] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [daModificare, setDaModificare] = useState<Accessory | null>(null)
   const modificabile = canWrite(role, 'inventario')
@@ -166,9 +168,20 @@ export function AccessoriesInventory() {
       accessories.filter((a) => {
         if (search && !`${a.nome} ${a.codice}`.toLowerCase().includes(search.toLowerCase())) return false
         if (stato && a.stato !== stato) return false
+        if (categoria && (a.categoria || '') !== categoria) return false
+        if (destinazione && (a.destinazione ?? 'capo') !== destinazione) return false
         return true
       }),
-    [accessories, search, stato],
+    [accessories, search, stato, categoria, destinazione],
+  )
+
+  // Le categorie non sono un elenco fisso: le scrive chi inserisce l'accessorio, e il
+  // censimento ne porta sette (Zip, Etichette, Ricami, Packaging, Cartotecnica, Filati,
+  // Accessori). Si ricavano quindi dai dati, così il filtro resta giusto senza che nessuno
+  // debba ricordarsi di aggiornarlo quando ne nasce una nuova.
+  const categorie = useMemo(
+    () => [...new Set(accessories.map((a) => (a.categoria || '').trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'it')),
+    [accessories],
   )
 
   const columns: DataTableColumn<Accessory>[] = [
@@ -270,6 +283,21 @@ export function AccessoriesInventory() {
               { value: 'sotto_soglia', label: 'Sotto soglia' },
               { value: 'esaurito', label: 'Esaurito' },
               { value: 'da_verificare', label: 'Da verificare' },
+            ],
+          },
+          {
+            label: 'Categoria',
+            value: categoria,
+            onChange: setCategoria,
+            options: categorie.map((c) => ({ value: c, label: c })),
+          },
+          {
+            label: 'Dove finisce',
+            value: destinazione,
+            onChange: setDestinazione,
+            options: [
+              { value: 'capo', label: 'Dentro il capo' },
+              { value: 'packaging', label: 'Packaging' },
             ],
           },
         ]}
