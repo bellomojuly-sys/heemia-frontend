@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client'
+import { codiceMaterialePerTessuto } from '../../core/tessuti.js'
 import { prisma } from '../../core/prisma.js'
 import { conflict, notFound } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
@@ -21,6 +22,48 @@ export async function getProduct(id: string) {
   return p
 }
 
+/**
+ * Tiene allineato il collegamento capo ↔ riga di tessuto in magazzino.
+ *
+ * Il campo `tessuto` porta il nome ("piquè"); questa funzione scrive il legame vero, quello
+ * da cui il costo del tessuto arrivera' al costo del capo quando le schede tecniche
+ * porteranno i consumi. Sta nel servizio e non nel form per lo stesso motivo per cui ci sta
+ * la derivazione di composizione e consigli: deve valere per qualunque via si crei o si
+ * modifichi un capo.
+ *
+ * **Toglie solo cio' che aveva messo lei.** Cambiando tessuto sparisce il legame del tessuto
+ * precedente, non gli altri: un materiale collegato a mano da una persona — la fodera di un
+ * capo foderato, per dire — non viene toccato. E' la stessa regola dei consigli di cura, che
+ * si rimuovono solo se combaciano esattamente con la tabella.
+ */
+async function sincronizzaTessutoCollegato(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  tessutoPrima: string | null,
+  tessutoDopo: string | null,
+): Promise<void> {
+  const codicePrima = codiceMaterialePerTessuto(tessutoPrima)
+  const codiceDopo = codiceMaterialePerTessuto(tessutoDopo)
+  if (codicePrima === codiceDopo) return
+
+  if (codicePrima) {
+    const vecchio = await tx.material.findUnique({ where: { codice: codicePrima }, select: { id: true } })
+    if (vecchio) await tx.productMaterial.deleteMany({ where: { productId, materialId: vecchio.id } })
+  }
+  if (codiceDopo) {
+    const nuovo = await tx.material.findUnique({ where: { codice: codiceDopo }, select: { id: true } })
+    // Il materiale puo' non esistere ancora (magazzino non popolato): il capo resta senza
+    // legame e l'avviso in Anagrafica lo dice, invece di far fallire il salvataggio.
+    if (nuovo) {
+      await tx.productMaterial.upsert({
+        where: { productId_materialId: { productId, materialId: nuovo.id } },
+        create: { productId, materialId: nuovo.id },
+        update: {},
+      })
+    }
+  }
+}
+
 export async function createProduct(input: Prisma.ProductCreateInput, userId: string) {
   const exists = await prisma.product.findUnique({ where: { codiceProdotto: input.codiceProdotto } })
   if (exists) throw conflict(`Codice prodotto "${input.codiceProdotto}" già esistente`)
@@ -37,6 +80,7 @@ export async function createProduct(input: Prisma.ProductCreateInput, userId: st
         bloccata: false,
       },
     })
+    await sincronizzaTessutoCollegato(tx, created.id, null, created.tessuto)
     await logActivity(tx, { userId, azione: 'create', entita: 'product', entitaId: created.id, valoreNuovo: created.nome })
     return created
   })
@@ -47,6 +91,7 @@ export async function updateProduct(id: string, input: Prisma.ProductUpdateInput
   if (!before) throw notFound('Prodotto non trovato')
   return prisma.$transaction(async (tx) => {
     const updated = await tx.product.update({ where: { id }, data: input })
+    await sincronizzaTessutoCollegato(tx, id, before.tessuto, updated.tessuto)
     await logActivity(tx, {
       userId, azione: 'update', entita: 'product', entitaId: id,
       valorePrecedente: before.nome, valoreNuovo: updated.nome,

@@ -17,7 +17,25 @@
 //     colpi di UPDATE.
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { PrismaClient, type MaterialUnita, type AccessoryUnita } from '@prisma/client'
+import {
+  PrismaClient,
+  type MaterialUnita,
+  type AccessoryUnita,
+  type AccessoryDestinazione,
+} from '@prisma/client'
+
+/**
+ * Dentro il capo o intorno al capo (Giulia, 2026-09-09). La categoria del censimento basta a
+ * deciderlo: "Packaging" sono i cartellini e il biglietto, "Cartotecnica" e' la velina —
+ * tutto il resto (zip, etichette, ricami, bottoni, fettucce, filati) finisce cucito addosso.
+ *
+ * Non e' un dettaglio di classificazione: la scheda tecnica tiene separati costo accessori e
+ * costo packaging, e sommarli vuol dire non poter piu' rispondere a "quanto ci costa
+ * confezionare un capo".
+ */
+function destinazioneDa(categoria: string): AccessoryDestinazione {
+  return ['packaging', 'cartotecnica'].includes(categoria.trim().toLowerCase()) ? 'packaging' : 'capo'
+}
 
 // Come in import-censimento.mts: senza CENSIMENTO_DIR si legge il vault, che resta la
 // fonte. La variabile serve quando l'import non parte da un Mac con il vault accanto.
@@ -119,6 +137,7 @@ try {
           costoUnitario: prezzo,
           unitaMisura: r.unita_app as AccessoryUnita,
           categoria: r.categoria || null,
+          destinazione: destinazioneDa(r.categoria ?? ''),
         }
         if (esistente) {
           await tx.accessory.update({ where: { codice }, data: dati })

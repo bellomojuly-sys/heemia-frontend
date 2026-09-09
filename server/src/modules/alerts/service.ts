@@ -27,7 +27,7 @@ export interface AlertItem {
 export async function computeAlerts(role: Role): Promise<AlertItem[]> {
   const [products, materials, accessories, invoices, inventoryRecords, orders, cashClosures, showroomRequests, stepsBloccati, margins, sogliaSetting] =
     await Promise.all([
-      prisma.product.findMany({ include: { technicalSheets: true } }),
+      prisma.product.findMany({ include: { technicalSheets: true, materials: true } }),
       prisma.material.findMany(),
       prisma.accessory.findMany(),
       prisma.invoice.findMany(),
@@ -198,6 +198,27 @@ export async function computeAlerts(role: Role): Promise<AlertItem[]> {
         messaggio: p.tessuto
           ? `${p.nome}: composizione da scrivere a mano — per il tessuto «${p.tessuto}» non c'è una regola`
           : `${p.nome}: nessun tessuto indicato, quindi niente composizione né consigli di cura`,
+        data: now, entitaId: p.id, link: `/prodotti/${p.id}`,
+      })
+    }
+
+    // Tessuto non collegato al magazzino (Giulia, 2026-09-09). Il campo `tessuto` porta il
+    // NOME; il collegamento alla riga di magazzino è un'altra cosa, ed è quello che farà
+    // arrivare il costo del tessuto al costo del capo quando le schede porteranno i consumi.
+    //
+    // Restano scoperti 28 capi su 93, per due motivi diversi che l'avviso tiene distinti: i
+    // tessuti che in magazzino non esistono (cotone, viscosa, alpaca, lana, misto lana) e i
+    // capi foderati, che usano due materiali e nessun documento dice quale sia la fodera.
+    // Sono buchi voluti, ma voluti non vuol dire invisibili.
+    if (p.stato !== 'idea' && p.stato !== 'archivio' && p.materials.length === 0) {
+      const foderato = (p.tessuto ?? '').includes('+')
+      alerts.push({
+        id: `alert-notessutolegato-${p.id}`, modulo: 'Anagrafica', livello: 'attenzione',
+        messaggio: !p.tessuto
+          ? `${p.nome}: nessun tessuto indicato, quindi nessun collegamento al magazzino`
+          : foderato
+            ? `${p.nome}: capo foderato («${p.tessuto}») — collega a mano il tessuto esterno e la fodera, il censimento non dice quale`
+            : `${p.nome}: il tessuto «${p.tessuto}» non ha una riga di magazzino, quindi il suo costo non entrerà nel costo del capo`,
         data: now, entitaId: p.id, link: `/prodotti/${p.id}`,
       })
     }

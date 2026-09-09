@@ -39,6 +39,9 @@ const accessoryCreate = z.object({
   nome: z.string().min(1),
   codice: z.string().min(1),
   categoria: z.string().optional(),
+  // Dentro il capo o intorno al capo (Giulia, 2026-09-09): decide se il costo della riga
+  // finisce fra gli accessori o nel packaging della scheda tecnica.
+  destinazione: z.enum(['capo', 'packaging']).optional(),
   // `null` significa **scollega**, `undefined` significa «lascia com'era». Senza la
   // distinzione un fornitore associato per sbaglio non si poteva più togliere: si
   // poteva solo sostituire con un altro.

@@ -178,3 +178,37 @@ export function derivatoDaTabella(composizione: string | null, consigliCura: str
 export function tessutoConosciuto(nome: string | null | undefined): Tessuto | null {
   return PER_NOME.get((nome ?? '').trim().toLowerCase()) ?? null
 }
+
+/**
+ * Da quale riga di magazzino arriva il tessuto di un capo.
+ *
+ * **Confermata da Giulia il 2026-09-09, nome per nome.** Non è una somiglianza calcolata:
+ * i nomi del censimento e quelli del magazzino non coincidono quasi mai, e indovinare qui
+ * significa attaccare a un capo il costo di un altro tessuto. Il precedente è [[DEC-065]] —
+ * «viscosa» e «cremoso» dati per lo stesso filato, 9 capi con la composizione sbagliata.
+ *
+ * **Le assenze sono decisioni, non buchi da riempire.** `cotone`, `viscosa`, `alpaca`,
+ * `lana` e `misto lana` sono tessuti veri che in magazzino **non esistono** (in particolare
+ * `cotone` NON è `caldo cotone`: sono due tessuti diversi, Giulia 2026-09-09). I capi
+ * foderati restano aperti di proposito: un capo foderato usa due materiali, e quale fodera
+ * sia — Mirtillo o Piuma Perla — non lo dice nessun documento. In entrambi i casi il capo
+ * resta senza collegamento e l'app lo segnala fra le azioni richieste.
+ */
+export const MATERIALE_PER_TESSUTO: Record<string, string> = {
+  'piquè': 'MAT-111', // Felpa Piqué
+  'gigiotto': 'MAT-110', // Felpa Gigiotto — a magazzino era scritto "Gigiotop": la parola
+  // corretta è "gigiotto" (Giulia, 2026-09-09), corretta anche nel censimento.
+  'luis': 'MAT-108', // Felpa Louis
+  'caldo cotone': 'MAT-101',
+  'costina': 'MAT-109',
+  'lycra': 'MAT-112', // Lycra lucida
+  'jersey': 'MAT-103',
+}
+
+/**
+ * Il codice della riga di magazzino per un tessuto, o `null` se quel tessuto non ha una
+ * riga. `null` è una risposta legittima e frequente: 28 capi su 93 stanno così.
+ */
+export function codiceMaterialePerTessuto(nome: string | null | undefined): string | null {
+  return MATERIALE_PER_TESSUTO[(nome ?? '').trim().toLowerCase()] ?? null
+}

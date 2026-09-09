@@ -174,6 +174,22 @@ enum AccessoryUnita {
   m
 }
 
+/// Dove finisce un accessorio: **dentro** il capo o **intorno** al capo.
+///
+/// Non e' una categoria merceologica (quella resta `categoria`: Zip, Etichette, Ricami…),
+/// e' la destinazione del costo. La scheda tecnica tiene separati `costoAccessori` e
+/// `costoPackaging` perche' sono due voci diverse del costo diretto: una zip cucita nel capo
+/// e un cartellino appeso all'etichetta non pesano allo stesso modo su un margine, e
+/// sommarle vuol dire non poter piu' rispondere a "quanto ci costa confezionare".
+///
+/// Richiesta di Giulia il 2026-09-09.
+enum AccessoryDestinazione {
+  /// Cucito, applicato o comunque parte del capo: zip, etichette, ricami, bottoni, filati.
+  capo
+  /// Intorno al capo, non addosso: cartellini, biglietti, velina, scatole.
+  packaging
+}
+
 enum SupplierCategoria {
   Tessuti
   Filati
@@ -764,6 +780,11 @@ model Accessory {
   nome                   String
   codice                 String         @unique
   categoria              String?
+  /// Dentro il capo o intorno al capo: decide in quale voce di costo finisce la riga della
+  /// scheda tecnica. Il default e' `capo` perche' e' il caso piu' frequente (14 accessori su
+  /// 19 nel censimento) e perche' sbagliare per eccesso di packaging gonfierebbe una voce
+  /// che serve a decidere i prezzi.
+  destinazione           AccessoryDestinazione @default(capo)
   supplierId             String?        @map("supplier_id") @db.Uuid
   supplier               Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   quantitaAcquistata     Decimal        @default(0) @map("quantita_acquistata") @db.Decimal(10, 2)

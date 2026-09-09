@@ -25,7 +25,7 @@ import { Prisma, SupplierCategoria, type ProductStage, type PubblicazioneShopify
 import { prisma } from '../../core/prisma.js'
 import { badRequest } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
-import { derivatoDaTabella, tessutoConosciuto } from '../../core/tessuti.js'
+import { codiceMaterialePerTessuto, derivatoDaTabella, tessutoConosciuto } from '../../core/tessuti.js'
 
 /** Annulla la transazione di simulazione senza farla passare per un guasto. */
 class AnnullaSimulazione extends Error {
@@ -93,6 +93,10 @@ export interface EsitoImport {
   tessutoSconosciuto: { nome: string; tessuto: string }[]
   /** Capi senza costo diretto: entrano lo stesso, ma per loro il margine non si calcola. */
   senzaCostoDiretto: string[]
+  /** Capi collegati alla loro riga di tessuto in magazzino. */
+  tessutiLegati: number
+  /** Capi il cui tessuto in magazzino non c'è: restano senza collegamento, e l'app lo dice. */
+  tessutiSenzaMagazzino: { nome: string; tessuto: string }[]
   /** Righe non scritte e perché: nessuna riga sparisce in silenzio. */
   saltate: { riga: string; motivo: string }[]
   simulazione: boolean
@@ -198,6 +202,8 @@ export async function importaCensimento(
           curaRimossa: 0,
           tessutoSconosciuto: [],
           senzaCostoDiretto: [],
+          tessutiLegati: 0,
+          tessutiSenzaMagazzino: [],
           saltate: [],
           simulazione,
         }
@@ -327,6 +333,40 @@ export async function importaCensimento(
             })
             productId = creato.id
             esito.prodotti.creati += 1
+          }
+
+          // ------------------------------------------------------- capo ↔ tessuto
+          // Il campo `tessuto` porta solo il NOME ("piquè"): serve a ricavare composizione e
+          // consigli di cura, e non dice nulla al magazzino. Il collegamento vero è questo,
+          // ed è ciò che permetterà al costo del tessuto di arrivare al costo del capo
+          // quando le schede tecniche porteranno i consumi (quanti metri per capo).
+          //
+          // La mappa nome → codice è confermata da Giulia riga per riga (core/tessuti.ts):
+          // i nomi del censimento e quelli del magazzino non coincidono quasi mai, e un
+          // collegamento indovinato attacca a un capo il costo di un altro tessuto.
+          const codiceMateriale = codiceMaterialePerTessuto(p.tessuto)
+          if (codiceMateriale) {
+            const materiale = await tx.material.findUnique({
+              where: { codice: codiceMateriale }, select: { id: true },
+            })
+            if (materiale) {
+              // Idempotente come tutto il resto: rilanciare l'import non duplica il legame.
+              await tx.productMaterial.upsert({
+                where: { productId_materialId: { productId, materialId: materiale.id } },
+                create: { productId, materialId: materiale.id },
+                update: {},
+              })
+              esito.tessutiLegati += 1
+            } else {
+              // Il materiale manca perché `census:materiali` non e' ancora stato eseguito:
+              // il capo resta senza legame invece di far fallire tutto l'import.
+              esito.saltate.push({
+                riga: `tessuto di ${p.nome.trim()}`,
+                motivo: `la riga di magazzino ${codiceMateriale} non esiste: esegui prima census:materiali`,
+              })
+            }
+          } else if ((p.tessuto ?? '').trim()) {
+            esito.tessutiSenzaMagazzino.push({ nome: p.nome.trim(), tessuto: (p.tessuto ?? '').trim() })
           }
 
           // Denver e Moss entrano in catalogo ma non in inventario (DEC-061 §12).
