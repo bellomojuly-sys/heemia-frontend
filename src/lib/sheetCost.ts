@@ -109,15 +109,21 @@ export function computeSheetCost(
     for (const m of sheet.materiali ?? []) {
       const qta = quantitaEffettiva(m)
       const costo = round2(qta * m.costoUnitario * (1 + Math.max(0, m.percentualeScarto) / 100))
+      const accessorio = m.accessoryId ? ctx.accessories.find((x) => x.id === m.accessoryId) : undefined
       const nome =
         m.descrizione ||
         (m.materialId ? ctx.materials.find((x) => x.id === m.materialId)?.nome : undefined) ||
-        (m.accessoryId ? ctx.accessories.find((x) => x.id === m.accessoryId)?.nome : undefined) ||
+        accessorio?.nome ||
         'Materiale'
       righe.push({
         id: m.id,
         label: nome,
-        gruppo: m.accessoryId ? 'accessori' : 'materiali',
+        // Un accessorio non finisce sempre nella stessa voce: la velina e la scatola stanno
+        // intorno al capo, non addosso, e contarle fra gli accessori gonfia la voce su cui
+        // si decidono i prezzi. Lo dice la colonna `destinazione` dell'accessorio, ed è la
+        // ragione per cui esiste. Il packaging va fra gli «altri» — esattamente dove lo
+        // mette il percorso legacy qui sopra, così le due strade danno lo stesso numero.
+        gruppo: m.accessoryId ? (accessorio?.destinazione === 'packaging' ? 'altri' : 'accessori') : 'materiali',
         quantita: qta,
         unitaMisura: m.unitaMisura,
         costoUnitario: m.costoUnitario,
