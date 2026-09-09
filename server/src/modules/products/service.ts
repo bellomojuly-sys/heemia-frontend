@@ -76,9 +76,79 @@ async function sincronizzaTessutoCollegato(
   }
 }
 
-export async function createProduct(input: Prisma.ProductCreateInput, userId: string) {
-  const exists = await prisma.product.findUnique({ where: { codiceProdotto: input.codiceProdotto } })
-  if (exists) throw conflict(`Codice prodotto "${input.codiceProdotto}" già esistente`)
+// --- Codice prodotto: lo assegna il sistema ---
+//
+// I 93 capi del censimento sono HEE-001…HEE-093, una serie progressiva senza buchi. Finché
+// il codice si scriveva a mano, chi creava un capo doveva sapere a che numero era arrivata
+// l'azienda: sbagliarlo significava un doppione respinto dal salvataggio (il codice è
+// `@unique`) oppure, peggio, un numero saltato che non torna piu' indietro.
+//
+// La regola sta qui e non nel form per lo stesso motivo dei consigli di cura: vale per
+// qualunque via si crei un capo — anagrafica, pipeline, API — e non puo' divergere fra due
+// schermate. Il numero si ricava dai codici gia' presenti, non da un contatore a parte: un
+// contatore e i dati possono disallinearsi, la serie no.
+//
+// Un codice esplicito continua a essere accettato dall'API, e serve: l'import del censimento
+// porta i suoi (importCensimento.ts). Quello che non c'e' piu' e' l'obbligo di inventarselo.
+const PREFISSO_CODICE = 'HEE-'
+const CIFRE_CODICE = 3
+
+/** Il primo codice libero della serie HEE-###, in coda a quelli gia' assegnati. */
+export async function prossimoCodiceProdotto(): Promise<string> {
+  const righe = await prisma.product.findMany({
+    where: { codiceProdotto: { startsWith: PREFISSO_CODICE } },
+    select: { codiceProdotto: true },
+  })
+  let massimo = 0
+  for (const { codiceProdotto } of righe) {
+    const coda = codiceProdotto.slice(PREFISSO_CODICE.length)
+    // Si contano solo i codici della serie: un "PROVA-01" o un codice storico di altra forma
+    // non spostano il progressivo ne' lo mandano in errore.
+    //
+    // Conseguenza da conoscere: il numero esce dai capi PRESENTI, quindi cancellare l'ultimo
+    // capo della serie rimette in circolo il suo codice. E' accettabile perche' un capo con
+    // uno storico non si cancella affatto — checkProductDeletion lo blocca e al suo posto si
+    // archivia (lo stato `archivio`, che resta in tabella e continua a occupare il numero).
+    // Cancellabile e' solo un capo appena creato per sbaglio, e li' riprendere il numero
+    // lasciato libero e' quello che ci si aspetta.
+    if (!/^\d+$/.test(coda)) continue
+    const numero = Number(coda)
+    if (numero > massimo) massimo = numero
+  }
+  return `${PREFISSO_CODICE}${String(massimo + 1).padStart(CIFRE_CODICE, '0')}`
+}
+
+/** Il codice puo' mancare: in quel caso lo assegna `prossimoCodiceProdotto`. */
+export type NuovoProdotto = Omit<Prisma.ProductCreateInput, 'codiceProdotto'> & { codiceProdotto?: string }
+
+function codiceGiaPreso(e: unknown): boolean {
+  return (
+    e instanceof Prisma.PrismaClientKnownRequestError &&
+    e.code === 'P2002' &&
+    JSON.stringify(e.meta?.target ?? '').includes('codice_prodotto')
+  )
+}
+
+export async function createProduct(input: NuovoProdotto, userId: string) {
+  if (input.codiceProdotto) {
+    const exists = await prisma.product.findUnique({ where: { codiceProdotto: input.codiceProdotto } })
+    if (exists) throw conflict(`Codice prodotto "${input.codiceProdotto}" già esistente`)
+  }
+  // Due persone che salvano un capo nello stesso istante calcolano lo stesso numero: la
+  // seconda scrittura sbatte sul vincolo `@unique` e si ripete con il numero successivo,
+  // invece di mostrare un errore per una collisione che il sistema sa risolvere da solo.
+  for (let tentativo = 0; ; tentativo += 1) {
+    const codiceProdotto = input.codiceProdotto ?? (await prossimoCodiceProdotto())
+    try {
+      return await creaProdotto({ ...input, codiceProdotto }, userId)
+    } catch (e) {
+      if (input.codiceProdotto === undefined && codiceGiaPreso(e) && tentativo < 4) continue
+      throw e
+    }
+  }
+}
+
+function creaProdotto(input: Prisma.ProductCreateInput, userId: string) {
   return prisma.$transaction(async (tx) => {
     const created = await tx.product.create({ data: input })
     // FR-07: ogni prodotto entra subito in pipeline dalla sua fase iniziale. Senza questo

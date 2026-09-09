@@ -1,14 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '../ui/Button'
 import { Modal, Field, FormActions, SiNoField, campoClass, fieldClass } from '../ui/Modal'
 import { useTessuti } from '../../hooks/useTessuti'
 import { useFormSubmit, regole } from '../../hooks/useFormSubmit'
+import { api } from '../../lib/api'
 import type { Linea } from '../../types'
 import type { NewProductInput } from '../../context/DataStore'
 
 const emptyForm = {
   nome: '',
-  codiceProdotto: '',
   categoria: '',
   collezione: '',
   tessuto: '',
@@ -30,20 +30,31 @@ export function AddProductForm({
 }) {
   const tessuti = useTessuti()
   const [form, setForm] = useState(emptyForm)
+  // Il codice non si scrive piu': lo assegna il server con il primo numero libero della
+  // serie (products/service.ts). Qui si chiede solo quale sara', per mostrarlo prima di
+  // salvare — chi crea il capo lo vede, invece di scoprirlo dopo nella lista.
+  const [codicePrevisto, setCodicePrevisto] = useState<string | null>(null)
+
+  useEffect(() => {
+    let vivo = true
+    api
+      .get<{ codiceProdotto: string }>('/products/prossimo-codice')
+      .then((r) => { if (vivo) setCodicePrevisto(r.codiceProdotto) })
+      .catch(() => { if (vivo) setCodicePrevisto(null) })
+    return () => { vivo = false }
+  }, [])
 
   const tessutoScelto = tessuti.find((t) => t.nome === form.tessuto)
 
-  const { errori, inCorso, submit, pulisci } = useFormSubmit<'nome' | 'codiceProdotto'>(
+  const { errori, inCorso, submit, pulisci } = useFormSubmit<'nome'>(
     () => ({
       nome: regole.obbligatorio(form.nome, 'Il nome prodotto'),
-      codiceProdotto: regole.obbligatorio(form.codiceProdotto, 'Il codice prodotto'),
     }),
-    // Il modale si chiude solo dopo che il server ha confermato: se il codice
-    // prodotto è già in uso l'errore resta visibile e i dati digitati non si perdono.
+    // Il modale si chiude solo dopo che il server ha confermato: se il salvataggio fallisce
+    // l'errore resta visibile e i dati digitati non si perdono.
     async () => {
       await onSubmit({
         nome: form.nome.trim(),
-        codiceProdotto: form.codiceProdotto.trim(),
         categoria: form.categoria.trim(),
         collezione: form.collezione.trim(),
         tessuto: form.tessuto.trim() || undefined,
@@ -69,16 +80,13 @@ export function AddProductForm({
             placeholder="Es. Cortina"
           />
         </Field>
-        <Field label="Codice prodotto" required error={errori.codiceProdotto} hint="Deve essere unico.">
-          <input
-            className={campoClass(errori.codiceProdotto)}
-            value={form.codiceProdotto}
-            onChange={(e) => {
-              setForm({ ...form, codiceProdotto: e.target.value })
-              pulisci('codiceProdotto')
-            }}
-            placeholder="HE-TES-COR-01"
-          />
+        {/* Sola lettura: il codice e' una posizione nella serie dell'azienda, non una scelta
+            di chi compila. Il valore e' un'anteprima — se qualcun altro salva un capo nello
+            stesso momento, al salvataggio arriva il primo numero ancora libero. */}
+        <Field label="Codice prodotto" hint="Assegnato dal sistema: il primo libero della serie.">
+          <p className="font-mono-heemia flex h-[38px] items-center rounded-heemia-sm border border-dashed border-heemia-border bg-heemia-surface-muted px-3 text-sm text-heemia-black">
+            {codicePrevisto ?? '…'}
+          </p>
         </Field>
         <Field label="Categoria">
           <input className={fieldClass} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} placeholder="Felpa, Pantalone…" />

@@ -6,7 +6,7 @@ import { badRequest } from '../../core/errors.js'
 import { TESSUTI, tessutoConosciuto } from '../../core/tessuti.js'
 import {
   checkProductDeletion, createProduct, createVariant, deleteProduct, getProduct, listProducts,
-  updateProduct, updateVariantQuantities,
+  prossimoCodiceProdotto, updateProduct, updateVariantQuantities, type NuovoProdotto,
 } from './service.js'
 import {
   addCostSnapshot, addPhoto, createTechnicalSheet, getTechnicalSheet, listAllTechnicalSheets,
@@ -19,7 +19,10 @@ import {
 
 const createSchema = z.object({
   nome: z.string().min(1),
-  codiceProdotto: z.string().min(1),
+  // Facoltativo: se manca, lo assegna il server con il primo numero libero della serie
+  // (products/service.ts). Resta accettato quando chi chiama ne ha uno suo — l'import del
+  // censimento porta i codici storici e non deve rinumerarli.
+  codiceProdotto: z.string().min(1).optional(),
   linea: z.enum(['tessile', 'maglieria']),
   categoria: z.string().optional(),
   collezione: z.string().optional(),
@@ -289,11 +292,16 @@ export async function productRoutes(app: FastifyInstance) {
     return deleteProduct(id, req.user!.id)
   })
 
+  // Il codice che verrà assegnato al prossimo capo. Serve al form «Nuovo prodotto», che lo
+  // mostra prima di salvare: è un'anteprima, non una prenotazione — se qualcun altro crea un
+  // capo nel frattempo, al salvataggio il server assegna comunque il primo libero.
+  app.get('/products/prossimo-codice', write, async () => ({ codiceProdotto: await prossimoCodiceProdotto() }))
+
   app.post('/products', write, async (req, reply) => {
     const parsed = createSchema.safeParse(req.body)
     if (!parsed.success) throw badRequest(parsed.error.issues.map((i) => i.message).join('; '))
     const d = parsed.data
-    const data: Prisma.ProductCreateInput = {
+    const data: NuovoProdotto = {
       nome: d.nome,
       codiceProdotto: d.codiceProdotto,
       linea: d.linea,

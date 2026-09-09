@@ -171,7 +171,11 @@ function genId(prefix: string): string {
 
 export interface NewProductInput {
   nome: string
-  codiceProdotto: string
+  /**
+   * Facoltativo: senza, il codice lo assegna il server con il primo numero libero della
+   * serie HEE-### (products/service.ts). Il form non lo chiede piu'.
+   */
+  codiceProdotto?: string
   categoria: string
   collezione: string
   linea: Linea
