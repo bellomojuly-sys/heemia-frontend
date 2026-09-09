@@ -38,6 +38,30 @@ import { driveRoutes } from './modules/drive/routes.js'
 export const API_PREFIX = '/api/v1'
 export const SHOWROOM_PREFIX = '/api/showroom'
 
+// Errori che Fastify genera da sé, prima ancora di arrivare alla rotta: corpo JSON
+// malformato o vuoto, content-type non accettato, corpo oltre `bodyLimit`. Portano già
+// uno `statusCode` giusto, ma il messaggio è in inglese e parla dell'interno del server.
+// Qui ogni stato ha il codice parlante del formato { error: { code, message } }
+// (API_Mapping §Convenzioni) e un testo che dice a chi chiama cosa correggere.
+const ERRORE_CLIENT: Record<number, { code: string; message: string }> = {
+  400: { code: 'BAD_REQUEST', message: 'Richiesta non valida' },
+  401: { code: 'UNAUTHORIZED', message: 'Non autenticato' },
+  403: { code: 'FORBIDDEN', message: 'Accesso non consentito' },
+  404: { code: 'NOT_FOUND', message: 'Risorsa non trovata' },
+  405: { code: 'METHOD_NOT_ALLOWED', message: 'Metodo non consentito su questo indirizzo' },
+  409: { code: 'CONFLICT', message: 'Richiesta in conflitto con lo stato attuale' },
+  413: { code: 'PAYLOAD_TOO_LARGE', message: 'Corpo della richiesta troppo grande' },
+  415: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Formato non accettato: questa API riceve solo application/json' },
+}
+
+// Messaggio più preciso dello stato, quando il codice Fastify dice esattamente cosa manca.
+const MESSAGGIO_CLIENT: Record<string, string> = {
+  FST_ERR_CTP_EMPTY_JSON_BODY: 'Corpo della richiesta vuoto: serve un oggetto JSON',
+  FST_ERR_CTP_INVALID_JSON_BODY: 'Corpo della richiesta non in formato JSON valido',
+  FST_ERR_CTP_INVALID_MEDIA_TYPE: 'Formato non accettato: questa API riceve solo application/json',
+  FST_ERR_CTP_BODY_TOO_LARGE: 'Corpo della richiesta troppo grande',
+}
+
 export async function buildApp() {
   // bodyLimit alzato a 30 MB: le letture AI ricevono PDF o immagini codificati in base64
   // (che pesano ~1/3 in più del file originale).
@@ -122,6 +146,23 @@ export async function buildApp() {
     }
     if ((err as { statusCode?: number }).statusCode === 429) {
       return reply.code(429).send({ error: { code: 'RATE_LIMIT', message: 'Troppe richieste, riprova tra poco' } })
+    }
+    // Errori del client che Fastify segnala da sé (`FST_ERR_CTP_INVALID_JSON` e in generale
+    // qualunque `statusCode` fra 400 e 499): sono sbagli di chi chiama, non guasti del server.
+    // Prima cadevano nel ramo finale, con due effetti concreti: il client riceveva «Errore
+    // interno del server», che non dice cosa ha sbagliato, e ogni richiesta malformata
+    // entrava in reportError e nel conteggio dei 5xx — il segnale su cui scatta l'allarme in
+    // ../07_Monitoring_Maintenance/Monitoring_and_Maintenance.md. Il 429 non passa di qui:
+    // ha già il ramo suo, qui sopra.
+    const errore = err as { statusCode?: number; code?: string; validation?: unknown; message?: string }
+    const stato = errore.statusCode
+    if (typeof stato === 'number' && stato >= 400 && stato <= 499) {
+      const predefinito = ERRORE_CLIENT[stato] ?? ERRORE_CLIENT[400]
+      // Gli errori di validazione dello schema dicono già quale campo manca: quel testo
+      // vale più di un messaggio generico, e non contiene niente dell'interno del server.
+      const message = (errore.code ? MESSAGGIO_CLIENT[errore.code] : undefined)
+        ?? (errore.validation ? String(errore.message) : predefinito.message)
+      return reply.code(stato).send({ error: { code: predefinito.code, message } })
     }
     // Seam unico di cattura: log strutturato ora, monitoring esterno agganciabile lì (reportError.ts).
     reportError(err, req)

@@ -160,6 +160,65 @@ describe('API, autenticazione e permessi', () => {
     assert.equal(response.json().error.code, 'BAD_REQUEST')
   })
 
+  // Un corpo JSON rotto lo intercetta Fastify prima della rotta. Finiva nel ramo finale
+  // dell'error handler, cioè 500 INTERNAL: al client non diceva cosa correggere e faceva
+  // salire il conteggio dei 5xx, che è il segnale d'allarme di Monitoring_and_Maintenance.
+  test('un corpo JSON malformato risponde 4xx e non 500', async () => {
+    const response = await app.inject({
+      method: 'POST', url: '/api/v1/auth/login', remoteAddress: '127.0.5.1',
+      headers: { 'content-type': 'application/json' },
+      payload: '{"email": rotto}',
+    })
+    assert.equal(response.statusCode, 400)
+    assert.notEqual(response.statusCode, 500)
+    assert.equal(response.json().error.code, 'BAD_REQUEST')
+    assert.notEqual(response.json().error.code, 'INTERNAL')
+    assert.match(response.json().error.message, /JSON/)
+  })
+
+  test('un corpo vuoto e un content-type non accettato restano errori del client', async () => {
+    const corpoVuoto = await app.inject({
+      method: 'POST', url: '/api/v1/auth/login', remoteAddress: '127.0.5.2',
+      headers: { 'content-type': 'application/json' },
+      payload: '',
+    })
+    assert.equal(corpoVuoto.statusCode, 400)
+    assert.equal(corpoVuoto.json().error.code, 'BAD_REQUEST')
+
+    // application/xml non ha parser registrato: si ferma prima della rotta. `text/plain`
+    // no — Fastify ne ha uno di serie e il corpo arriverebbe alla rotta, che lo rifiuta
+    // da sé con 400 BAD_REQUEST.
+    const formato = await app.inject({
+      method: 'POST', url: '/api/v1/auth/login', remoteAddress: '127.0.5.3',
+      headers: { 'content-type': 'application/xml' },
+      payload: '<email>admin</email>',
+    })
+    assert.equal(formato.statusCode, 415)
+    assert.equal(formato.json().error.code, 'UNSUPPORTED_MEDIA_TYPE')
+  })
+
+  // Il ramo nuovo sta dopo quelli di AppError e del 429: nessuno dei due deve cambiare.
+  test('AppError e il limite di richieste conservano codice e messaggio di prima', async () => {
+    const appError = await app.inject({ method: 'GET', url: '/api/v1/products' })
+    assert.equal(appError.statusCode, 401)
+    assert.deepEqual(appError.json(), {
+      error: { code: 'UNAUTHORIZED', message: 'Non autenticato' },
+    })
+
+    _svuotaRegistro()
+    let limite
+    for (let i = 0; i < 11; i += 1) {
+      limite = await app.inject({
+        method: 'POST', url: '/api/v1/auth/login', remoteAddress: '127.0.5.99',
+        payload: { email: `json-rotto-${i}@test.local`, password: `tentativo-${i}` },
+      })
+    }
+    assert.equal(limite!.statusCode, 429)
+    assert.deepEqual(limite!.json(), {
+      error: { code: 'RATE_LIMIT', message: 'Troppe richieste, riprova tra poco' },
+    })
+  })
+
   // Due freni distinti, provati separatamente perché proteggono da due cose diverse.
   // Ogni prova sceglie email e indirizzi in modo che scatti solo quello in esame.
 
