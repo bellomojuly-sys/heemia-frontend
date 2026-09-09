@@ -19,6 +19,8 @@
     "census:import": "node --env-file=.env --import tsx scripts/import-censimento.mts",
     "census:materiali": "node --env-file=.env --import tsx scripts/import-materiali.mts",
     "census:verifica": "node --env-file=.env --import tsx scripts/verifica-censimento.mts",
+    "foto:export": "node --env-file=.env --import tsx scripts/export-foto-capi.mts",
+    "foto:import": "node --env-file=.env --import tsx scripts/import-foto-capi.mts",
     "shopify:webhooks:register": "node --env-file=.env --import tsx scripts/register-shopify-webhooks.mts",
     "costi-fissi:import": "node --env-file=.env --import tsx scripts/import-costi-fissi.mts"
   },

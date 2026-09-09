@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { LayoutGrid, List as ListIcon, Trash2, X } from 'lucide-react'
+import { Images, LayoutGrid, List as ListIcon, Trash2, X } from 'lucide-react'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable'
 import { Toolbar } from '../../components/ui/Toolbar'
@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button'
 import { AddProductForm } from '../../components/products/AddProductForm'
 import { DeleteProductModal } from '../../components/products/DeleteProductModal'
 import { ProductGallery } from '../../components/products/ProductGallery'
+import { AbbinaFotoDrive } from '../../components/products/AbbinaFotoDrive'
 import { ProductImage } from '../../components/products/ProductImage'
 import { StatusBadge } from '../../lib/statusBadge'
 import { coverImageUrl } from '../../lib/driveImage'
@@ -41,7 +42,7 @@ const VISTE: Record<string, { label: string; test: (p: Product) => boolean }> = 
 export function ProductList() {
   const navigate = useNavigate()
   const { role } = useRole()
-  const { products, productVariants, addProduct, caricamento } = useDataStore()
+  const { products, productVariants, addProduct, ricarica, caricamento } = useDataStore()
   const liveMargins = useLiveMargins()
   const canSeeMargins = canAccessModule(role, 'costi-margini')
   const [searchParams, setSearchParams] = useSearchParams()
@@ -49,6 +50,7 @@ export function ProductList() {
   const [stato, setStato] = useState('')
   const [linea, setLinea] = useState('')
   const [addOpen, setAddOpen] = useState(false)
+  const [abbinaOpen, setAbbinaOpen] = useState(false)
   const [daEliminare, setDaEliminare] = useState<Product | null>(null)
   const puoEliminare = canDeleteProducts(role)
 
@@ -177,7 +179,21 @@ export function ProductList() {
       <PageHeader
         title="Anagrafica prodotti"
         subtitle="Scheda prodotto completa: dati, varianti, prezzi e stato pubblicazione."
-        action={canWrite(role, 'prodotti') ? <Button onClick={() => setAddOpen(true)}>Nuovo prodotto</Button> : undefined}
+        action={
+          canWrite(role, 'prodotti') ? (
+            <div className="flex items-center gap-2">
+              {/* Sta qui e non nella scheda del singolo capo perché è un'operazione sul
+                  catalogo intero: una passata sola riempie la galleria di tutti i capi le
+                  cui foto sono su Drive, invece di novantatré incollaggi di link. */}
+              <Button variant="secondary" onClick={() => setAbbinaOpen(true)}>
+                <span className="inline-flex items-center gap-1.5">
+                  <Images className="h-3.5 w-3.5" /> Abbina foto da Drive
+                </span>
+              </Button>
+              <Button onClick={() => setAddOpen(true)}>Nuovo prodotto</Button>
+            </div>
+          ) : undefined
+        }
       />
 
       {vista && (
@@ -285,6 +301,8 @@ export function ProductList() {
           }}
         />
       )}
+
+      {abbinaOpen && <AbbinaFotoDrive onClose={() => setAbbinaOpen(false)} onFatto={ricarica} />}
     </div>
   )
 }

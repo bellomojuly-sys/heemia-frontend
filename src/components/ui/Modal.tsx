@@ -2,16 +2,23 @@ import type { ReactNode } from 'react'
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 
+// Quasi tutti i modali sono form stretti; qualcuno mostra un elenco da confrontare
+// (l'abbinamento delle foto) e a 32rem diventerebbe illeggibile. Una sola variante in più,
+// dichiarata da chi apre il modale: non un valore libero, per non ritrovarsi otto larghezze.
+const LARGHEZZE = { normale: 'max-w-lg', ampio: 'max-w-4xl' } as const
+
 export function Modal({
   title,
   subtitle,
   onClose,
   children,
+  larghezza = 'normale',
 }: {
   title: string
   subtitle?: string
   onClose: () => void
   children: ReactNode
+  larghezza?: keyof typeof LARGHEZZE
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -27,7 +34,7 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-lg animate-pop rounded-heemia-xl border border-heemia-border bg-white shadow-heemia-lg"
+        className={`w-full ${LARGHEZZE[larghezza]} animate-pop rounded-heemia-xl border border-heemia-border bg-white shadow-heemia-lg`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-heemia-border px-5 py-4">
           <div>

@@ -193,3 +193,120 @@ function traduciErrore(err: unknown): AppError {
   const messaggio = err instanceof Error ? err.message : 'errore sconosciuto'
   return new AppError(502, `Non riesco a leggere la cartella su Drive: ${messaggio}`, 'DRIVE_ERROR')
 }
+
+// --- Lettura ricorsiva: tutte le foto di una collezione in un colpo solo ---
+//
+// L'import per cartella singola (sopra) presuppone che le foto di un capo stiano in una
+// cartella dedicata. Su Drive non è così: le foto stanno in cartelle per shooting o per
+// stagione, mescolate, e il capo si riconosce dal **nome del file**. Per abbinarle serve
+// quindi l'elenco completo del sotto-albero, non di una cartella sola.
+//
+// Il limite di cartelle non è una precauzione teorica: puntare questa funzione alla radice
+// del Drive vorrebbe dire percorrere tutto l'archivio dell'azienda a ogni tentativo. Meglio
+// fermarsi e dirlo, che restare venti minuti in attesa.
+
+/**
+ * Una richiesta a Drive, ritentata quando il problema è passeggero.
+ *
+ * Percorrere un archivio vero vuol dire un centinaio di richieste di fila, e su quel numero
+ * un timeout ogni tanto càpita: senza ritentata **una** connessione andata storta butta via
+ * la scansione intera e l'utente vede solo «non riesco a leggere la cartella». Si ritenta
+ * solo ciò che ha senso ritentare — errori di rete, limiti di frequenza, guasti temporanei
+ * di Google. Un 403 o un 404 sono risposte definitive e passano subito.
+ */
+async function conRitentata<T>(
+  client: { request<R>(opzioni: { url: string }): Promise<{ data: R }> },
+  url: string,
+  tentativi = 3,
+): Promise<{ data: T }> {
+  let ultimo: unknown
+  for (let i = 0; i < tentativi; i += 1) {
+    try {
+      return await client.request<T>({ url })
+    } catch (err) {
+      ultimo = err
+      const status = (err as { response?: { status?: number } })?.response?.status
+      const passeggero = status === undefined || status === 429 || status >= 500
+      if (!passeggero) break
+      // Attesa crescente: se Google sta rifiutando per frequenza, riprovare subito peggiora.
+      await new Promise((r) => setTimeout(r, 400 * 2 ** i))
+    }
+  }
+  throw traduciErrore(ultimo)
+}
+
+/** Un'immagine trovata nel sotto-albero, con la cartella in cui sta (serve solo a spiegarlo). */
+export interface ImmagineTrovata extends ImmagineDrive {
+  cartella: string
+}
+
+interface ElementoDrive extends FileDrive {
+  parents?: string[]
+}
+
+const MAX_CARTELLE = 300
+
+// Formati che il browser sa mostrare tramite l'anteprima di Drive. Il filtro serve contro i
+// **raw di macchina fotografica** (CR3, ARW, NEF), che su Drive sono `image/…` come le altre
+// ma pesano trenta megabyte l'uno e stanno a centinaia nelle cartelle di shooting: collegarli
+// riempirebbe le schede di file che nessuno userebbe come foto del capo.
+const FORMATI_MOSTRABILI = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/avif',
+  'image/heic', 'image/heif',
+])
+
+export async function elencaImmaginiRicorsivo(
+  folderUrl: string,
+): Promise<{ immagini: ImmagineTrovata[]; cartelle: number; troncato: boolean }> {
+  const radice = cartellaId(folderUrl)
+  if (!radice) {
+    throw new AppError(400, 'Questo non è il link di una cartella Drive.', 'BAD_REQUEST')
+  }
+
+  const client = await getAuth().getClient()
+  const campi = encodeURIComponent('files(id,name,mimeType,permissions(type,role)),nextPageToken')
+  const immagini: ImmagineTrovata[] = []
+  const daVisitare: { id: string; nome: string }[] = [{ id: radice, nome: '' }]
+  const viste = new Set<string>([radice])
+  let cartelle = 0
+  let troncato = false
+
+  while (daVisitare.length > 0) {
+    const cartella = daVisitare.shift()!
+    cartelle += 1
+    const query = encodeURIComponent(
+      `'${cartella.id}' in parents and trashed = false and ` +
+        `(mimeType contains 'image/' or mimeType = 'application/vnd.google-apps.folder')`,
+    )
+    let pageToken: string | undefined
+    do {
+      const url =
+        `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${campi}` +
+        `&orderBy=name_natural&pageSize=200${pageToken ? `&pageToken=${pageToken}` : ''}`
+      const risposta = await conRitentata<{ files?: ElementoDrive[]; nextPageToken?: string }>(client, url)
+      for (const f of risposta.data.files ?? []) {
+        if (f.mimeType === 'application/vnd.google-apps.folder') {
+          if (viste.has(f.id)) continue
+          viste.add(f.id)
+          if (viste.size > MAX_CARTELLE) {
+            troncato = true
+            continue
+          }
+          daVisitare.push({ id: f.id, nome: cartella.nome ? `${cartella.nome}/${f.name}` : f.name })
+          continue
+        }
+        if (!FORMATI_MOSTRABILI.has(f.mimeType.toLowerCase())) continue
+        immagini.push({
+          id: f.id,
+          nome: f.name,
+          url: `https://drive.google.com/file/d/${f.id}/view`,
+          pubblico: (f.permissions ?? []).some((p) => p.type === 'anyone'),
+          cartella: cartella.nome,
+        })
+      }
+      pageToken = risposta.data.nextPageToken
+    } while (pageToken)
+  }
+
+  return { immagini, cartelle, troncato }
+}
