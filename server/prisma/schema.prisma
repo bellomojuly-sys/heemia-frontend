@@ -445,8 +445,32 @@ model User {
   rientriRegistrati    BollaRientro[]
   movimentiLavorazione MovimentoLavorazione[]
   allegatiBolla        BollaAllegato[]
+  passwordResetTokens  PasswordResetToken[]
 
   @@map("users")
+}
+
+// Richiesta di reimpostazione password da «Password dimenticata» (DEC-071).
+//
+// Il token NON è qui: c'è la sua impronta SHA-256. Chi leggesse questa tabella — un backup
+// finito nel posto sbagliato, un export di supporto — non troverebbe niente di riutilizzabile,
+// esattamente come per le password. Il token in chiaro esiste una volta sola, dentro il link
+// spedito per email.
+//
+// Vive un'ora e si consuma al primo uso: `usato_il` valorizzato significa «già speso», e il
+// link diventa carta straccia anche se resta nella casella di posta per mesi.
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Impronta SHA-256 del token spedito. Unica: due richieste non possono collidere.
+  tokenHash String    @unique @map("token_hash")
+  scadeIl   DateTime  @map("scade_il") @db.Timestamptz(6)
+  usatoIl   DateTime? @map("usato_il") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 // Sessioni server-side revocabili (System_Architecture §4).

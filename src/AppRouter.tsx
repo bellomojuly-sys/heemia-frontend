@@ -4,6 +4,7 @@ import { RoleProvider } from './context/RoleContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { DataStoreProvider } from './context/DataStore'
 import { LoginPage } from './pages/auth/LoginPage'
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage'
 import { AppLayout } from './components/layout/AppLayout'
 import { RoleGuard } from './components/layout/RoleGuard'
 
@@ -80,6 +81,9 @@ export function AppRouter() {
         <Suspense fallback={<RouteLoading />}>
         <Routes>
           <Route path="/showroom" element={<ShowroomApp />} />
+          {/* Fuori dal gate di sessione, come lo showroom: chi apre questo link è proprio
+              chi non riesce a entrare (DEC-071). */}
+          <Route path="/reimposta-password" element={<ResetPasswordPage />} />
 
           <Route element={<AreaRiservata />}>
           <Route element={<AppLayout />}>

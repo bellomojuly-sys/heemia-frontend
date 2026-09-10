@@ -9,10 +9,18 @@ import { logActivity } from '../../core/activityLog.js'
 import { authenticate } from '../../core/guards.js'
 import { matriceRuolo } from '../../core/permissions.js'
 import { config } from '../../core/config.js'
+import { reimpostaConToken, richiediReimpostazione, statoToken } from './reimpostaPassword.js'
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+})
+
+const emailSchema = z.object({ email: z.string().email() })
+const tokenSchema = z.object({ token: z.string().min(1).max(200) })
+const reimpostaSchema = z.object({
+  token: z.string().min(1).max(200),
+  password: z.string().min(1).max(200),
 })
 
 // In produzione frontend e backend stanno su domini diversi (heemia-app / heemia-api su
@@ -63,6 +71,46 @@ export async function authRoutes(app: FastifyInstance) {
 
     reply.setCookie(SESSION_COOKIE, session.id, SESSION_COOKIE_OPTIONS)
     return { id: user.id, nome: user.nome, email: user.email, role: user.role, permessi: await matriceRuolo(user.role) }
+  })
+
+  // --- Password dimenticata (DEC-071) ------------------------------------------------
+  //
+  // Tre endpoint pubblici: senza sessione, perche' chi li usa e' proprio chi non riesce a
+  // entrare. Il limite e' piu' stretto di quello del login e su una finestra lunga: qui
+  // ogni richiesta riuscita fa partire un'email verso la casella di una persona vera, e
+  // un limite generoso diventerebbe un modo per riempirla.
+  const limiteReimpostazione = {
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
+  }
+
+  app.post('/auth/forgot-password', limiteReimpostazione, async (req) => {
+    const parsed = emailSchema.safeParse(req.body)
+    // Anche un indirizzo scritto male riceve la risposta generica: distinguere "non e' un
+    // indirizzo" da "non e' dei nostri" sarebbe di nuovo un modo per sondare gli account.
+    if (!parsed.success) {
+      return {
+        ok: true,
+        messaggio:
+          'Se l\'indirizzo corrisponde a un account attivo, fra poco arriva un\'email con il link per ' +
+          'reimpostare la password. Il link vale un\'ora e si puo\' usare una volta sola. ' +
+          'Controlla anche la posta indesiderata.',
+      }
+    }
+    return richiediReimpostazione(parsed.data.email)
+  })
+
+  // Serve alla pagina del link per sapere se mostrare il modulo o la spiegazione che e'
+  // scaduto, invece di scoprirlo dopo aver digitato due volte una password nuova.
+  app.post('/auth/reset-password/stato', limiteReimpostazione, async (req) => {
+    const parsed = tokenSchema.safeParse(req.body)
+    if (!parsed.success) return { valido: false }
+    return statoToken(parsed.data.token)
+  })
+
+  app.post('/auth/reset-password', limiteReimpostazione, async (req) => {
+    const parsed = reimpostaSchema.safeParse(req.body)
+    if (!parsed.success) throw badRequest('Link o password non validi')
+    return reimpostaConToken(parsed.data.token, parsed.data.password)
   })
 
   app.post('/auth/logout', { preHandler: authenticate }, async (req, reply) => {

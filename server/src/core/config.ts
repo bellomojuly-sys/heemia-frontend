@@ -62,6 +62,16 @@ export const config = {
   sessionSecret: segreto('SESSION_SECRET'),
   appBaseUrl: conSchema(process.env.APP_BASE_URL ?? 'http://localhost:3001'),
   corsOrigin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',').map(conSchema).filter(Boolean),
+  // Indirizzo pubblico del FRONTEND, quello che una persona apre nel browser: serve a
+  // comporre il link di reimpostazione password che finisce nell'email (DEC-071).
+  // `appBaseUrl` qui sopra è l'API e non va bene — un link che porta al backend mostra
+  // JSON a chi si aspetta un modulo. Se APP_URL non c'è si usa la prima origine CORS
+  // consentita, che in produzione è già l'indirizzo dell'app.
+  appUrl: conSchema(
+    process.env.APP_URL?.trim() ||
+      (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',')[0] ||
+      'http://localhost:5173',
+  ),
   // 360 ore = 15 giorni (scelta di Giulia, 2026-08-06). La sessione NON si rinnova con
   // l'uso: la scadenza è fissata al login, quindi ogni 15 giorni si rientra con le
   // credenziali. Resta revocabile dal server (le sessioni stanno a database).
