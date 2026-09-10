@@ -395,8 +395,19 @@ export interface SuggerimentoMisureInput {
 }
 
 export interface SuggerimentoMisure {
-  misure: { nome: string; unita: 'cm' | 'mm' | 'in'; tolleranza: string | null; nota: string | null }[]
+  misure: {
+    nome: string
+    unita: 'cm' | 'mm' | 'in'
+    /** Proposto dallo storico dei capi della stessa categoria; `null` quando lo storico tace. */
+    valore: number | null
+    tagliaRiferimento: string | null
+    tolleranza: string | null
+    nota: string | null
+    fonteValore: 'storico' | null
+  }[]
   note: string
+  /** Su cosa si è basata la proposta: serve a distinguere «storico vuoto» da «non ha funzionato». */
+  storico: { misureConosciute: number; capi: number; valoriProposti: number }
 }
 
 export interface NewPatternDocumentInput {
@@ -515,7 +526,7 @@ interface DataStoreValue {
   mandaInProduzione: (variantId: string, quantita: number, note?: string, productId?: string) => Promise<void>
   chiudiLavorazione: (id: string, esito: 'terminato' | 'annullato') => Promise<void>
 
-  /** Misure suggerite da Claude: propone QUALI misure servono, i valori si compilano a mano. */
+  /** Misure suggerite da OpenAI; i valori arrivano solo dallo storico Heemia (DEC-069). */
   suggerisciMisure: (input: SuggerimentoMisureInput) => Promise<SuggerimentoMisure>
 
   loadPatternDocuments: (productId: string) => Promise<PatternDocument[]>
@@ -924,8 +935,8 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         await persisti(api.patch(`/in-produzione/${id}`, { esito }))
       },
 
-      // La chiave Claude vive solo sul server: senza chiave l'endpoint risponde
-      // con un messaggio esplicito e le misure si aggiungono a mano.
+      // La chiave OpenAI vive solo sul server: senza chiave l'endpoint risponde con un
+      // messaggio esplicito e le misure si aggiungono a mano.
       suggerisciMisure: (input) => api.post<SuggerimentoMisure>('/ai/suggest-measurements', input),
 
       loadPatternDocuments: async (productId) => {

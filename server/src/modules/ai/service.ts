@@ -15,6 +15,7 @@ import OpenAI from 'openai'
 import { AppError, badRequest } from '../../core/errors.js'
 import { config } from '../../core/config.js'
 import { leggiCredenziale } from '../../core/credenziali.js'
+import { prisma } from '../../core/prisma.js'
 import {
   DDT_RIENTRO_PROMPT,
   ddtRientroSchema,
@@ -22,6 +23,16 @@ import {
   type DdtRientroContext,
   type DdtRientroProposal,
 } from './proposta-ddt.js'
+import {
+  capiCoinvolti,
+  filtraValoriInventati,
+  riassumiStorico,
+  testoStorico,
+  type GruppoStorico,
+  type MisuraControllata,
+  type MisuraProposta,
+  type RigaStorica,
+} from './storico-misure.js'
 
 export type { DdtRientroContext, DdtRientroProposal } from './proposta-ddt.js'
 
@@ -193,8 +204,18 @@ export async function scanDdtRientro(
 
 // --- Misure tecniche suggerite (richiesta 3 del backlog "Note") ---
 // Le misure necessarie cambiano con la categoria del capo: un pantalone non ha le stesse
-// misure di un cappotto. L'AI propone QUALI misure servono; i valori numerici restano da
-// compilare a mano, perché dipendono dalla taglia base e dal modello.
+// misure di un cappotto.
+//
+// Dal 2026-09-10 (DEC-069) l'AI propone anche i VALORI, e li prende dallo storico Heemia:
+// le misure già compilate nelle schede tecniche dei capi della stessa categoria. Prima i
+// valori si scrivevano tutti a mano, perché l'unica alternativa sarebbe stata una tabella
+// taglie inventata. Lo storico rovescia il problema — i numeri giusti l'azienda li ha già,
+// sparsi nelle schede dei capi fatti — e la tabella taglie, semmai, si scriverà da sé.
+//
+// Il divieto di inventare numeri non è caduto: è passato dal prompt al codice. Quello che
+// torna dal modello attraversa `filtraValoriInventati` (vedi `storico-misure.ts`), che
+// azzera ogni valore che lo storico non regge. Una misura senza numero si compila a mano;
+// una misura con un numero sbagliato si scopre sul capo tagliato.
 
 const MEASUREMENTS_SCHEMA = {
   type: 'object',
@@ -207,10 +228,20 @@ const MEASUREMENTS_SCHEMA = {
         properties: {
           nome: { type: 'string', description: 'Nome della misura in italiano, es. "Girovita"' },
           unita: { type: 'string', enum: ['cm', 'mm', 'in'] },
+          valore: {
+            type: ['number', 'null'],
+            description:
+              'Valore per la taglia di riferimento, ricavato SOLO dallo storico allegato. ' +
+              'null se lo storico non contiene questa misura.',
+          },
+          tagliaRiferimento: {
+            type: ['string', 'null'],
+            description: 'Taglia a cui si riferisce il valore, presa dallo storico. null se non c\'è valore.',
+          },
           tolleranza: { type: ['string', 'null'], description: 'Tolleranza tipica, es. "±0,5 cm"' },
           nota: { type: ['string', 'null'], description: 'Come si rileva la misura, se non ovvio' },
         },
-        required: ['nome', 'unita', 'tolleranza', 'nota'],
+        required: ['nome', 'unita', 'valore', 'tagliaRiferimento', 'tolleranza', 'nota'],
         additionalProperties: false,
       },
     },
@@ -222,25 +253,34 @@ const MEASUREMENTS_SCHEMA = {
 
 const MEASUREMENTS_PROMPT = `Sei un modellista esperto di abbigliamento che lavora per un'azienda di moda italiana.
 
-Dato un capo, elenchi le misure tecniche da rilevare sul modello.
+Dato un capo, elenchi le misure tecniche da rilevare sul modello e, dove lo storico dell'azienda lo consente, indichi anche quanto devono misurare.
 
-Regole:
+Regole sull'elenco:
 - Proponi SOLO misure pertinenti alla categoria del capo: un pantalone ha girovita, girobacino, altezza cavallo, lunghezza esterna e interna, larghezza coscia, ginocchio e fondo; un cappotto ha lunghezza totale, larghezza spalle, circonferenza torace, larghezza fondo, lunghezza e giro manica, profondità scalfo, altezza collo.
-- Usa i nomi italiani correnti in sartoria.
-- NON inventare valori numerici: indichi quali misure servono, non quanto devono misurare.
+- Usa i nomi italiani correnti in sartoria. Se una misura compare nello storico allegato, riprendi ESATTAMENTE il nome che ha lì: serve a riconoscerla come la stessa misura.
 - Ordina le misure come si rilevano in pratica, dall'alto verso il basso.
-- Da 5 a 12 misure: poche e giuste, non un elenco esaustivo.`
+- Da 5 a 12 misure: poche e giuste, non un elenco esaustivo.
 
-export interface SuggestedMeasurement {
-  nome: string
-  unita: 'cm' | 'mm' | 'in'
-  tolleranza: string | null
-  nota: string | null
-}
+Regole sui valori — sono la parte che conta:
+- Un valore si ricava SOLO dallo storico allegato, che riporta le misure già rilevate su capi della stessa categoria. Non esiste una tabella taglie aziendale e non devi ricostruirla.
+- Se lo storico ha più rilevazioni della stessa misura, proponi un valore dentro l'intervallo indicato (la media è una buona scelta) e usa la stessa unità.
+- Se lo storico NON contiene quella misura, \`valore\` e \`tagliaRiferimento\` restano null. Una misura senza numero è un risultato corretto: la compila il modellista.
+- Non dedurre un valore da un'altra misura, da proporzioni generali o da conoscenze esterne all'azienda. Meglio null che un numero verosimile.
+- \`tagliaRiferimento\` è la taglia a cui lo storico riferisce quel valore: riportala com'è scritta lì.
+
+Nella nota finale scrivi in una frase su cosa ti sei basato: quante misure hai potuto valorizzare dallo storico e quante restano da rilevare.`
+
+export type SuggestedMeasurement = MisuraControllata
 
 export interface MeasurementsSuggestion {
   misure: SuggestedMeasurement[]
   note: string
+  /**
+   * Su cosa si è potuto basare: quante misure lo storico conosceva e quanti capi hanno
+   * contribuito. L'interfaccia lo mostra, perché «nessun valore proposto» con lo storico
+   * vuoto è il comportamento giusto e va distinto da una funzione che non funziona.
+   */
+  storico: { misureConosciute: number; capi: number; valoriProposti: number }
 }
 
 export interface MeasurementsInput {
@@ -254,8 +294,47 @@ export interface MeasurementsInput {
   dettagliCostruttivi?: string
 }
 
+/**
+ * Le misure già rilevate sui capi della stessa categoria.
+ *
+ * Solo righe con un valore: una misura in elenco senza numero non insegna niente. Il
+ * confronto sulla categoria è insensibile a maiuscole e spazi, perché è testo libero
+ * scritto da persone diverse in momenti diversi.
+ */
+export async function leggiStoricoMisure(categoria: string): Promise<GruppoStorico[]> {
+  const righe = await prisma.sheetMeasurement.findMany({
+    where: {
+      valore: { not: null },
+      technicalSheet: { product: { categoria: { equals: categoria.trim(), mode: 'insensitive' } } },
+    },
+    select: {
+      nome: true,
+      valore: true,
+      unita: true,
+      tagliaRiferimento: true,
+      technicalSheet: { select: { product: { select: { nome: true } } } },
+    },
+    // Un tetto c'è per non spedire mezzo archivio al modello: le rilevazioni più recenti
+    // bastano a dire come si misura oggi.
+    orderBy: { technicalSheet: { updatedAt: 'desc' } },
+    take: 500,
+  })
+
+  const grezze: RigaStorica[] = righe.map((r) => ({
+    nome: r.nome,
+    unita: r.unita,
+    taglia: r.tagliaRiferimento,
+    valore: Number(r.valore),
+    capo: r.technicalSheet.product.nome,
+  }))
+
+  return riassumiStorico(grezze)
+}
+
 export async function suggestMeasurements(input: MeasurementsInput): Promise<MeasurementsSuggestion> {
   if (!input.categoria.trim()) throw badRequest('Serve la categoria del capo per suggerire le misure.')
+
+  const gruppi = await leggiStoricoMisure(input.categoria)
 
   const contesto = [
     `Categoria: ${input.categoria}`,
@@ -276,7 +355,9 @@ export async function suggestMeasurements(input: MeasurementsInput): Promise<Mea
       model: config.openaiModel,
       max_output_tokens: 4000,
       instructions: MEASUREMENTS_PROMPT,
-      input: `Quali misure tecniche servono per questo capo?\n\n${contesto}`,
+      input:
+        `Quali misure tecniche servono per questo capo, e quanto devono misurare?\n\n${contesto}\n\n` +
+        testoStorico(gruppi, input.categoria.trim()),
       text: {
         format: {
           type: 'json_schema',
@@ -287,7 +368,23 @@ export async function suggestMeasurements(input: MeasurementsInput): Promise<Mea
       },
     })
 
-    return jsonDallaRisposta<MeasurementsSuggestion>(response, 'Aggiungi le misure a mano.')
+    const proposta = jsonDallaRisposta<{ misure: MisuraProposta[]; note: string }>(
+      response,
+      'Aggiungi le misure a mano.',
+    )
+    // Il controllo, non la fiducia: qui cadono i valori che lo storico non regge.
+    const misure = filtraValoriInventati(proposta.misure ?? [], gruppi)
+
+    return {
+      misure,
+      note: proposta.note,
+      storico: {
+        // Una misura presente in più taglie resta un solo tipo di misura conosciuto.
+        misureConosciute: new Set(gruppi.map((g) => `${g.chiave}|${g.unita}`)).size,
+        capi: capiCoinvolti(gruppi),
+        valoriProposti: misure.filter((m) => m.valore !== null).length,
+      },
+    }
   } catch (err) {
     throw tradurreErroreAI(err)
   }

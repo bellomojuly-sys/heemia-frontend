@@ -294,7 +294,7 @@ export interface TechnicalSheet {
   }
 }
 
-/** Una misura tecnica del capo. Il valore lo compila il modellista, non l'AI. */
+/** Una misura tecnica del capo. Il valore può essere manuale o proposto dallo storico via AI. */
 export interface SheetMeasurement {
   id: string
   nome: string

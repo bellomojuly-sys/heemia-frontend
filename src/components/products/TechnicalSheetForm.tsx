@@ -477,7 +477,7 @@ export function TechnicalSheetForm({
 
         {/* 2b. Misure tecniche ---------------------------------------------- */}
         <section>
-          <SectionTitle hint="Le misure necessarie cambiano con la categoria del capo: un pantalone non ha le stesse misure di un cappotto. L'AI propone quali misure servono; i valori li inserisci tu, perché dipendono dalla taglia base e dal modello.">
+          <SectionTitle hint="Le misure cambiano con la categoria del capo. L'AI propone quali servono e valorizza soltanto quelle già presenti nello storico Heemia della stessa categoria e taglia; le altre restano da compilare a mano.">
             Misure tecniche
           </SectionTitle>
           <SheetMeasurementsEditor

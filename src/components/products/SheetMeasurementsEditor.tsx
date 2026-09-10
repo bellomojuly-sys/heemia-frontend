@@ -4,7 +4,7 @@ import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { fieldClass } from '../ui/Modal'
 import type { SheetMeasurement } from '../../types'
-import { useDataStore, type SuggerimentoMisureInput } from '../../context/DataStore'
+import { useDataStore, type SuggerimentoMisure, type SuggerimentoMisureInput } from '../../context/DataStore'
 import { ApiError } from '../../lib/api'
 
 const UNITA: SheetMeasurement['unita'][] = ['cm', 'mm', 'in']
@@ -13,10 +13,27 @@ let contatore = 0
 const nuovoId = () => `mis-${Date.now()}-${contatore++}`
 
 /**
+ * Da dove vengono i numeri, detto a chi guarda. Con lo storico vuoto — il caso normale
+ * finché le schede tecniche non si riempiono — la frase spiega perché non c'è nessun
+ * valore, così nessuno va a cercare un guasto che non c'è.
+ */
+function descriviStorico(storico: SuggerimentoMisure['storico']): string {
+  if (storico.misureConosciute === 0) {
+    return 'Nessuna scheda tecnica di questa categoria contiene ancora misure: l\'AI ha proposto l\'elenco, i valori si compilano a mano. Man mano che le schede si riempiono, i valori arriveranno da sé.'
+  }
+  const base = `Storico consultato: ${storico.misureConosciute} misure già rilevate su ${storico.capi} ${storico.capi === 1 ? 'capo' : 'capi'} della stessa categoria.`
+  if (storico.valoriProposti === 0) return `${base} Nessun valore corrispondeva alle misure proposte: restano da rilevare.`
+  return `${base} Valori proposti: ${storico.valoriProposti}. Gli altri restano da rilevare.`
+}
+
+/**
  * Elenco delle misure tecniche del capo (backlog "Note" §3).
  *
- * Le misure necessarie cambiano con la categoria: l'AI propone QUALI misure servono,
- * i valori numerici restano da compilare a mano perché dipendono da taglia e modello.
+ * Le misure necessarie cambiano con la categoria: l'AI propone quali misure servono e,
+ * dal 2026-09-10 (DEC-069), anche quanto devono misurare — ma solo dove lo storico delle
+ * schede tecniche dei capi della stessa categoria lo dice. Dove tace, la misura arriva
+ * senza numero: è il risultato giusto, non un errore, e la riga sotto il pulsante lo
+ * spiega invece di lasciar pensare che la funzione non abbia funzionato.
  * Ogni riga si può modificare, spostare o eliminare.
  */
 export function SheetMeasurementsEditor({
@@ -36,6 +53,7 @@ export function SheetMeasurementsEditor({
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState('')
   const [notaAi, setNotaAi] = useState('')
+  const [notaStorico, setNotaStorico] = useState('')
 
   const aggiungi = () =>
     onChange((prec) => [...prec, { id: nuovoId(), nome: '', unita: 'cm', fonte: 'manuale' }])
@@ -65,6 +83,7 @@ export function SheetMeasurementsEditor({
       const input: SuggerimentoMisureInput = { categoria, descrizione, vestibilita }
       const esito = await suggerisciMisure(input)
       setNotaAi(esito.note)
+      setNotaStorico(descriviStorico(esito.storico))
       // Le misure proposte si aggiungono a quelle già presenti: nulla viene sovrascritto.
       onChange((prec) => [
         ...prec,
@@ -72,6 +91,10 @@ export function SheetMeasurementsEditor({
           id: nuovoId(),
           nome: m.nome,
           unita: m.unita,
+          // Il valore c'è solo se lo storico lo reggeva: altrimenti la riga nasce vuota,
+          // pronta per essere compilata dal modellista.
+          valore: m.valore ?? undefined,
+          tagliaRiferimento: m.tagliaRiferimento ?? undefined,
           tolleranza: m.tolleranza ?? undefined,
           nota: m.nota ?? undefined,
           fonte: 'ai' as const,
@@ -100,6 +123,7 @@ export function SheetMeasurementsEditor({
 
       {errore && <p className="mb-3 text-[12px] text-heemia-carmine">{errore}</p>}
       {notaAi && <p className="mb-3 text-[12px] text-heemia-grey">{notaAi}</p>}
+      {notaStorico && <p className="mb-3 text-[12px] text-heemia-grey">{notaStorico}</p>}
 
       {misure.length === 0 ? (
         <p className="text-sm text-heemia-grey">

@@ -89,7 +89,12 @@ const DEFAULT_MATRIX: Record<Role, MatriceRuolo> = {
     // «Team interno non vede mai Costi e Margini» (04_Security/User_Roles_Permissions.md):
     // i moduli economici sono assenti dalla navigazione, non mostrati senza dati.
     clienti: NESSUNO, fatture: NESSUNO, scadenze: NESSUNO, 'costi-margini': NESSUNO,
-    report: NESSUNO, shopify: NESSUNO, analytics: NESSUNO, 'activity-log': NESSUNO,
+    // Analytics: visibile a tutti i ruoli del gestionale in sola lettura (OQ-21, Giulia
+    // 2026-09-10). E' l'andamento del sito, non un dato economico: non espone costi,
+    // margini ne' fatturato, e chi lavora sui capi ha motivo di vedere cosa guardano i
+    // clienti. Resta modificabile dalla matrice in Impostazioni.
+    analytics: SOLA_LETTURA,
+    report: NESSUNO, shopify: NESSUNO, 'activity-log': NESSUNO,
     utenti: NESSUNO,
   },
   viewer: {
@@ -105,7 +110,8 @@ const DEFAULT_MATRIX: Record<Role, MatriceRuolo> = {
     'ai-assistant': SOLA_LETTURA,
     impostazioni: SOLA_LETTURA,
     clienti: NESSUNO, fatture: NESSUNO, scadenze: NESSUNO, 'costi-margini': NESSUNO,
-    report: NESSUNO, shopify: NESSUNO, analytics: NESSUNO, 'activity-log': NESSUNO,
+    analytics: SOLA_LETTURA, // come per il team: OQ-21, Giulia 2026-09-10.
+    report: NESSUNO, shopify: NESSUNO, 'activity-log': NESSUNO,
     utenti: NESSUNO,
   },
   showroom: {},

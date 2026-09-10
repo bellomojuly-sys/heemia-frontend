@@ -93,7 +93,8 @@ export async function aiRoutes(app: FastifyInstance) {
     return { estrazione, analizzatoIl: new Date().toISOString() }
   })
 
-  // Quali misure servono per questo capo: l'AI propone l'elenco, i valori si compilano a mano.
+  // Quali misure servono per questo capo e, quando lo storico della stessa categoria le
+  // sostiene, anche il valore per la relativa taglia di riferimento (DEC-069).
   app.post('/ai/suggest-measurements', prodottiWrite, async (req) => {
     return suggestMeasurements(parse(measurementsSchema, req.body))
   })
