@@ -16,6 +16,9 @@ import {
   addPatternDocumentNote, createPatternDocument, deletePatternDocument,
   listPatternDocuments, updatePatternDocumentStato,
 } from './patternDocuments.js'
+import { applicaPrezziCalcolati, prezzoConsigliato } from './prezziAutomatici.js'
+import { applicaComposizione, composizioneDelCapo } from './composizioneAutomatica.js'
+import { pubblicaProdottoSuShopify } from '../shopify/pubblicaProdotto.js'
 
 const createSchema = z.object({
   nome: z.string().min(1),
@@ -251,6 +254,30 @@ function toSheetData(d: Omit<z.infer<typeof technicalSheetUpdateSchema>, 'righeM
   }
 }
 
+/**
+ * Dopo un salvataggio della scheda tecnica: rimette in pari quello che dalla scheda si
+ * ricava — il prezzo e la composizione.
+ *
+ * **Non sovrascrive niente.** Il prezzo si applica solo a un capo che un prezzo non ce l'ha
+ * ancora (`soloSeMancante`), cioè al capo appena creato: è quello il caso in cui nessuno
+ * deve più digitare un numero. Un capo già prezzato mostra il prezzo calcolato accanto a
+ * quello attuale e aspetta che una persona decida. La composizione segue la stessa regola:
+ * riempie un campo vuoto, non riscrive un testo scritto a mano.
+ *
+ * Se una delle due non riesce il salvataggio della scheda **resta valido**: sono
+ * conseguenze, non parti della scrittura. Far fallire un salvataggio riuscito perché un
+ * calcolo derivato è andato storto perderebbe il lavoro di chi ha compilato la scheda.
+ */
+async function allineaDatiDerivati(productId: string | undefined, userId: string): Promise<void> {
+  if (!productId) return
+  try {
+    await applicaPrezziCalcolati(productId, userId, { soloSeMancante: true })
+  } catch { /* il prezzo si potrà applicare a mano dalla scheda prodotto */ }
+  try {
+    await applicaComposizione(productId)
+  } catch { /* la composizione resta come sta, e la scheda prodotto mostra quella ricavata */ }
+}
+
 export async function productRoutes(app: FastifyInstance) {
   const read = { preHandler: [authenticate, requireModule('prodotti')] }
   const write = { preHandler: [authenticate, requireModule('prodotti'), requireEdit] }
@@ -334,6 +361,10 @@ export async function productRoutes(app: FastifyInstance) {
     }
 
     const created = await createProduct(data, req.user!.id)
+    // Se il capo nasce già collegato a un tessuto di magazzino, la composizione si scrive
+    // da sola da lì. Il campo derivato dalla tabella qui sopra non viene toccato: si
+    // riempie solo quello che è rimasto vuoto.
+    await applicaComposizione(created.id).catch(() => undefined)
     reply.code(201)
     return created
   })
@@ -357,7 +388,54 @@ export async function productRoutes(app: FastifyInstance) {
       prezzoShowroom: d.prezzoShowroom !== undefined ? new Prisma.Decimal(d.prezzoShowroom) : undefined,
       prezzoConsigliato: d.prezzoConsigliato !== undefined ? new Prisma.Decimal(d.prezzoConsigliato) : undefined,
     }
-    return updateProduct(id, data, req.user!.id)
+    const aggiornato = await updateProduct(id, data, req.user!.id)
+    // Cambiare tessuto cambia il collegamento al magazzino (sincronizzaTessutoCollegato) e
+    // quindi la composizione ricavabile. Vale la stessa regola: si riempie un campo vuoto,
+    // non si riscrive un testo scritto da una persona.
+    await applicaComposizione(id).catch(() => undefined)
+    return aggiornato
+  })
+
+  // --- Prezzo calcolato, composizione ricavata, pubblicazione su Shopify -----------------
+  //
+  // Tre rotte che hanno in comune la stessa idea: un dato che l'app ha già non si richiede a
+  // chi compila. Il prezzo nasce dai costi della scheda tecnica, la composizione dai tessuti,
+  // e la scheda Shopify da tutti e due più le varianti.
+  //
+  // ⚠️ **Il modulo di queste rotte è `prodotti`, non `shopify`.** È voluto, ed è una
+  // decisione di Giulia del 2026-09-10: pubblicare un capo dev'essere alla portata di
+  // chiunque possa gestire i capi, non del solo amministratore. Il modulo `shopify` continua
+  // a proteggere quello che riguarda il negozio nel suo insieme — riconciliazione, giacenze,
+  // importazione degli ordini — mentre mandare *questo* capo nella vetrina è un gesto
+  // dell'anagrafica prodotti, e segue i permessi dell'anagrafica prodotti.
+
+  app.get('/products/:id/prezzo-consigliato', read, async (req) => {
+    const { id } = req.params as { id: string }
+    return prezzoConsigliato(id)
+  })
+
+  // Scrive sul capo i prezzi calcolati. È un POST e non un effetto del salvataggio della
+  // scheda: un capo che un prezzo ce l'ha già non se lo vede cambiare senza averlo chiesto.
+  app.post('/products/:id/prezzo/applica', write, async (req) => {
+    const { id } = req.params as { id: string }
+    return applicaPrezziCalcolati(id, req.user!.id)
+  })
+
+  app.get('/products/:id/composizione', read, async (req) => {
+    const { id } = req.params as { id: string }
+    return composizioneDelCapo(id)
+  })
+
+  // `forza`: sovrascrive anche una composizione scritta a mano. Senza, un testo scritto da
+  // una persona resta dov'è — è la stessa regola dei consigli di cura.
+  app.post('/products/:id/composizione/applica', write, async (req) => {
+    const { id } = req.params as { id: string }
+    return applicaComposizione(id, { forza: true })
+  })
+
+  app.post('/products/:id/shopify/pubblica', write, async (req) => {
+    const { id } = req.params as { id: string }
+    return pubblicaProdottoSuShopify(id, req.user!.id)
   })
 
   // --- Varianti (FR-03) ---
@@ -395,6 +473,7 @@ export async function productRoutes(app: FastifyInstance) {
     const d = parse(technicalSheetCreateSchema, req.body)
     const { versione, ...resto } = d
     const created = await createTechnicalSheet(id, versione, toSheetData(resto), req.user!.id)
+    await allineaDatiDerivati(id, req.user!.id)
     reply.code(201)
     return created
   })
@@ -407,12 +486,14 @@ export async function productRoutes(app: FastifyInstance) {
       fotoDaAggiungere, fotoDaRimuovereIds, snapshotCosto,
       ...campi
     } = d
-    return updateTechnicalSheet(
+    const aggiornata = await updateTechnicalSheet(
       id,
       toSheetData(campi),
       { righeMateriali, righeCosti, misure, fotoDaAggiungere, fotoDaRimuovereIds, snapshotCosto },
       req.user!.id,
     )
+    await allineaDatiDerivati(aggiornata?.productId, req.user!.id)
+    return aggiornata
   })
 
   // Foto del prototipo: salvate nel database (finiscono nei backup).

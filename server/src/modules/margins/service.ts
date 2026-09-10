@@ -11,10 +11,13 @@
 // secondariamente»), e una scheda con le cinque voci a zero sommerebbe a zero — cioe' a un
 // margine pari all'intero prezzo, che e' una risposta sbagliata con l'aria di essere giusta.
 // La scelta della fonte sta tutta in risolviCostoDiretto(), qui sotto.
-import { Prisma, type TechnicalSheet } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../../core/prisma.js'
 import { badRequest, conflict, notFound } from '../../core/errors.js'
 import { logActivity } from '../../core/activityLog.js'
+import {
+  SELECT_COSTO_SCHEDA, risolviCostoCapo, schedaDiRiferimento,
+} from '../products/costoScheda.js'
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
@@ -58,46 +61,54 @@ export interface ProductMargin {
   fonteCosto: FonteCosto
 }
 
-/** Le cinque voci della scheda che compongono il costo diretto (Database_Schema §5). */
-type VociCosto = Pick<
-  TechnicalSheet,
-  'costoTessuto' | 'costoAccessori' | 'costoManodopera' | 'costoPackaging' | 'altriCostiDiretti'
->
-
 /**
- * Sceglie il costo diretto di un capo fra le due fonti possibili.
+ * Sceglie il costo diretto di un capo fra le fonti possibili.
  *
- * 1. **La scheda tecnica**, se e' stata valorizzata — cioe' se la somma delle sue cinque voci
- *    supera zero. E' il dato piu' preciso: ha la scomposizione.
- * 2. **Il costo di riferimento del censimento**, se c'e'. E' un numero unico senza
+ * 1. **Le righe strutturate della scheda tecnica** — materiali con quantita' e voci di
+ *    costo. E' il dato migliore: ha la scomposizione e la tracciabilita'.
+ * 2. **Le cinque voci piatte** della scheda, per le schede scritte prima delle righe.
+ * 3. **Il costo di riferimento del censimento**, se c'e'. E' un numero unico senza
  *    scomposizione, ma e' un numero vero.
- * 3. Altrimenti **non lo sappiamo**, e va detto. Una scheda con le voci a zero non significa
+ * 4. Altrimenti **non lo sappiamo**, e va detto. Una scheda con le voci a zero non significa
  *    che il capo non costi niente: significa che nessuno ha ancora compilato quei campi.
  *
- * Il passaggio dal riferimento alla scheda avviene da se': appena qualcuno valorizza la
- * scheda, la somma supera zero e vince lei. Nessun interruttore da ricordarsi.
+ * Il passaggio da una fonte all'altra avviene da se': appena qualcuno valorizza la scheda,
+ * la sua somma supera zero e vince lei. Nessun interruttore da ricordarsi.
+ *
+ * 2026-09-10 — **il primo gradino e' nuovo**, e sana una discordanza. Le righe strutturate
+ * esistono dal 2026-07-30, ma il totale lo calcolava soltanto il browser: da qui il costo si
+ * leggeva ancora dai cinque campi piatti, che il form della scheda non compila. Un capo con
+ * la scheda compilata riga per riga risultava quindi **senza costo** nei margini, mentre la
+ * sua scheda a schermo il costo lo mostrava. Da quando il prezzo di vendita nasce da quel
+ * numero (products/prezziAutomatici.ts) le due risposte devono essere una sola, e il conto
+ * sta in `products/costoScheda.ts`, che le serve entrambe.
  */
 function risolviCostoDiretto(
   costoDirettoRiferimento: Prisma.Decimal | null,
-  sheet: VociCosto | undefined,
+  sheet: Parameters<typeof risolviCostoCapo>[0],
 ): { costoDiretto: number; fonteCosto: FonteCosto } {
-  const dallaScheda = sheet
-    ? r2(
-        Number(sheet.costoTessuto) + Number(sheet.costoAccessori) + Number(sheet.costoManodopera) +
-          Number(sheet.costoPackaging) + Number(sheet.altriCostiDiretti),
-      )
-    : 0
-  if (dallaScheda > 0) return { costoDiretto: dallaScheda, fonteCosto: 'scheda' }
-  if (costoDirettoRiferimento !== null) {
-    return { costoDiretto: r2(Number(costoDirettoRiferimento)), fonteCosto: 'censimento' }
+  const costo = risolviCostoCapo(sheet, costoDirettoRiferimento)
+  return {
+    costoDiretto: costo.costoDiretto,
+    fonteCosto:
+      costo.fonte === 'scheda_righe' || costo.fonte === 'scheda_voci'
+        ? 'scheda'
+        : costo.fonte === 'censimento' ? 'censimento' : 'sconosciuto',
   }
-  return { costoDiretto: 0, fonteCosto: 'sconosciuto' }
 }
 
 export async function computeProductMargin(productId: string): Promise<ProductMargin | null> {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    include: { technicalSheets: { where: { archiviata: false } } },
+    select: {
+      id: true,
+      nome: true,
+      prezzoNettoIva: true,
+      costoDirettoRiferimento: true,
+      // Le righe della scheda servono al costo: senza, `risolviCostoDiretto` ricadrebbe
+      // sui soli campi piatti e direbbe «costo sconosciuto» su una scheda compilata.
+      technicalSheets: { where: { archiviata: false }, select: { versione: true, ...SELECT_COSTO_SCHEDA } },
+    },
   })
   if (!product) return null
 
@@ -105,7 +116,7 @@ export async function computeProductMargin(productId: string): Promise<ProductMa
   const sogliaSetting = await prisma.appSetting.findUnique({ where: { chiave: 'soglia_margine_percent' } })
   const thresholdPercent = Number(sogliaSetting?.valore ?? 35)
 
-  const sheet = product.technicalSheets.find((t: TechnicalSheet) => t.versione === 'finale') ?? product.technicalSheets[0]
+  const sheet = schedaDiRiferimento(product.technicalSheets)
   const { costoDiretto, fonteCosto } = risolviCostoDiretto(product.costoDirettoRiferimento, sheet)
   const costoNoto = fonteCosto !== 'sconosciuto'
 
@@ -142,7 +153,15 @@ export async function computeProductMargin(productId: string): Promise<ProductMa
  */
 export async function computeAllMargins(): Promise<ProductMargin[]> {
   const [products, quota, sogliaSetting] = await Promise.all([
-    prisma.product.findMany({ include: { technicalSheets: { where: { archiviata: false } } } }),
+    prisma.product.findMany({
+      select: {
+        id: true,
+        nome: true,
+        prezzoNettoIva: true,
+        costoDirettoRiferimento: true,
+        technicalSheets: { where: { archiviata: false }, select: { versione: true, ...SELECT_COSTO_SCHEDA } },
+      },
+    }),
     computeQuotaPerCapo(),
     prisma.appSetting.findUnique({ where: { chiave: 'soglia_margine_percent' } }),
   ])
@@ -150,7 +169,7 @@ export async function computeAllMargins(): Promise<ProductMargin[]> {
   const { quotaPerCapo } = quota
 
   return products.map((product) => {
-    const sheet = product.technicalSheets.find((t: TechnicalSheet) => t.versione === 'finale') ?? product.technicalSheets[0]
+    const sheet = schedaDiRiferimento(product.technicalSheets)
     const { costoDiretto, fonteCosto } = risolviCostoDiretto(product.costoDirettoRiferimento, sheet)
     const costoNoto = fonteCosto !== 'sconosciuto'
     const prezzoNettoIva = Number(product.prezzoNettoIva)

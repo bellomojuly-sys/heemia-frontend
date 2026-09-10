@@ -15,6 +15,8 @@
 // non si "migliora" passando. L'unico intervento fatto sul testo originale è tipografico:
 // su Notion le frasi erano righe separate di una cella e arrivano attaccate
 // ("delicato.Asciugare"), quindi sono state rimesse su righe distinte.
+import { stessaComposizione } from './composizione.js'
+
 export interface Tessuto {
   /** Nome commerciale, come lo usa l'azienda e come sta nel censimento. */
   nome: string
@@ -154,12 +156,18 @@ const PER_NOME = new Map(TESSUTI.map((t) => [t.nome.toLowerCase(), t]))
  * Riconosce una coppia composizione+consigli **prodotta da questa tabella**. Serve a una
  * cosa sola: quando un tessuto esce dalla tabella — perché la regola era sbagliata, come è
  * successo alla viscosa — i valori che avevamo derivato vanno tolti, mentre un testo scritto
- * a mano da una persona non si tocca. Combaciare esattamente su entrambi i campi è un
- * segnale forte che il valore l'abbiamo messo noi.
+ * a mano da una persona non si tocca. Combaciare su entrambi i campi è un segnale forte che
+ * il valore l'abbiamo messo noi.
+ *
+ * I consigli di cura si confrontano alla lettera: sono paragrafi interi, e due paragrafi
+ * identici non capitano per caso. La composizione invece si confronta **normalizzata**
+ * (`core/composizione.ts`), perché da quando il campo si compila da solo la stessa
+ * composizione può essere scritta «80% Cotone - 20% Elastan» in tabella e «80% Cotone /
+ * 20% Elastan» sul capo: sono lo stesso valore, ed è ancora nostro.
  */
 export function derivatoDaTabella(composizione: string | null, consigliCura: string | null): boolean {
   if (!composizione || !consigliCura) return false
-  return TESSUTI.some((t) => t.composizione === composizione && t.consigliCura === consigliCura)
+  return TESSUTI.some((t) => stessaComposizione(t.composizione, composizione) && t.consigliCura === consigliCura)
 }
 
 /**

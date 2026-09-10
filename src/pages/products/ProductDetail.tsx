@@ -16,16 +16,20 @@ import { SheetCostBreakdown } from '../../components/products/SheetCostBreakdown
 import { SheetPdfDocument, type PdfVariante } from '../../components/products/SheetPdfDocument'
 import { PatternDocuments } from '../../components/products/PatternDocuments'
 import { ProductMedia } from '../../components/products/ProductMedia'
+import { PubblicaShopify } from '../../components/products/PubblicaShopify'
+import { PrezzoCalcolato } from '../../components/products/PrezzoCalcolato'
 import { SampleApproval } from '../../components/production/SampleApproval'
 import { StatusBadge } from '../../lib/statusBadge'
 import { checkAdvance, stageLabel } from '../../lib/production'
 import { formatCurrency, formatDateIt } from '../../lib/format'
-import { prezzoSito } from '../../lib/prezzi'
 import { TODAY } from '../../lib/alerts'
 import { computeQuotaPerCapo, recomputeMargin } from '../../lib/margins'
 import { computeSheetCost } from '../../lib/sheetCost'
 import { useMarginThreshold } from '../../hooks/useMarginThreshold'
 import { useLiveMargins } from '../../hooks/useLiveMargins'
+import { useServerPrezzoConsigliato } from '../../hooks/useServerPrezzoConsigliato'
+import { FONTE_COMPOSIZIONE_LABEL, useServerComposizione } from '../../hooks/useServerComposizione'
+import { etichettaTaglia, ordinaTaglie } from '../../lib/taglie'
 import type { Material, ProductVariant, TechnicalSheet, TechnicalSheetVersion } from '../../types'
 import { useDataStore } from '../../context/DataStore'
 import { useRole } from '../../context/RoleContext'
@@ -132,6 +136,19 @@ export function ProductDetail() {
   // Note operative di sessione (nessun backend: si perdono al reload, come il resto dei mock).
   const [sessionNote, setSessionNote] = useState('')
   const [savedNotes, setSavedNotes] = useState<{ testo: string; data: string }[]>([])
+
+  // Prezzo e composizione non sono campi del capo: sono risultati, e li calcola il server —
+  // il prezzo dai costi della scheda tecnica, la composizione dai tessuti. Qui si leggono per
+  // mostrarli, e per proporre di applicarli quando il capo dice ancora altro.
+  //
+  // Stanno **sopra** al `return` per prodotto non trovato qui sotto: un hook chiamato dopo un
+  // return condizionale cambia l'ordine degli hook fra un render e l'altro, e React se ne
+  // accorge rompendo la pagina. Per questo prendono `id` e non `product.id`: senza prodotto
+  // non chiedono niente al server.
+  const { prezzo: prezzoCalcolato, applica: applicaPrezzo } = useServerPrezzoConsigliato(id)
+  const { composizione: composizioneRicavata, inCorso: composizioneInCorso, applica: applicaComposizione } =
+    useServerComposizione(id)
+  const [prezzoInCorso, setPrezzoInCorso] = useState(false)
 
   if (!product) {
     return <EmptyState title="Prodotto non trovato" description="Il codice prodotto richiesto non esiste tra i dati mock." />
@@ -368,8 +385,42 @@ export function ProductDetail() {
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4 p-5 text-sm">
               <div><dt className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Vestibilità</dt><dd className="mt-0.5 text-heemia-black">{product.vestibilita ?? '–'}</dd></div>
               <div><dt className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Fase pipeline</dt><dd className="mt-0.5 text-heemia-black">{stageLabel(step?.fase ?? product.stato)}</dd></div>
-              <div><dt className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Taglie</dt><dd className="font-mono-heemia mt-0.5 text-heemia-black">{product.taglieDisponibili.join(', ') || '–'}</dd></div>
+              <div><dt className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Taglie</dt><dd className="mt-1 flex flex-wrap gap-1">{product.taglieDisponibili.length === 0 ? <span className="text-heemia-black">–</span> : ordinaTaglie(product.taglieDisponibili).map((t) => (<span key={t} className="font-mono-heemia rounded-heemia-sm border border-heemia-border bg-heemia-surface px-1.5 py-0.5 text-[11px] uppercase tracking-[0.04em] text-heemia-black">{etichettaTaglia(t)}</span>))}</dd></div>
               <div><dt className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Colori</dt><dd className="mt-0.5 text-heemia-black">{product.coloriDisponibili.join(', ') || '–'}</dd></div>
+              {/* La composizione non si scrive più a mano: si ricava dai tessuti del capo.
+                  Qui si vede quella salvata, e — se i tessuti ne dicono un'altra — anche
+                  quella ricavata, con il pulsante per allinearle. */}
+              <div className="col-span-2">
+                <dt className="font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Composizione</dt>
+                <dd className="mt-0.5 text-heemia-black">{product.composizione ?? '–'}</dd>
+                {composizioneRicavata?.composizione &&
+                  composizioneRicavata.composizione !== (product.composizione ?? '') && (
+                    <dd className="mt-1.5 rounded-heemia-sm border border-dashed border-heemia-border bg-heemia-surface-muted px-2.5 py-2 text-xs text-heemia-grey">
+                      Dai tessuti del capo ({FONTE_COMPOSIZIONE_LABEL[composizioneRicavata.fonte]}):{' '}
+                      <span className="text-heemia-black">{composizioneRicavata.composizione}</span>
+                      {composizioneRicavata.daConfermare && (
+                        <span className="mt-1 block text-heemia-carmine">
+                          Il capo ha più tessuti: le percentuali non si sommano fra loro, va confermata da una persona.
+                        </span>
+                      )}
+                      {userCanEdit && (
+                        <span className="mt-2 block">
+                          <Button
+                            variant="secondary"
+                            disabled={composizioneInCorso}
+                            onClick={() => {
+                              void applicaComposizione()
+                                .then(() => avvisa('generico', { titolo: 'Composizione aggiornata', testo: 'Ricavata dai tessuti del capo.' }))
+                                .catch((e: unknown) => avvisa('salvataggio', { testo: e instanceof Error ? e.message : 'Composizione non aggiornata.' }))
+                            }}
+                          >
+                            {composizioneInCorso ? 'Applico…' : 'Usa questa composizione'}
+                          </Button>
+                        </span>
+                      )}
+                    </dd>
+                  )}
+              </div>
               <div className="col-span-2">
                 <dt className="flex items-center gap-1.5 font-mono-heemia text-[10px] uppercase tracking-[0.06em] text-heemia-grey">
                   Descrizione breve <Badge variant={product.descrizioneBreveStato === 'approvata' ? 'success' : 'warning'}>{product.descrizioneBreveStato === 'approvata' ? 'Approvata' : 'Bozza'}</Badge>
@@ -809,32 +860,67 @@ export function ProductDetail() {
       )}
 
       {activeTab === 'shopify' && (
-        <Card>
-          <CardHeader title="Shopify ed e-commerce" subtitle="Predisposizione dati: nessuna sincronizzazione live in questa fase." />
-          <div className="p-5">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <DetailField label="Stato pubblicazione"><StatusBadge status={product.statoPubblicazioneShopify} /></DetailField>
-              <DetailField label="Disponibilità online">{product.disponibilitaOnline ? 'Sì' : 'No'}</DetailField>
-              <DetailField label="Disponibilità showroom">{product.disponibilitaShowroom ? 'Sì' : 'No'}</DetailField>
-              {/* I due attributi che decidono la vista cliente (DEC-044). */}
-              <DetailField label="Visibile in showroom">{product.visibileShowroom ? 'Sì' : 'No'}</DetailField>
-              <DetailField label="Personalizzabile su misura">{product.personalizzabileSuMisura ? 'Sì' : 'No'}</DetailField>
-              <DetailField label="Tempi di realizzazione">{product.tempiRealizzazione || '–'}</DetailField>
-              <DetailField label="Prezzo vendita (IVA incl.)"><span className="font-mono-heemia">{product.prezzoVendita > 0 ? formatCurrency(product.prezzoVendita) : '–'}</span></DetailField>
-              <DetailField label="Prezzo netto IVA"><span className="font-mono-heemia">{product.prezzoNettoIva > 0 ? formatCurrency(product.prezzoNettoIva) : '–'}</span></DetailField>
-              <DetailField label="Prezzo showroom"><span className="font-mono-heemia">{product.prezzoShowroom > 0 ? formatCurrency(product.prezzoShowroom) : '–'}</span></DetailField>
-              {/* Non è un campo: è lo showroom più il 10% (regola 2026-08-13). Si mostra qui
-                  perché è il prezzo che il cliente vede online, e nasconderlo obbligherebbe
-                  a rifare il conto a mente ogni volta. */}
-              <DetailField label="Prezzo sito (showroom +10%)"><span className="font-mono-heemia">{prezzoSito(product.prezzoShowroom) > 0 ? formatCurrency(prezzoSito(product.prezzoShowroom)) : '–'}</span></DetailField>
-              <DetailField label="Prezzo consigliato"><span className="font-mono-heemia">{product.prezzoConsigliato > 0 ? formatCurrency(product.prezzoConsigliato) : '–'}</span></DetailField>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader
+              title="Shopify ed e-commerce"
+              subtitle="Il capo si manda in vetrina da qui, con i dati che ha già: nessuna scheda da riscrivere nel negozio."
+            />
+            <div className="p-5">
+              <PubblicaShopify product={product} canEdit={userCanEdit} onPubblicato={() => void applicaPrezzo().catch(() => undefined)} />
+
+              <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <DetailField label="Stato pubblicazione"><StatusBadge status={product.statoPubblicazioneShopify} /></DetailField>
+                <DetailField label="Disponibilità online">{product.disponibilitaOnline ? 'Sì' : 'No'}</DetailField>
+                <DetailField label="Disponibilità showroom">{product.disponibilitaShowroom ? 'Sì' : 'No'}</DetailField>
+                {/* I due attributi che decidono la vista cliente (DEC-044). */}
+                <DetailField label="Visibile in showroom">{product.visibileShowroom ? 'Sì' : 'No'}</DetailField>
+                <DetailField label="Personalizzabile su misura">{product.personalizzabileSuMisura ? 'Sì' : 'No'}</DetailField>
+                <DetailField label="Tempi di realizzazione">{product.tempiRealizzazione || '–'}</DetailField>
+                <DetailField label="Prezzo standard (IVA incl.)"><span className="font-mono-heemia">{product.prezzoVendita > 0 ? formatCurrency(product.prezzoVendita) : '–'}</span></DetailField>
+                <DetailField label="Prezzo netto IVA"><span className="font-mono-heemia">{product.prezzoNettoIva > 0 ? formatCurrency(product.prezzoNettoIva) : '–'}</span></DetailField>
+                {/* Non è più un campo da scrivere: è il listino meno il 10% (regola
+                    2026-09-10). Si mostra perché è il prezzo dello stand, e nasconderlo
+                    obbligherebbe a rifare il conto a mente ogni volta. */}
+                <DetailField label="Prezzo showroom (listino −10%)"><span className="font-mono-heemia">{product.prezzoShowroom > 0 ? formatCurrency(product.prezzoShowroom) : '–'}</span></DetailField>
+                <DetailField label="Composizione">{product.composizione ?? '–'}</DetailField>
+              </div>
+              <div className="mt-5 border-t border-heemia-border pt-4">
+                <p className="font-mono-heemia mb-1.5 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Descrizione e-commerce</p>
+                <p className="text-sm text-heemia-black">{product.descrizioneEcommerce ?? 'Non ancora scritta.'}</p>
+              </div>
             </div>
-            <div className="mt-5 border-t border-heemia-border pt-4">
-              <p className="font-mono-heemia mb-1.5 text-[10px] uppercase tracking-[0.06em] text-heemia-grey">Descrizione e-commerce</p>
-              <p className="text-sm text-heemia-black">{product.descrizioneEcommerce ?? 'Non ancora scritta.'}</p>
-            </div>
-          </div>
-        </Card>
+          </Card>
+
+          {prezzoCalcolato && (
+            <Card>
+              <CardHeader title="Prezzo del capo" subtitle="Calcolato dai costi della scheda tecnica: non si digita più." />
+              <div className="p-5">
+                <PrezzoCalcolato
+                  prezzo={prezzoCalcolato}
+                  canEdit={userCanEdit}
+                  inCorso={prezzoInCorso}
+                  onApplica={() => {
+                    setPrezzoInCorso(true)
+                    void applicaPrezzo()
+                      .then((esito) => {
+                        avvisa('generico', {
+                          titolo: esito.applicato ? 'Prezzi aggiornati' : 'Nessuna modifica',
+                          testo: esito.applicato
+                            ? `Listino ${formatCurrency(esito.calcolato.prezzoVendita)}, showroom ${formatCurrency(esito.calcolato.prezzoShowroom)}.`
+                            : 'Il capo aveva già i prezzi calcolati.',
+                        })
+                      })
+                      .catch((e: unknown) =>
+                        avvisa('salvataggio', { testo: e instanceof Error ? e.message : 'Prezzo non applicato.' }),
+                      )
+                      .finally(() => setPrezzoInCorso(false))
+                  }}
+                />
+              </div>
+            </Card>
+          )}
+        </div>
       )}
 
       {activeTab === 'media' && (

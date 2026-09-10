@@ -67,7 +67,7 @@ export function AddProductForm({
   )
 
   return (
-    <Modal title="Nuovo prodotto" subtitle="Crea la scheda base. Entra nella scheda prodotto per completare prezzi, varianti e scheda tecnica." onClose={onClose}>
+    <Modal title="Nuovo prodotto" subtitle="Crea la scheda base. Taglie, colori e scheda tecnica si completano nella scheda prodotto; il prezzo lo calcola l’app dai costi della scheda." onClose={onClose}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nome prodotto" required error={errori.nome}>
           <input
