@@ -22,7 +22,8 @@
     "foto:export": "node --env-file=.env --import tsx scripts/export-foto-capi.mts",
     "foto:import": "node --env-file=.env --import tsx scripts/import-foto-capi.mts",
     "shopify:webhooks:register": "node --env-file=.env --import tsx scripts/register-shopify-webhooks.mts",
-    "costi-fissi:import": "node --env-file=.env --import tsx scripts/import-costi-fissi.mts"
+    "costi-fissi:import": "node --env-file=.env --import tsx scripts/import-costi-fissi.mts",
+    "catalogo:correggi": "node --env-file=.env --import tsx scripts/correzioni-catalogo.mts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
