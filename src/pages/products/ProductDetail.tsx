@@ -83,6 +83,7 @@ export function ProductDetail() {
   const {
     productionSteps, products, productVariants, updateProduct, addVariant, updateVariantQuantities,
     fixedCostItems, capiProdottiAnnui, technicalSheets, invoices, suppliers, addTechnicalSheet, persistenzaAvviso,
+    setSheetPdfUrl,
     materials, accessories, inventoryRecords,
   } = useDataStore()
   const { avvisa } = useGoatAlert()
@@ -121,15 +122,9 @@ export function ProductDetail() {
   const activeSheet = sheets[0]
 
   // DEC-021: documento PDF per versione, aggiunto sopra ai campi strutturati (non li sostituisce —
-  // FR-09 legge costoTessuto/costoAccessori ecc. da lì). Stato locale: il prototipo non ha upload
-  // reale né backend (DEC-015), quindi "caricare" un PDF significa collegare un link (stile Drive,
-  // FR-16), tenuto in memoria per la sessione — si perde tornando alla lista prodotti, coerente con
-  // il resto dei dati mock non persistenti di questa pagina.
-  const [pdfLinks, setPdfLinks] = useState<Record<string, { url: string; caricatoIl: string }>>(() =>
-    Object.fromEntries(
-      sheets.filter((s) => s.pdfUrl).map((s) => [s.id, { url: s.pdfUrl!, caricatoIl: s.pdfCaricatoIl ?? s.creataIl }]),
-    ),
-  )
+  // FR-09 legge costoTessuto/costoAccessori ecc. da lì). "Caricare" un PDF qui significa collegare
+  // un link (stile Drive, FR-16): il link vive sulla scheda nel database (colonna `pdf_url`), non
+  // nello stato della pagina — prima restava in memoria e spariva al reload.
   const [uploadingSheetId, setUploadingSheetId] = useState<string | null>(null)
   const [uploadValue, setUploadValue] = useState('')
 
@@ -655,17 +650,17 @@ export function ProductDetail() {
                           </a>
                           <p className="text-xs text-heemia-grey">Caricato il {formatDateIt(activeSheet.pdfFile.caricatoIl)}</p>
                         </div>
-                      ) : pdfLinks[activeSheet.id] ? (
+                      ) : activeSheet.pdfUrl ? (
                         <div>
                           <a
-                            href={pdfLinks[activeSheet.id].url}
+                            href={activeSheet.pdfUrl}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1 text-sm text-heemia-black hover:underline"
                           >
                             Apri documento PDF <ExternalLink aria-hidden className="h-3 w-3" />
                           </a>
-                          <p className="text-xs text-heemia-grey">Caricato il {formatDateIt(pdfLinks[activeSheet.id].caricatoIl)}</p>
+                          <p className="text-xs text-heemia-grey">Caricato il {formatDateIt(activeSheet.pdfCaricatoIl ?? activeSheet.creataIl)}</p>
                         </div>
                       ) : (
                         <p className="text-sm text-heemia-grey">Nessun PDF collegato per questa versione.</p>
@@ -676,12 +671,12 @@ export function ProductDetail() {
                         variant="secondary"
                         onClick={() => {
                           setUploadingSheetId(activeSheet.id)
-                          setUploadValue(pdfLinks[activeSheet.id]?.url ?? '')
+                          setUploadValue(activeSheet.pdfUrl ?? '')
                         }}
                       >
                         <span className="inline-flex items-center gap-1.5">
                           <Upload aria-hidden className="h-3.5 w-3.5" />
-                          {pdfLinks[activeSheet.id] ? 'Sostituisci PDF' : 'Carica PDF'}
+                          {activeSheet.pdfUrl ? 'Sostituisci PDF' : 'Carica PDF'}
                         </span>
                       </Button>
                     )}
@@ -698,13 +693,15 @@ export function ProductDetail() {
                       className="min-w-[16rem] flex-1 rounded-heemia border border-heemia-border px-3 py-1.5 text-sm text-heemia-black transition-all duration-200 ease-heemia focus:border-heemia-black focus:outline-none focus:ring-2 focus:ring-heemia-black/10"
                     />
                     <Button
-                      onClick={() => {
+                      onClick={async () => {
                         if (!uploadValue.trim()) return
-                        setPdfLinks((prev) => ({
-                          ...prev,
-                          [activeSheet.id]: { url: uploadValue.trim(), caricatoIl: TODAY.toISOString() },
-                        }))
-                        setUploadingSheetId(null)
+                        try {
+                          await setSheetPdfUrl(activeSheet.id, uploadValue.trim())
+                          setUploadingSheetId(null)
+                        } catch {
+                          // `persistenzaAvviso` mostra già il motivo: il campo resta aperto
+                          // con il link digitato, così non va perso.
+                        }
                       }}
                     >
                       Salva collegamento

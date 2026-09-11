@@ -109,6 +109,7 @@ const technicalSheetCreateSchema = z.object({
   altriCostiIndiretti: z.number().nonnegative().optional(),
   archiviata: z.boolean().optional(),
   pdfUrl: z.string().url().optional(),
+  pdfCaricatoIl: z.string().optional(),
   // --- Scheda strutturata (estensione 2026-07-30) ---
   statoScheda: z.enum(['bozza', 'in_revisione', 'approvata', 'archiviata']).optional(),
   nomeProdotto: z.string().optional(),
@@ -249,6 +250,7 @@ function toSheetData(d: Omit<z.infer<typeof technicalSheetUpdateSchema>, 'righeM
     costoPackaging: dec(d.costoPackaging),
     altriCostiDiretti: dec(d.altriCostiDiretti),
     altriCostiIndiretti: dec(d.altriCostiIndiretti),
+    pdfCaricatoIl: data(d.pdfCaricatoIl),
     pdfFileCaricatoIl: data(d.pdfFileCaricatoIl),
     scanAiAnalizzatoIl: data(d.scanAiAnalizzatoIl),
   }

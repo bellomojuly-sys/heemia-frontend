@@ -471,6 +471,8 @@ interface DataStoreValue {
   addTechnicalSheet: (productId: string, versione: TechnicalSheetVersion, input?: TechnicalSheetInput) => Promise<TechnicalSheet>
   /** Aggiorna una scheda tecnica esistente; aggiorna anche `aggiornataIl`. */
   updateTechnicalSheet: (id: string, patch: TechnicalSheetInput) => Promise<void>
+  /** DEC-021: collega (o sostituisce) il link Drive al PDF della versione. */
+  setSheetPdfUrl: (sheetId: string, url: string) => Promise<void>
   addSheetPhoto: (sheetId: string, photo: Omit<TechnicalSheetPhoto, 'id' | 'caricataIl'>) => Promise<void>
   removeSheetPhoto: (sheetId: string, photoId: string) => Promise<void>
   /** Spec §6: fotografa il costo corrente nello storico della scheda, senza sovrascrivere il passato. */
@@ -808,6 +810,14 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         }
 
         await persisti(api.patch(`/technical-sheets/${id}`, payload))
+      },
+
+      // Solo il collegamento al PDF: niente righe materiali né fotografia dei costi, perché
+      // il costo della scheda non cambia e lo storico non deve riempirsi di righe identiche.
+      setSheetPdfUrl: async (sheetId, url) => {
+        await persisti(
+          api.patch(`/technical-sheets/${sheetId}`, { pdfUrl: url, pdfCaricatoIl: new Date().toISOString() }),
+        )
       },
 
       addSheetPhoto: async (sheetId, photo) => {
